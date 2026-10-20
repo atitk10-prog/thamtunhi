@@ -24,30 +24,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Safety gate: only display demo preset bar in local dev
-  const isDemoPresetVisible = import.meta.env.DEV;
-
-  // Quick Demo Fill Helper (scoped for testers in dev sandbox only)
-  const handleSelectDemoUser = (role: 'student' | 'teacher' | 'admin', preset: string) => {
-    setActivePortal(role);
-    setErrorMsg(null);
-    if (role === 'student') {
-      if (preset === '1A') {
-        setStudentCode('HS1A01');
-        if (import.meta.env.DEV) setStudentSecret('matkhau123');
-      } else if (preset === '2B') {
-        setStudentCode('HS2B05');
-        if (import.meta.env.DEV) setStudentSecret('matkhau123');
-      }
-    } else if (role === 'teacher') {
-      setEmail('giaovien1@thamtutoannhi.edu.vn');
-      if (import.meta.env.DEV) setPassword('MatKhauGiaoVien@123');
-    } else {
-      setEmail('admin@thamtutoannhi.edu.vn');
-      if (import.meta.env.DEV) setPassword('AdminBaoMat@123');
-    }
-  };
-
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -396,48 +372,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
           </form>
         )}
 
-        {/* Demo Credentials Panel - Hidden on production by default */}
-        {isDemoPresetVisible && (
-          <div className="mt-6 pt-4 border-t border-slate-100">
-            <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 text-center mb-2">
-              🔑 Tài Khoản Thử Nghiệm Nhanh (Chế Độ Kiểm Thử):
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleSelectDemoUser('student', '1A')}
-                className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold cursor-pointer"
-              >
-                Học sinh 1A
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectDemoUser('student', '2B')}
-                className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold cursor-pointer"
-              >
-                Học sinh 2B
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectDemoUser('teacher', '')}
-                className="px-2.5 py-1 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-900 text-xs font-bold cursor-pointer"
-              >
-                Giáo viên 1
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectDemoUser('admin', '')}
-                className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-900 text-xs font-bold cursor-pointer"
-              >
-                Quản trị viên
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Footer */}

@@ -337,6 +337,61 @@ export const dataService = {
     };
   },
 
+  async fetchClassStudents(classId: string): Promise<{ class: any; students: any[]; assignments: any[] }> {
+    const res = await fetch(`/api/teacher/classes/${encodeURIComponent(classId)}/students`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Không thể tải danh sách học sinh của lớp.');
+    }
+    const data = await res.json();
+    return {
+      class: data.class,
+      students: data.students || [],
+      assignments: data.assignments || [],
+    };
+  },
+
+  async addStudentToClass(classId: string, studentData: { displayName: string; studentCode: string; accessSecret: string; grade?: number }): Promise<any> {
+    const res = await fetch(`/api/teacher/classes/${encodeURIComponent(classId)}/students`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(studentData),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Không thể thêm học sinh.');
+    }
+    return res.json();
+  },
+
+  async updateStudent(studentId: string, updates: { status?: string; classId?: string; accessSecret?: string; displayName?: string }): Promise<any> {
+    const res = await fetch(`/api/teacher/students/${encodeURIComponent(studentId)}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Không thể cập nhật học sinh.');
+    }
+    return res.json();
+  },
+
+  async assignTeacherToClass(classId: string, teacherId: string): Promise<any> {
+    const res = await fetch(`/api/admin/classes/${encodeURIComponent(classId)}/teacher`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ teacherId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Không thể phân công giáo viên.');
+    }
+    return res.json();
+  },
+
   // --- 3. ADMIN OPERATIONS ---
 
   async fetchAdminOverview(): Promise<any> {

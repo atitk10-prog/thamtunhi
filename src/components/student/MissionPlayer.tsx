@@ -60,10 +60,32 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
   const currentQuestion: Question | undefined = questions[currentIndex];
 
-  // Initialize or resume attempt in Firestore
+  const cacheKey = `thamtunhi_active_mission_${assignment.id}_${currentUser.id}`;
+
+  // Initialize or resume attempt in Firestore and session storage
   useEffect(() => {
-    async function initAttempt() {
-      // Deterministic attempt ID for idempotency: attempt-{assignmentId}-{studentId}
+    async function initOrResumeAttempt() {
+      // 1. Try to restore in-progress state from sessionStorage (F5 preservation)
+      try {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.attemptId) {
+            setAttemptId(parsed.attemptId);
+            if (typeof parsed.currentIndex === 'number' && parsed.currentIndex < questions.length) {
+              setCurrentIndex(parsed.currentIndex);
+            }
+            if (typeof parsed.score === 'number') setScore(parsed.score);
+            if (typeof parsed.firstTryCount === 'number') setFirstTryCount(parsed.firstTryCount);
+            if (typeof parsed.postHintCount === 'number') setPostHintCount(parsed.postHintCount);
+            return;
+          }
+        }
+      } catch (e) {
+        // Fallback to fresh attempt initialization
+      }
+
+      // 2. Deterministic attempt ID for idempotency: attempt-{assignmentId}-{studentId}
       const newAttemptId = `att-${assignment.id}-${currentUser.id}`;
       setAttemptId(newAttemptId);
 
@@ -97,9 +119,30 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
     }
 
     if (questions.length > 0) {
-      initAttempt();
+      initOrResumeAttempt();
     }
-  }, [assignment, currentUser, lessonVersion, questions.length]);
+  }, [assignment, currentUser, lessonVersion, questions.length, cacheKey]);
+
+  // Sync ongoing attempt state to sessionStorage for F5 reload safety
+  useEffect(() => {
+    if (attemptId && !isCompleted) {
+      try {
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify({
+            attemptId,
+            currentIndex,
+            score,
+            firstTryCount,
+            postHintCount,
+            startTime,
+          })
+        );
+      } catch (e) {
+        // Ignore quota errors
+      }
+    }
+  }, [attemptId, currentIndex, score, firstTryCount, postHintCount, startTime, isCompleted, cacheKey]);
 
   // Read prompt aloud using SpeechSynthesis if Vietnamese voice is available
   const handleSpeak = (text: string) => {
@@ -128,11 +171,15 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         return numberInputValue;
       case 'operator_pick':
         return operatorValue;
-      case 'expression_match':
+      case 'expression_match': {
         // Check if all pairs are matched
         const allPairs = currentQuestion.pairs || [];
-        const isAllMatched = allPairs.length > 0 && allPairs.every((p) => matchedPairs[p.left] === p.right);
-        return isAllMatched ? 'MATCHED_ALL' : 'INCOMPLETE';
+        if (allPairs.length === 0) return 'MATCHED_ALL';
+        const hasConnectedAll = allPairs.every((p) => Boolean(matchedPairs[p.left]));
+        if (!hasConnectedAll) return 'INCOMPLETE';
+        const isAllCorrect = allPairs.every((p) => matchedPairs[p.left] === p.right);
+        return isAllCorrect ? 'MATCHED_ALL' : 'MATCHED_INCORRECT';
+      }
       case 'ten_frame_bundle':
         return tenFrameAnswer;
       case 'number_line_order':
@@ -197,6 +244,9 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         const totalDuration = Math.round((Date.now() - startTime) / 1000);
         setDurationSeconds(totalDuration);
         setIsCompleted(true);
+        try {
+          sessionStorage.removeItem(cacheKey);
+        } catch (e) {}
 
         try {
           await dataService.completeAttempt(attemptId, {
@@ -283,6 +333,50 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
     // Reset specific input to give fresh attempt
     resetQuestionInputs();
     setHasFailedFirstTry(true); // Flag that this is attempt #2
+  };
+
+  const handleRetryMission = async () => {
+    try {
+      sessionStorage.removeItem(cacheKey);
+    } catch (e) {}
+
+    // Luyện lại tạo lượt mới độc lập, không xóa lịch sử cũ
+    const newAttemptId = `att-${assignment.id}-${currentUser.id}-${Date.now()}`;
+    setAttemptId(newAttemptId);
+    setCurrentIndex(0);
+    setScore(0);
+    setFirstTryCount(0);
+    setPostHintCount(0);
+    setIsCompleted(false);
+    resetQuestionInputs();
+
+    try {
+      const attemptDoc: Attempt = {
+        id: newAttemptId,
+        assignmentId: assignment.id,
+        lessonId: assignment.lessonId,
+        lessonVersionId: assignment.lessonVersionId,
+        lessonTitle: lessonVersion.title,
+        studentId: currentUser.id,
+        studentName: currentUser.displayName,
+        studentCode: currentUser.studentCode || '',
+        classId: currentUser.classId || assignment.classId,
+        status: 'in_progress',
+        currentQuestionIndex: 0,
+        score: 0,
+        maxScore: questions.length * 10,
+        firstAttemptCorrectCount: 0,
+        postHintCorrectCount: 0,
+        totalAttemptsMade: 0,
+        startedAt: new Date().toISOString(),
+        durationSeconds: 0,
+        dataOrigin: 'real',
+        environmentTag: 'production',
+      };
+      await dataService.createAttempt(attemptDoc);
+    } catch (err) {
+      console.error('Failed to init retry attempt:', err);
+    }
   };
 
   if (!currentQuestion) {
@@ -454,6 +548,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         postHintCount={postHintCount}
         durationSeconds={durationSeconds}
         onFinish={onExit}
+        onRetry={handleRetryMission}
       />
     </div>
   );

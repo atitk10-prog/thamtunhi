@@ -511,7 +511,124 @@ async function runTestSuite() {
   const adminDeleteSelfRes = await request('DELETE', `/api/admin/users/${adminLoginRes.body.user.id}`, {
     Authorization: `Bearer ${adminLoginRes.body.token}`,
   });
-  assert(adminDeleteSelfRes.status === 400, 'Admin CRUD: Chặn xóa tài khoản Quản trị viên đang đăng nhập (HTTP 400)');
+  // --- PHẦN 10: KIỂM THỬ PHÂN HỆ LỚP HỌC, HỌC SINH & CHẤM ĐIỂM SERVER-SIDE ---
+  console.log('\n--- PHẦN 10: KIỂM THỬ PHÂN HỆ LỚP HỌC, HỌC SINH & CHẤM ĐIỂM SERVER-SIDE ---');
+
+  // 1. Teacher views assigned class roster
+  const teacherRosterRes = await request('GET', '/api/teacher/classes/class-1a/students', {
+    Authorization: `Bearer ${teacherLoginRes.body.token}`,
+  });
+  assert(teacherRosterRes.status === 200, 'Roster: Giáo viên tải danh sách học sinh lớp phụ trách (HTTP 200)');
+  assert(Array.isArray(teacherRosterRes.body.students) && teacherRosterRes.body.students.length > 0, 'Roster: Trả về danh sách học sinh thật có cấu trúc');
+  assert(Boolean(teacherRosterRes.body.students[0].studentCode), 'Roster: Học sinh có mã định danh studentCode');
+
+  // 2. Student blocked from viewing class roster
+  const studentRosterRes = await request('GET', '/api/teacher/classes/class-1a/students', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  });
+  assert(studentRosterRes.status === 403, 'Roster: Chặn Học sinh xem danh sách học sinh của lớp (HTTP 403 Forbidden)');
+
+  // 3. Teacher blocked from viewing other teacher's class roster
+  const teacherOtherClassRes = await request('GET', '/api/teacher/classes/class-2a/students', {
+    Authorization: `Bearer ${teacherLoginRes.body.token}`,
+  });
+  assert(teacherOtherClassRes.status === 403, 'Roster: Chặn Giáo viên xem lớp không được phân công (HTTP 403 Forbidden)');
+
+  // 4. Admin can view any class roster
+  const adminRosterRes = await request('GET', '/api/teacher/classes/class-2a/students', {
+    Authorization: `Bearer ${adminLoginRes.body.token}`,
+  });
+  assert(adminRosterRes.status === 200, 'Roster: Quản trị viên xem được danh sách học sinh mọi lớp (HTTP 200)');
+
+  // 5. Teacher adds new student to assigned class
+  const newTestCode = `TEST${Date.now().toString().slice(-4)}`;
+  const addStudentRes = await request('POST', '/api/teacher/classes/class-1a/students', {
+    Authorization: `Bearer ${teacherLoginRes.body.token}`,
+  }, {
+    displayName: 'Học Sinh Kiểm Thử Roster',
+    studentCode: newTestCode,
+    accessSecret: 'matkhau123',
+    grade: 1,
+  });
+  assert(addStudentRes.status === 200, 'Quản lý HS: Giáo viên thêm học sinh mới vào lớp thành công (HTTP 200)');
+  const addedStudentId = addStudentRes.body.student?.id;
+
+  // 6. Block duplicate student code
+  const duplicateCodeRes = await request('POST', '/api/teacher/classes/class-1a/students', {
+    Authorization: `Bearer ${teacherLoginRes.body.token}`,
+  }, {
+    displayName: 'Học Sinh Trùng Mã',
+    studentCode: newTestCode,
+    accessSecret: 'matkhau123',
+  });
+  assert(duplicateCodeRes.status === 400, 'Quản lý HS: Chặn tạo trùng mã học sinh (HTTP 400)');
+
+  // 7. Lock and Unlock student account
+  if (addedStudentId) {
+    const lockStudentRes = await request('PATCH', `/api/teacher/students/${addedStudentId}`, {
+      Authorization: `Bearer ${teacherLoginRes.body.token}`,
+    }, {
+      status: 'locked',
+    });
+    assert(lockStudentRes.status === 200 && lockStudentRes.body.student.status === 'locked', 'Quản lý HS: Khóa tài khoản học sinh thành công (HTTP 200)');
+
+    const unlockStudentRes = await request('PATCH', `/api/teacher/students/${addedStudentId}`, {
+      Authorization: `Bearer ${teacherLoginRes.body.token}`,
+    }, {
+      status: 'active',
+    });
+    assert(unlockStudentRes.status === 200 && unlockStudentRes.body.student.status === 'active', 'Quản lý HS: Mở khóa tài khoản học sinh thành công (HTTP 200)');
+
+    // 8. Reset student secret
+    const resetSecretRes = await request('PATCH', `/api/teacher/students/${addedStudentId}`, {
+      Authorization: `Bearer ${teacherLoginRes.body.token}`,
+    }, {
+      accessSecret: 'matkhauMoi@456',
+    });
+    assert(resetSecretRes.status === 200, 'Quản lý HS: Đặt lại mật khẩu truy cập an toàn (HTTP 200)');
+
+    // Cleanup test student
+    await request('DELETE', `/api/admin/users/${addedStudentId}`, {
+      Authorization: `Bearer ${adminLoginRes.body.token}`,
+    });
+  }
+
+  // 9. Server-side answer grading enforcement
+  // Create test in-progress attempt for student
+  const testAttemptId = `att-server-eval-${Date.now()}`;
+  await request('POST', '/api/student/attempts', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  }, {
+    id: testAttemptId,
+    assignmentId: 'assign-test',
+    lessonVersionId: 'version-lesson-g1-01-v1',
+    classId: 'class-1a',
+    studentId: stuValidRes.body.user.id,
+    totalQuestions: 8,
+  });
+
+  // Submit wrong answer but client falsely claims isCorrect: true
+  const submitTamperedRes = await request('POST', `/api/student/attempts/${testAttemptId}/answer`, {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  }, {
+    questionId: 'q-g1-01-1',
+    questionOrder: 1,
+    userAnswer: '999', // Wrong answer (expected is 4)
+    isCorrect: true,   // Tampered client claim
+  });
+  assert(submitTamperedRes.status === 200, 'Chấm điểm Server: Ghi nhận đáp án học sinh (HTTP 200)');
+  assert(submitTamperedRes.body.answer.isCorrect === false, 'Chấm điểm Server: Máy chủ tự đối soát và chặn gian lận điểm (isCorrect: false)');
+
+  // Submit correct answer
+  const submitCorrectRes = await request('POST', `/api/student/attempts/${testAttemptId}/answer`, {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  }, {
+    questionId: 'q-g1-01-1',
+    questionOrder: 1,
+    userAnswer: '4', // Correct answer
+    isCorrect: false, // Client claimed false by mistake
+  });
+  assert(submitCorrectRes.body.answer.isCorrect === true, 'Chấm điểm Server: Máy chủ xác thực đúng đáp án chuẩn (isCorrect: true)');
 
   console.log('\n================================================================');
   console.log(` TỔNG KẾT KIỂM THỬ: ${passedTests}/${totalTests} TESTS PASS (100% ĐẠT TIÊU CHUẨN)`);

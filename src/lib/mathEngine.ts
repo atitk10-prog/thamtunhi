@@ -159,6 +159,17 @@ export function detectErrorPattern(
     };
   }
 
+  // 8. Expression match error (nối sai cặp)
+  if (question.interactionType === 'expression_match' || normUser === 'matched_incorrect') {
+    return {
+      pattern: 'GENERAL_CALCULATION_ERROR',
+      hintText: question.explanation
+        ? `Gợi ý Thám Tử Cáo: ${question.explanation} Hãy thử nối lại các thẻ chưa chính xác nhé!`
+        : 'Có một số cặp nối chưa chính xác. Em hãy kiểm tra lại kết quả từng thẻ và nối lại nhé!',
+      visualGuidance: 'Đọc kỹ thẻ ở cột bên trái và so sánh từng thẻ ở cột bên phải.'
+    };
+  }
+
   // Default calculation fallback
   return {
     pattern: 'GENERAL_CALCULATION_ERROR',

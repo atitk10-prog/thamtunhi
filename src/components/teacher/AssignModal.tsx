@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Send, CheckSquare, Square, Calendar, Loader2 } from 'lucide-react';
+import { X, Send, CheckSquare, Square, Calendar, Loader2, User } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { Lesson, Classroom } from '../../types';
 
@@ -7,6 +7,7 @@ interface AssignModalProps {
   isOpen: boolean;
   lesson: Lesson | null;
   classes: Classroom[];
+  targetStudent?: { id: string; displayName: string; classId: string; studentCode?: string } | null;
   teacherId: string;
   onClose: () => void;
   onAssigned: () => void;
@@ -16,11 +17,14 @@ export const AssignModal: React.FC<AssignModalProps> = ({
   isOpen,
   lesson,
   classes,
+  targetStudent,
   teacherId,
   onClose,
   onAssigned,
 }) => {
-  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>(
+    targetStudent ? [targetStudent.classId] : []
+  );
   const [dueDate, setDueDate] = useState<string>(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
@@ -33,12 +37,14 @@ export const AssignModal: React.FC<AssignModalProps> = ({
   const eligibleClasses = classes.filter((c) => c.grade === lesson.grade);
 
   const toggleClass = (cId: string) => {
+    if (targetStudent) return; // Locked to target student's class
     setSelectedClassIds((prev) =>
       prev.includes(cId) ? prev.filter((id) => id !== cId) : [...prev, cId]
     );
   };
 
   const selectAll = () => {
+    if (targetStudent) return;
     if (selectedClassIds.length === eligibleClasses.length) {
       setSelectedClassIds([]);
     } else {
@@ -47,7 +53,7 @@ export const AssignModal: React.FC<AssignModalProps> = ({
   };
 
   const handleAssign = async () => {
-    if (selectedClassIds.length === 0) {
+    if (!targetStudent && selectedClassIds.length === 0) {
       setErrorMsg('Vui lòng chọn ít nhất 1 lớp học.');
       return;
     }
@@ -56,19 +62,21 @@ export const AssignModal: React.FC<AssignModalProps> = ({
     setErrorMsg(null);
 
     try {
-      const versionId = `version-${lesson.id}-v${lesson.currentVersion || 1}`;
+      const versionId = lesson.currentVersionId || `version-${lesson.id}-v${lesson.currentVersion || 1}`;
 
-      for (const classId of selectedClassIds) {
-        const cls = eligibleClasses.find((c) => c.id === classId);
-        // Idempotency key based on lesson + class + version
-        const idempotencyKey = `assign-${lesson.id}-v${lesson.currentVersion || 1}-${classId}`;
+      if (targetStudent) {
+        // Individual student assignment
+        const cls = classes.find((c) => c.id === targetStudent.classId);
+        const idempotencyKey = `assign-${lesson.id}-v${lesson.currentVersion || 1}-${targetStudent.classId}-${targetStudent.id}`;
         const assignmentDoc = {
           id: idempotencyKey,
           title: `[Toán ${lesson.grade}] ${lesson.title}`,
           lessonId: lesson.id,
           lessonVersionId: versionId,
-          classId,
-          className: cls?.name || '1A',
+          classId: targetStudent.classId,
+          className: cls?.name || '',
+          studentId: targetStudent.id,
+          studentName: targetStudent.displayName,
           grade: lesson.grade,
           teacherId,
           dueDate,
@@ -76,10 +84,32 @@ export const AssignModal: React.FC<AssignModalProps> = ({
           idempotencyKey,
           createdAt: new Date().toISOString(),
           dataOrigin: 'real',
-          environmentTag: 'demo',
+          environmentTag: 'production',
         };
-
         await dataService.saveAssignment(assignmentDoc as any);
+      } else {
+        // Whole class assignments
+        for (const classId of selectedClassIds) {
+          const cls = eligibleClasses.find((c) => c.id === classId);
+          const idempotencyKey = `assign-${lesson.id}-v${lesson.currentVersion || 1}-${classId}`;
+          const assignmentDoc = {
+            id: idempotencyKey,
+            title: `[Toán ${lesson.grade}] ${lesson.title}`,
+            lessonId: lesson.id,
+            lessonVersionId: versionId,
+            classId,
+            className: cls?.name || '1A',
+            grade: lesson.grade,
+            teacherId,
+            dueDate,
+            status: 'open',
+            idempotencyKey,
+            createdAt: new Date().toISOString(),
+            dataOrigin: 'real',
+            environmentTag: 'production',
+          };
+          await dataService.saveAssignment(assignmentDoc as any);
+        }
       }
 
       onAssigned();
@@ -98,7 +128,9 @@ export const AssignModal: React.FC<AssignModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
           <div>
-            <h3 className="text-xl font-black text-slate-800">Giao Bài Cho Lớp</h3>
+            <h3 className="text-xl font-black text-slate-800">
+              {targetStudent ? 'Giao Bài Riêng Cho Học Sinh' : 'Giao Bài Cho Lớp'}
+            </h3>
             <p className="text-xs font-semibold text-slate-500 mt-0.5 truncate max-w-xs">
               {lesson.title} (v{lesson.currentVersion || 1})
             </p>
@@ -120,56 +152,70 @@ export const AssignModal: React.FC<AssignModalProps> = ({
         )}
 
         <div className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-black uppercase tracking-wider text-slate-600">
-                Chọn Lớp Nhận Bài (Khối {lesson.grade})
-              </label>
-              <button
-                type="button"
-                onClick={selectAll}
-                className="text-xs font-bold text-sky-600 hover:underline cursor-pointer"
-              >
-                {selectedClassIds.length === eligibleClasses.length ? 'Bỏ chọn hết' : 'Chọn tất cả'}
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {eligibleClasses.length === 0 ? (
-                <div className="p-4 rounded-xl bg-slate-50 text-center text-xs font-bold text-slate-500">
-                  Không tìm thấy lớp học Khối {lesson.grade}.
+          {targetStudent ? (
+            <div className="p-3.5 bg-amber-50 rounded-2xl border-2 border-amber-200 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400 text-amber-950 flex items-center justify-center font-black">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-amber-800 uppercase tracking-wider">Học sinh nhận bài:</div>
+                <div className="text-base font-black text-slate-900">
+                  {targetStudent.displayName} {targetStudent.studentCode ? `(${targetStudent.studentCode})` : ''}
                 </div>
-              ) : (
-                eligibleClasses.map((cls) => {
-                  const isChecked = selectedClassIds.includes(cls.id);
-                  return (
-                    <button
-                      key={cls.id}
-                      type="button"
-                      onClick={() => toggleClass(cls.id)}
-                      className={`w-full p-3 rounded-xl border-2 text-left font-bold text-sm flex items-center justify-between transition-colors cursor-pointer ${
-                        isChecked
-                          ? 'bg-sky-50 border-sky-400 text-sky-900'
-                          : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        {isChecked ? (
-                          <CheckSquare className="w-5 h-5 text-sky-600" />
-                        ) : (
-                          <Square className="w-5 h-5 text-slate-400" />
-                        )}
-                        <span>Lớp {cls.name}</span>
-                      </div>
-                      <span className="text-xs font-semibold text-slate-500">
-                        {cls.studentCount || 12} học sinh
-                      </span>
-                    </button>
-                  );
-                })
-              )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-black uppercase tracking-wider text-slate-600">
+                  Chọn Lớp Nhận Bài (Khối {lesson.grade})
+                </label>
+                <button
+                  type="button"
+                  onClick={selectAll}
+                  className="text-xs font-bold text-sky-600 hover:underline cursor-pointer"
+                >
+                  {selectedClassIds.length === eligibleClasses.length ? 'Bỏ chọn hết' : 'Chọn tất cả'}
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {eligibleClasses.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-slate-50 text-center text-xs font-bold text-slate-500">
+                    Không tìm thấy lớp học Khối {lesson.grade}.
+                  </div>
+                ) : (
+                  eligibleClasses.map((cls) => {
+                    const isChecked = selectedClassIds.includes(cls.id);
+                    return (
+                      <button
+                        key={cls.id}
+                        type="button"
+                        onClick={() => toggleClass(cls.id)}
+                        className={`w-full p-3 rounded-xl border-2 text-left font-bold text-sm flex items-center justify-between transition-colors cursor-pointer ${
+                          isChecked
+                            ? 'bg-sky-50 border-sky-400 text-sky-900'
+                            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {isChecked ? (
+                            <CheckSquare className="w-5 h-5 text-sky-600" />
+                          ) : (
+                            <Square className="w-5 h-5 text-slate-400" />
+                          )}
+                          <span>Lớp {cls.name}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500">
+                          {cls.studentCount || 0} học sinh
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5 flex items-center gap-1.5">
@@ -196,7 +242,7 @@ export const AssignModal: React.FC<AssignModalProps> = ({
 
           <button
             type="button"
-            disabled={isSubmitting || selectedClassIds.length === 0}
+            disabled={isSubmitting || (!targetStudent && selectedClassIds.length === 0)}
             onClick={handleAssign}
             className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white text-sm font-black flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50 transition-all"
           >

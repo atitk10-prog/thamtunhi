@@ -21,6 +21,7 @@ import { LessonEditorModal } from './LessonEditorModal';
 import { AiDraftModal } from './AiDraftModal';
 import { AssignModal } from './AssignModal';
 import { MisconceptionAnalytics } from './MisconceptionAnalytics';
+import { ClassRosterView } from './ClassRosterView';
 import { MissionPlayer } from '../student/MissionPlayer';
 
 interface TeacherPortalProps {
@@ -38,6 +39,8 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [classes, setClasses] = useState<Classroom[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [selectedClass, setSelectedClass] = useState<Classroom | null>(null);
+  const [assigningStudent, setAssigningStudent] = useState<{ id: string; displayName: string; classId: string; studentCode?: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -82,7 +85,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const handleOpenEditor = async (lesson?: Lesson) => {
     if (lesson) {
       setEditingLesson(lesson);
-      const vId = `version-${lesson.id}-v${lesson.currentVersion || 1}`;
+      const vId = lesson.currentVersionId || `version-${lesson.id}-v${lesson.currentVersion || 1}`;
       try {
         const v = await dataService.fetchLessonVersion(vId);
         setEditingVersion(v || null);
@@ -97,13 +100,14 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
     setIsEditorOpen(true);
   };
 
-  const handleOpenAssign = (lesson: Lesson) => {
+  const handleOpenAssign = (lesson: Lesson, student?: { id: string; displayName: string; classId: string; studentCode?: string }) => {
     setAssigningLesson(lesson);
+    setAssigningStudent(student || null);
     setIsAssignOpen(true);
   };
 
   const handlePreviewLesson = async (lesson: Lesson) => {
-    const vId = `version-${lesson.id}-v${lesson.currentVersion || 1}`;
+    const vId = lesson.currentVersionId || `version-${lesson.id}-v${lesson.currentVersion || 1}`;
     try {
       const v = await dataService.fetchLessonVersion(vId);
       if (v) {
@@ -231,7 +235,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <Send className="w-4 h-4" /> Đợt Giao Bài &amp; Lớp Học ({assignments.length})
+            <Users className="w-4 h-4" /> Lớp Học & Học Sinh ({classes.length})
           </button>
 
           <button
@@ -393,84 +397,136 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
         {/* TAB 2: ASSIGNMENTS & CLASSES */}
         {activeTab === 'assignments' && (
-          <div className="space-y-6">
-            {/* Classes Overview Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {classes.map((c) => (
-                <div key={c.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black uppercase text-sky-600">Khối {c.grade}</span>
-                    <Users className="w-4 h-4 text-slate-400" />
-                  </div>
-                  <div className="text-2xl font-black text-slate-800 mt-2">
-                    Lớp {c.name}
-                  </div>
-                  <div className="text-xs font-semibold text-slate-500 mt-1">
-                    {c.studentCount || 12} học sinh
+          selectedClass ? (
+            <ClassRosterView
+              classroom={selectedClass}
+              teacherId={currentUser.id}
+              isAdmin={currentUser.role === 'admin'}
+              allClasses={classes}
+              onBack={() => setSelectedClass(null)}
+              onAssignToStudent={(student) => {
+                if (lessons.length > 0) {
+                  handleOpenAssign(lessons[0], student);
+                } else {
+                  alert('Chưa có bài học trong kho học liệu để giao.');
+                }
+              }}
+              onAssignToClass={(classId) => {
+                if (lessons.length > 0) {
+                  handleOpenAssign(lessons[0]);
+                } else {
+                  alert('Chưa có bài học trong kho học liệu để giao.');
+                }
+              }}
+            />
+          ) : (
+            <div className="space-y-6">
+              {/* Classes Overview Bar */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">Danh sách Lớp học được phân công</h3>
+                    <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                      Chọn một lớp học để xem danh sách học sinh thật, theo dõi tiến độ và giao bài tập
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Assignments Table */}
-            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-black text-slate-800">
-                    Các đợt giao bài gần đây
-                  </h3>
-                  <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                    Quản lý đợt giao bài theo lớp và hạn làm bài
-                  </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {classes.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => setSelectedClass(c)}
+                      className="bg-white p-5 rounded-3xl border-2 border-slate-200 hover:border-sky-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
+                            Khối {c.grade}
+                          </span>
+                          <Users className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors" />
+                        </div>
+                        <div className="text-2xl font-black text-slate-900 mt-2 group-hover:text-sky-700 transition-colors">
+                          Lớp {c.name}
+                        </div>
+                        <div className="text-xs font-bold text-slate-600 mt-1">
+                          {c.studentCount || 0} học sinh
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-sky-600 group-hover:underline">
+                        <span>Xem danh sách học sinh &rarr;</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] font-black border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-4">Tên bài giao</th>
-                      <th className="px-6 py-4">Lớp nhận</th>
-                      <th className="px-6 py-4">Khối</th>
-                      <th className="px-6 py-4">Hạn nộp</th>
-                      <th className="px-6 py-4">Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                    {assignments.length === 0 ? (
+              {/* Assignments Table */}
+              <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800">
+                      Các đợt giao bài gần đây
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                      Quản lý đợt giao bài theo lớp và hạn làm bài
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] font-black border-b border-slate-200">
                       <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                          Chưa có đợt giao bài nào.
-                        </td>
+                        <th className="px-6 py-4">Tên bài giao</th>
+                        <th className="px-6 py-4">Lớp nhận</th>
+                        <th className="px-6 py-4">Khối</th>
+                        <th className="px-6 py-4">Hạn nộp</th>
+                        <th className="px-6 py-4">Trạng thái</th>
                       </tr>
-                    ) : (
-                      assignments.map((a) => (
-                        <tr key={a.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-6 py-4 font-bold text-slate-900">
-                            {a.title}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 font-extrabold text-xs">
-                              Lớp {a.className || a.classId}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">Lớp {a.grade || 1}</td>
-                          <td className="px-6 py-4 text-xs font-bold text-slate-600">
-                            {a.dueDate || 'Không giới hạn'}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Đang mở
-                            </span>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                      {assignments.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                            Chưa có đợt giao bài nào.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        assignments.map((a) => (
+                          <tr key={a.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-6 py-4 font-bold text-slate-900">
+                              {a.title}
+                              {a.studentName && (
+                                <span className="ml-2 text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                  Riêng: {a.studentName}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 font-extrabold text-xs">
+                                Lớp {a.className || a.classId}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">Lớp {a.grade || 1}</td>
+                            <td className="px-6 py-4 text-xs font-bold text-slate-600">
+                              {a.dueDate || 'Không giới hạn'}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Đang mở
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
+          )
         )}
 
         {/* TAB 3: MISCONCEPTION ANALYTICS */}
@@ -508,7 +564,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
             isPublished: false,
             createdBy: currentUser.id,
             dataOrigin: 'real',
-            environmentTag: 'demo',
+            environmentTag: 'production',
           });
           setIsEditorOpen(true);
         }}
@@ -519,8 +575,12 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
         isOpen={isAssignOpen}
         lesson={assigningLesson}
         classes={classes}
+        targetStudent={assigningStudent}
         teacherId={currentUser.id}
-        onClose={() => setIsAssignOpen(false)}
+        onClose={() => {
+          setIsAssignOpen(false);
+          setAssigningStudent(null);
+        }}
         onAssigned={fetchData}
       />
     </div>

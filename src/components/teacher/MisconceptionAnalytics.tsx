@@ -10,7 +10,7 @@ interface MisconceptionAnalyticsProps {
 }
 
 export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ teacherId }) => {
-  const [dataOriginFilter, setDataOriginFilter] = useState<'all' | 'simulation' | 'real'>('all');
+  const [dataOriginFilter, setDataOriginFilter] = useState<'all' | 'simulation' | 'real'>('real');
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [insights, setInsights] = useState<MistakeInsight[]>([]);
@@ -51,15 +51,24 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
     }
   };
 
-  // Compute metrics
+  // Compute metrics accurately based on completed attempts
   const totalAttempts = attempts.length;
-  const completedAttempts = attempts.filter((a) => a.status === 'completed').length;
+  const completedAttemptsList = attempts.filter((a) => a.status === 'completed');
+  const inProgressAttemptsList = attempts.filter((a) => a.status === 'in_progress');
+  const completedAttempts = completedAttemptsList.length;
+
+  // Accurate score ratio: do NOT divide by completedAttempts * 80!
   const avgScore = completedAttempts > 0
-    ? Math.round((attempts.reduce((sum, a) => sum + (a.score || 0), 0) / (completedAttempts * 80)) * 100)
+    ? Math.round(
+        completedAttemptsList.reduce((sum, a) => {
+          const max = a.maxScore && a.maxScore > 0 ? a.maxScore : 80;
+          return sum + ((a.score || 0) / max) * 100;
+        }, 0) / completedAttempts
+      )
     : 0;
 
-  const totalFirstTry = attempts.reduce((sum, a) => sum + (a.firstAttemptCorrectCount || 0), 0);
-  const totalPostHint = attempts.reduce((sum, a) => sum + (a.postHintCorrectCount || 0), 0);
+  const totalFirstTry = completedAttemptsList.reduce((sum, a) => sum + (a.firstAttemptCorrectCount || 0), 0);
+  const totalPostHint = completedAttemptsList.reduce((sum, a) => sum + (a.postHintCorrectCount || 0), 0);
   const hintRecoveryRate = (totalFirstTry + totalPostHint) > 0
     ? Math.round((totalPostHint / (totalFirstTry + totalPostHint)) * 100)
     : 0;
@@ -82,34 +91,47 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
       'Mã HS',
       'Lớp',
       'Bài học',
-      'Điểm số',
+      'Trạng thái',
+      'Điểm đạt được',
+      'Điểm tối đa',
+      'Tỷ lệ đạt (%)',
       'Đúng lần đầu',
       'Đúng sau gợi ý',
       'Thời gian (giây)',
       'Nguồn dữ liệu',
-      'Thời điểm làm'
+      'Thời điểm ghi nhận'
     ];
 
-    const rows = attempts.map((a) => [
-      `"${a.id}"`,
-      `"${a.studentName || 'Học sinh'}"`,
-      `"${a.studentCode || ''}"`,
-      `"${a.classId}"`,
-      `"${a.lessonTitle || ''}"`,
-      a.score,
-      a.firstAttemptCorrectCount,
-      a.postHintCorrectCount,
-      a.durationSeconds,
-      `"${a.dataOrigin === 'simulation' ? 'Dữ liệu mô phỏng' : 'Dữ liệu thật'}"`,
-      `"${a.completedAt || a.startedAt || ''}"`
-    ]);
+    const rows = attempts.map((a) => {
+      const max = a.maxScore && a.maxScore > 0 ? a.maxScore : 80;
+      const pct = Math.round(((a.score || 0) / max) * 100);
+      const statusLabel = a.status === 'completed' ? 'Đã hoàn thành' : 'Đang làm dở';
+      const originLabel = a.dataOrigin === 'simulation' ? 'Dữ liệu thử nghiệm' : 'Dữ liệu học sinh thật';
+
+      return [
+        `"${a.id}"`,
+        `"${a.studentName || 'Học sinh'}"`,
+        `"${a.studentCode || ''}"`,
+        `"${a.classId}"`,
+        `"${a.lessonTitle || ''}"`,
+        `"${statusLabel}"`,
+        a.score || 0,
+        max,
+        `"${pct}%"`,
+        a.firstAttemptCorrectCount || 0,
+        a.postHintCorrectCount || 0,
+        a.durationSeconds || 0,
+        `"${originLabel}"`,
+        `"${a.completedAt || a.startedAt || ''}"`
+      ];
+    });
 
     const csvContent = BOM + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `bao_cao_loi_sai_toan_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `bao_cao_ket_qua_toan_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -165,30 +187,30 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
           <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
             <button
               type="button"
+              onClick={() => setDataOriginFilter('real')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                dataOriginFilter === 'real' ? 'bg-white shadow-xs text-emerald-800 font-black' : 'text-slate-600'
+              }`}
+            >
+              Học sinh thực tế
+            </button>
+            <button
+              type="button"
               onClick={() => setDataOriginFilter('all')}
               className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                dataOriginFilter === 'all' ? 'bg-white shadow-xs text-sky-800' : 'text-slate-600'
+                dataOriginFilter === 'all' ? 'bg-white shadow-xs text-sky-800 font-black' : 'text-slate-600'
               }`}
             >
               Tất cả ({attempts.length})
             </button>
             <button
               type="button"
-              onClick={() => setDataOriginFilter('real')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                dataOriginFilter === 'real' ? 'bg-white shadow-xs text-sky-800' : 'text-slate-600'
-              }`}
-            >
-              Chỉ dữ liệu thật
-            </button>
-            <button
-              type="button"
               onClick={() => setDataOriginFilter('simulation')}
               className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                dataOriginFilter === 'simulation' ? 'bg-amber-400 text-slate-900 shadow-xs' : 'text-slate-600'
+                dataOriginFilter === 'simulation' ? 'bg-amber-400 text-slate-900 font-black shadow-xs' : 'text-slate-600'
               }`}
             >
-              Dữ liệu mô phỏng (Demo)
+              Lượt thử nghiệm hệ thống
             </button>
           </div>
 
