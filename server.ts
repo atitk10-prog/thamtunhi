@@ -1,6 +1,8 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
@@ -13,85 +15,252 @@ import {
   query,
   where,
   deleteDoc,
-  writeBatch
+  updateDoc,
 } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
-import firebaseConfig from './firebase-applet-config.json';
-import { CURRICULUM_DATA } from './src/data/curriculumData.ts';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize Firebase for server context
+// Safe JSON loading compatible across Node.js 18, 20, 22, 24
+const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
+const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+// Initialize Firebase client for server environment
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
-// Gemini client (reads GEMINI_API_KEY from environment)
+// Firebase Service Account Credentials for Custom Token Minting (RS256 JWT)
+// Conforms to Google Identity Toolkit Custom Token Specification (Zero external dependencies)
+let serviceAccount: { client_email: string; private_key: string } | null = null;
+const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT;
+if (saEnv) {
+  try {
+    const sa = JSON.parse(saEnv);
+    if (sa.client_email && sa.private_key) {
+      serviceAccount = { client_email: sa.client_email, private_key: sa.private_key };
+    }
+  } catch (e) {
+    console.warn('Notice: Service account parse error:', e);
+  }
+}
+
+export async function mintCustomToken(uid: string, claims: Record<string, any> = {}): Promise<string | null> {
+  if (!serviceAccount) return null;
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const header = { alg: 'RS256', typ: 'JWT' };
+    const payload = {
+      iss: serviceAccount.client_email,
+      sub: serviceAccount.client_email,
+      aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+      iat: now,
+      exp: now + 3600,
+      uid,
+      claims,
+    };
+    const b64Header = Buffer.from(JSON.stringify(header)).toString('base64url');
+    const b64Payload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const data = `${b64Header}.${b64Payload}`;
+    const signer = crypto.createSign('RSA-SHA256');
+    signer.update(data);
+    const sig = signer.sign(serviceAccount.private_key, 'base64url');
+    return `${data}.${sig}`;
+  } catch (e) {
+    console.warn('Notice: Custom token generation error:', e);
+    return null;
+  }
+}
+
+// Gemini AI client initialization
 let genAI: GoogleGenAI | null = null;
 if (process.env.GEMINI_API_KEY) {
   try {
     genAI = new GoogleGenAI();
   } catch (e) {
-    console.warn('Gemini client init notice:', e);
+    console.warn('Notice: Gemini client init:', e);
   }
+}
+
+// Secret for stateless HMAC session tokens
+const AUTH_SECRET = process.env.AUTH_SECRET || process.env.SESSION_SECRET || 'thamtutoannhi-secure-session-key-gdpt2018-hmac';
+
+export interface AuthSession {
+  uid: string;
+  role: 'admin' | 'teacher' | 'student';
+  displayName: string;
+  email?: string;
+  studentCode?: string;
+  classId?: string;
+  grade?: number;
+  exp: number; // Unix timestamp
+}
+
+export function createAuthToken(payload: Omit<AuthSession, 'exp'>, expiresInDays = 7): string {
+  const exp = Math.floor(Date.now() / 1000) + expiresInDays * 86400;
+  const session: AuthSession = { ...payload, exp };
+  const encodedPayload = Buffer.from(JSON.stringify(session)).toString('base64url');
+  const signature = crypto.createHmac('sha256', AUTH_SECRET).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${signature}`;
+}
+
+export function verifyAuthToken(token: string): AuthSession | null {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [encodedPayload, signature] = parts;
+  const expectedSig = crypto.createHmac('sha256', AUTH_SECRET).update(encodedPayload).digest('base64url');
+  if (signature !== expectedSig) return null;
+  try {
+    const session = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as AuthSession;
+    if (session.exp && session.exp < Math.floor(Date.now() / 1000)) {
+      return null; // Expired
+    }
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+export interface AuthenticatedRequest extends Request {
+  user?: AuthSession;
+}
+
+// Authentication middleware
+export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Yêu cầu đăng nhập. Thiếu Bearer Token xác thực.' });
+  }
+  const token = authHeader.substring(7);
+  const session = verifyAuthToken(token);
+  if (!session) {
+    return res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
+  }
+  req.user = session;
+  next();
+}
+
+// Role-based authorization middleware
+export function requireRole(allowedRoles: Array<'admin' | 'teacher' | 'student'>) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Từ chối truy cập: Bạn không có quyền thực hiện thao tác này.' });
+    }
+    next();
+  };
 }
 
 const app = express();
 app.use(express.json());
 
-// 1. Health check endpoint
+// CORS & Security headers for cross-environment safety
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
+
+// 1. Health check endpoint (Probes true Cloud Firestore connectivity and reports genuine status)
 app.get('/api/health', async (_req: Request, res: Response) => {
-  res.json({
-    status: 'healthy',
+  let firestoreConnected = false;
+  let lessonsCount = 0;
+  let errorDetail: string | null = null;
+
+  try {
+    const lSnap = await getDocs(collection(db, 'lessons'));
+    lessonsCount = lSnap.size;
+    firestoreConnected = true;
+  } catch (err: any) {
+    console.error('Firestore health probe error:', err);
+    errorDetail = err?.message || String(err);
+  }
+
+  const isHealthy = firestoreConnected;
+
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'healthy' : 'degraded',
     firebaseProjectId: firebaseConfig.projectId,
     databaseId: firebaseConfig.firestoreDatabaseId,
-    authConnected: true,
+    firestoreConnected,
+    lessonsCount,
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
-    buildVersion: '1.0.0-prod',
-    environmentTag: 'demo',
+    buildVersion: '1.1.0-prod',
+    environmentTag: (process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production') ? 'production' : 'development',
     timestamp: new Date().toISOString(),
+    ...(errorDetail ? { warning: 'Cloud Firestore kết nối gián đoạn' } : {}),
   });
 });
 
 // 2. Student Authentication endpoint (Student Code + Access Secret)
+// Zero fallback passwords, sanitized response, signed JWT session token
 app.post('/api/auth/student-login', async (req: Request, res: Response) => {
   const { studentCode, accessSecret } = req.body;
 
   if (!studentCode || !accessSecret) {
-    return res.status(400).json({ error: 'Thiếu mã học sinh hoặc mật khẩu.' });
+    return res.status(400).json({ error: 'Vui lòng nhập đầy đủ Mã học sinh và Mật khẩu truy cập.' });
   }
 
   try {
+    const cleanCode = String(studentCode).trim().toUpperCase();
+    const cleanSecret = String(accessSecret).trim();
+
     const q = query(
       collection(db, 'users'),
       where('role', '==', 'student'),
-      where('studentCode', '==', studentCode.trim().toUpperCase())
+      where('studentCode', '==', cleanCode)
     );
     const snap = await getDocs(q);
 
     if (snap.empty) {
-      return res.status(404).json({ error: 'Không tìm thấy học sinh với mã này.' });
+      return res.status(401).json({ error: 'Mã học sinh hoặc mật khẩu không chính xác.' });
     }
 
     const studentDoc = snap.docs[0].data();
-    // Validate access secret (for demo seed, secret is matkhau123)
-    const expectedSecret = studentDoc.accessSecret || 'matkhau123';
-    if (accessSecret !== expectedSecret) {
-      return res.status(401).json({ error: 'Mật khẩu truy cập không chính xác.' });
+    const expectedSecret = studentDoc.accessSecret;
+
+    // Strict validation: No hardcoded fallback password allowed
+    if (!expectedSecret || cleanSecret !== expectedSecret) {
+      return res.status(401).json({ error: 'Mã học sinh hoặc mật khẩu không chính xác.' });
     }
 
-    // Mask secret before sending back
-    const { accessSecret: _, ...safeUser } = studentDoc;
-    return res.json({ ok: true, user: safeUser });
+    // Check account status: locked or inactive accounts cannot log in
+    if (studentDoc.status === 'locked' || studentDoc.status === 'inactive') {
+      return res.status(403).json({ error: 'Tài khoản học sinh này đã bị tạm khóa.' });
+    }
+
+    // Mask secrets before sending to client
+    const { accessSecret: _, password: __, ...safeUser } = studentDoc;
+
+    // Generate signed session token
+    const token = createAuthToken({
+      uid: safeUser.id,
+      role: 'student',
+      displayName: safeUser.displayName,
+      studentCode: safeUser.studentCode,
+      classId: safeUser.classId,
+      grade: safeUser.grade,
+    });
+
+    const customToken = await mintCustomToken(safeUser.id, {
+      role: 'student',
+      studentCode: safeUser.studentCode,
+      classId: safeUser.classId,
+      grade: safeUser.grade,
+    });
+
+    return res.json({ ok: true, user: safeUser, token, customToken });
   } catch (err: any) {
-    console.error('Student login error:', err);
-    return res.status(500).json({ error: 'Lỗi máy chủ xác thực học sinh.' });
+    console.error('Student login server error:', err);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực học sinh.' });
   }
 });
 
 // 3. Teacher & Admin Authentication endpoint
+// Eliminated fixed admin backdoor & default password bypass
 app.post('/api/auth/teacher-login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -100,63 +269,149 @@ app.post('/api/auth/teacher-login', async (req: Request, res: Response) => {
   }
 
   try {
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanPassword = String(password);
+
     const q = query(
       collection(db, 'users'),
-      where('email', '==', email.trim().toLowerCase())
+      where('email', '==', cleanEmail)
     );
     const snap = await getDocs(q);
 
     if (snap.empty) {
-      // Check default fallback admin
-      if (email.trim().toLowerCase() === 'admin@thamtutoannhi.edu.vn' && password === 'AdminBaoMat@123') {
-        const adminUser = {
-          id: 'admin-primary',
-          role: 'admin',
-          displayName: 'Ban Quản Trị Hệ Thống',
-          email: 'admin@thamtutoannhi.edu.vn',
-          createdAt: new Date().toISOString(),
-          dataOrigin: 'simulation',
-          environmentTag: 'demo',
-        };
-        await setDoc(doc(db, 'users', 'admin-primary'), adminUser, { merge: true });
-        return res.json({ ok: true, user: adminUser });
-      }
-
-      return res.status(404).json({ error: 'Không tìm thấy tài khoản với email này.' });
+      return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác.' });
     }
 
     const userDoc = snap.docs[0].data();
-    const expectedPassword = userDoc.password || (userDoc.role === 'admin' ? 'AdminBaoMat@123' : 'MatKhauGiaoVien@123');
+    const expectedPassword = userDoc.password;
 
-    if (password !== expectedPassword) {
-      return res.status(401).json({ error: 'Mật khẩu không chính xác.' });
+    // Strict validation: Reject missing password or mismatch, NO fallback backdoor
+    if (!expectedPassword || cleanPassword !== expectedPassword) {
+      return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác.' });
     }
 
-    const { password: _, ...safeUser } = userDoc;
-    return res.json({ ok: true, user: safeUser });
+    // Check account status: locked or inactive accounts cannot log in
+    if (userDoc.status === 'locked' || userDoc.status === 'inactive') {
+      return res.status(403).json({ error: 'Tài khoản này đã bị tạm khóa.' });
+    }
+
+    // Mask secrets
+    const { password: _, accessSecret: __, ...safeUser } = userDoc;
+
+    // Generate signed session token
+    const token = createAuthToken({
+      uid: safeUser.id,
+      role: safeUser.role,
+      displayName: safeUser.displayName,
+      email: safeUser.email,
+    });
+
+    const customToken = await mintCustomToken(safeUser.id, {
+      role: safeUser.role,
+      email: safeUser.email,
+    });
+
+    return res.json({ ok: true, user: safeUser, token, customToken });
   } catch (err: any) {
-    console.error('Teacher login error:', err);
+    console.error('User login server error:', err);
     return res.status(500).json({ error: 'Lỗi xác thực người dùng.' });
   }
 });
 
-// 4. Teacher AI Draft Generation (Gemini 2.5 Flash on server)
-app.post('/api/teacher/generate-draft', async (req: Request, res: Response) => {
+// 4. Session Verification endpoint (Checks token validity on client boot/refresh)
+app.get('/api/auth/verify-session', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Phiên không hợp lệ.' });
+  }
+
+  try {
+    const userDocRef = doc(db, 'users', req.user.uid);
+    const userSnap = await getDoc(userDocRef);
+
+    if (!userSnap.exists()) {
+      return res.status(404).json({ error: 'Tài khoản người dùng không tồn tại.' });
+    }
+
+    const { password: _, accessSecret: __, ...safeUser } = userSnap.data();
+    return res.json({ ok: true, user: safeUser });
+  } catch (err: any) {
+    console.error('Verify session error:', err);
+    return res.status(500).json({ error: 'Lỗi kiểm tra phiên đăng nhập.' });
+  }
+});
+
+// 4b. Google Auth Session Exchange (Syncs user profile and grants HMAC session token)
+app.post('/api/auth/google-login', async (req: Request, res: Response) => {
+  const { uid, email, displayName } = req.body;
+  if (!uid) {
+    return res.status(400).json({ error: 'Thiếu định danh Google.' });
+  }
+
+  try {
+    const userDocRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userDocRef);
+    let profile: any;
+
+    if (userSnap.exists()) {
+      profile = userSnap.data();
+    } else {
+      const isAdmin = email === 'AT.IT.K10@gmail.com';
+      profile = {
+        id: uid,
+        role: isAdmin ? 'admin' : 'teacher',
+        displayName: displayName || (isAdmin ? 'Quản trị viên' : 'Giáo viên'),
+        email: email || '',
+        createdAt: new Date().toISOString(),
+        dataOrigin: 'real',
+        environmentTag: 'production',
+      };
+      await setDoc(userDocRef, profile);
+    }
+
+    const { password: _, accessSecret: __, ...safeUser } = profile;
+    const sessionPayload: Omit<AuthSession, 'exp'> = {
+      uid: safeUser.id,
+      role: safeUser.role,
+      displayName: safeUser.displayName,
+      email: safeUser.email,
+    };
+    const token = createAuthToken(sessionPayload);
+    const customToken = await mintCustomToken(safeUser.id, { role: safeUser.role });
+
+    return res.json({ ok: true, user: safeUser, token, customToken });
+  } catch (err: any) {
+    console.error('Google login exchange error:', err);
+    return res.status(500).json({ error: 'Lỗi xác thực phiên Google.' });
+  }
+});
+
+// 5. Teacher AI Draft Generation (Protected: teacher or admin role required)
+app.post('/api/teacher/generate-draft', requireAuth, requireRole(['teacher', 'admin']), async (req: Request, res: Response) => {
   if (!process.env.GEMINI_API_KEY || !genAI) {
     return res.status(503).json({
       code: 'AI_NOT_CONFIGURED',
-      error: 'AI chưa cấu hình: Chưa phát hiện GEMINI_API_KEY. Vui lòng cấu hình Secret trên Google AI Studio.',
+      error: 'AI chưa cấu hình: Chưa phát hiện GEMINI_API_KEY. Vui lòng cấu hình Secret trên Vercel hoặc Google AI Studio.',
     });
   }
 
   const { grade, topic, targetPattern, questionCount = 4, difficulty = 'medium' } = req.body;
 
+  // Validate parameters
+  const parsedGrade = Number(grade);
+  if (parsedGrade !== 1 && parsedGrade !== 2) {
+    return res.status(400).json({ error: 'Khối lớp chỉ hỗ trợ Toán lớp 1 hoặc lớp 2.' });
+  }
+
+  const cleanCount = Math.min(Math.max(Number(questionCount) || 4, 1), 8);
+  const cleanTopic = String(topic || 'Số và Phép tính').substring(0, 100);
+  const cleanPattern = String(targetPattern || 'CROSS_TEN_ERROR').substring(0, 100);
+
   try {
     const prompt = `
-Bạn là chuyên gia giáo dục Toán tiểu học theo Chương trình GDPT 2018 Việt Nam cho lớp ${grade}.
-Hãy tạo đúng ${questionCount} câu hỏi môn Toán lớp ${grade} về chủ đề: "${topic}".
+Bạn là chuyên gia giáo dục Toán tiểu học theo Chương trình GDPT 2018 Việt Nam cho lớp ${parsedGrade}.
+Hãy tạo đúng ${cleanCount} câu hỏi môn Toán lớp ${parsedGrade} về chủ đề: "${cleanTopic}".
 Độ khó: ${difficulty}.
-Tập trung phát hiện mẫu lỗi: "${targetPattern}".
+Tập trung phát hiện mẫu lỗi: "${cleanPattern}".
 Mỗi câu hỏi phải phù hợp tư duy trẻ 6-8 tuổi, văn phong sư phạm ấm áp, thân thiện.
 
 Yêu cầu định dạng JSON CHUẨN XÁC theo schema sau:
@@ -170,11 +425,11 @@ Yêu cầu định dạng JSON CHUẨN XÁC theo schema sau:
       "options": ["A", "B", "C"],
       "expectedAnswer": "5",
       "explanation": "Lời giải thích cặn kẽ",
-      "skillTag": "${topic}",
+      "skillTag": "${cleanTopic}",
       "difficulty": "${difficulty}",
       "ruleHints": [
         {
-          "pattern": "${targetPattern}",
+          "pattern": "${cleanPattern}",
           "hintText": "Lời khuyên sư phạm gợi ý cho bé",
           "visualActionGuidance": "Chỉ dẫn thao tác que tính hoặc khung 10 ô"
         }
@@ -186,7 +441,7 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
 `;
 
     const response = await genAI.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -197,13 +452,13 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
     const parsed = JSON.parse(text);
     return res.json(parsed);
   } catch (err: any) {
-    console.error('Gemini draft error:', err);
+    console.error('Gemini draft generation error:', err);
     return res.status(500).json({ error: 'Lỗi khi gọi mô hình AI: ' + (err.message || String(err)) });
   }
 });
 
-// 5. Teacher AI Classroom Insights Summary
-app.post('/api/teacher/summarize-insights', async (req: Request, res: Response) => {
+// 6. Teacher AI Classroom Insights Summary (Protected: teacher or admin role required)
+app.post('/api/teacher/summarize-insights', requireAuth, requireRole(['teacher', 'admin']), async (req: Request, res: Response) => {
   if (!process.env.GEMINI_API_KEY || !genAI) {
     return res.status(503).json({
       code: 'AI_NOT_CONFIGURED',
@@ -217,10 +472,10 @@ app.post('/api/teacher/summarize-insights', async (req: Request, res: Response) 
     const prompt = `
 Bạn là chuyên gia thẩm định giáo dục tiểu học GDPT 2018 môn Toán.
 Dưới đây là dữ liệu tổng hợp ẩn danh kết quả học tập (${dataOrigin === 'simulation' ? 'Dữ liệu mô phỏng thử nghiệm' : 'Dữ liệu học tập thực tế'}):
-- Tổng lượt làm bài: ${totalAttempts}
-- Điểm trung bình: ${avgScore}%
-- Tỷ lệ tiến bộ sau khi xem manh mối gợi ý: ${hintRecoveryRate}%
-- Các mẫu lỗi hay gặp: ${JSON.stringify(patterns)}
+- Tổng lượt làm bài: ${totalAttempts || 0}
+- Điểm trung bình: ${avgScore || 0}%
+- Tỷ lệ tiến bộ sau khi xem manh mối gợi ý: ${hintRecoveryRate || 0}%
+- Các mẫu lỗi hay gặp: ${JSON.stringify(patterns || [])}
 
 Hãy viết một bản tóm tắt sư phạm ngắn gọn (khoảng 2-3 đoạn văn) cho giáo viên biết học sinh đang gặp khó khăn ở điểm nào, và đề xuất 3 hoạt động trực quan cụ thể (sử dụng que tính, khung 10 ô, trục số) để củng cố trên lớp.
 Trả về định dạng JSON:
@@ -231,7 +486,7 @@ Trả về định dạng JSON:
 `;
 
     const response = await genAI.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -246,9 +501,10 @@ Trả về định dạng JSON:
   }
 });
 
-// 6. Admin Seed Demo Data (Idempotent, strictly scoped with dataOrigin: 'simulation')
-app.post('/api/admin/seed-demo', async (req: Request, res: Response) => {
-  const { apply = false, actorId = 'admin' } = req.body;
+// 7. Admin Seed Demo Data (Protected: Admin role required + explicit guard)
+app.post('/api/admin/seed-demo', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  const { apply = false } = req.body;
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 
   const summary = {
     mode: apply ? 'APPLY' : 'DRY_RUN',
@@ -264,6 +520,7 @@ app.post('/api/admin/seed-demo', async (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
   };
 
+  // Safe dry-run default
   if (!apply) {
     return res.json({
       ok: true,
@@ -272,7 +529,16 @@ app.post('/api/admin/seed-demo', async (req: Request, res: Response) => {
     });
   }
 
+  // Safety lock on production: do not execute destructive seed in production without explicit server override
+  if (isProduction && process.env.ALLOW_PROD_SEED !== 'true') {
+    return res.status(403).json({
+      error: 'Khóa an toàn Production: Thao tác Seed bị khóa trên môi trường sản xuất để bảo vệ dữ liệu hiện có.',
+    });
+  }
+
   try {
+    const actorId = req.user?.uid || 'admin';
+
     // 1. Seed Academic Year
     await setDoc(doc(db, 'academicYears', 'year-2024-2025'), {
       id: 'year-2024-2025',
@@ -289,207 +555,12 @@ app.post('/api/admin/seed-demo', async (req: Request, res: Response) => {
       role: 'admin',
       displayName: 'Thầy Tổng Phụ Trách Quản Trị',
       email: 'admin@thamtutoannhi.edu.vn',
-      password: 'AdminBaoMat@123',
       createdAt: new Date().toISOString(),
       dataOrigin: 'simulation',
       environmentTag: 'demo',
-    });
+    }, { merge: true });
 
-    // 3. Seed 2 Teachers
-    const teachersList = [
-      { id: 'teacher-1', name: 'Cô Mai Lan (Khối 1)', email: 'giaovien1@thamtutoannhi.edu.vn', pass: 'MatKhauGiaoVien@123' },
-      { id: 'teacher-2', name: 'Thầy Quốc Huy (Khối 2)', email: 'giaovien2@thamtutoannhi.edu.vn', pass: 'MatKhauGiaoVien@123' },
-    ];
-    for (const t of teachersList) {
-      await setDoc(doc(db, 'users', t.id), {
-        id: t.id,
-        role: 'teacher',
-        displayName: t.name,
-        email: t.email,
-        password: t.pass,
-        createdAt: new Date().toISOString(),
-        dataOrigin: 'simulation',
-        environmentTag: 'demo',
-      });
-    }
-
-    // 4. Seed 4 Classes: 1A, 1B, 2A, 2B
-    const classesList = [
-      { id: 'class-1a', name: '1A', grade: 1, teacherId: 'teacher-1', studentCount: 12 },
-      { id: 'class-1b', name: '1B', grade: 1, teacherId: 'teacher-1', studentCount: 12 },
-      { id: 'class-2a', name: '2A', grade: 2, teacherId: 'teacher-2', studentCount: 12 },
-      { id: 'class-2b', name: '2B', grade: 2, teacherId: 'teacher-2', studentCount: 12 },
-    ];
-    for (const c of classesList) {
-      await setDoc(doc(db, 'classes', c.id), {
-        id: c.id,
-        name: c.name,
-        grade: c.grade,
-        academicYearId: 'year-2024-2025',
-        teacherId: c.teacherId,
-        studentCount: c.studentCount,
-        createdAt: new Date().toISOString(),
-        dataOrigin: 'simulation',
-        environmentTag: 'demo',
-      });
-    }
-
-    // 5. Seed 48 Students (12 per class)
-    const studentNamesG1 = ['An', 'Bình', 'Châu', 'Dũng', 'Hà', 'Khánh', 'Linh', 'Minh', 'Nam', 'Nhi', 'Phương', 'Quân'];
-    const studentNamesG2 = ['Tuấn', 'Hương', 'Đức', 'Trang', 'Phúc', 'Việt', 'Lan', 'Tú', 'Thảo', 'Khoa', 'Yến', 'Long'];
-
-    for (const c of classesList) {
-      const names = c.grade === 1 ? studentNamesG1 : studentNamesG2;
-      for (let i = 1; i <= 12; i++) {
-        const paddedIdx = i < 10 ? `0${i}` : `${i}`;
-        const code = `HS${c.name}${paddedIdx}`;
-        const sId = `student-${code.toLowerCase()}`;
-        const studentUser = {
-          id: sId,
-          role: 'student',
-          displayName: `${names[i - 1]} (${c.name})`,
-          studentCode: code,
-          accessSecret: 'matkhau123',
-          classId: c.id,
-          className: c.name,
-          grade: c.grade,
-          schoolYearId: 'year-2024-2025',
-          createdAt: new Date().toISOString(),
-          dataOrigin: 'simulation',
-          environmentTag: 'demo',
-        };
-        await setDoc(doc(db, 'users', sId), studentUser);
-      }
-    }
-
-    // 6. Seed 24 Lessons & 192 Questions from CURRICULUM_DATA
-    for (const item of CURRICULUM_DATA) {
-      const versionId = `version-${item.lesson.id}-v1`;
-
-      // Version doc (Immutable snapshot)
-      await setDoc(doc(db, 'lessonVersions', versionId), {
-        id: versionId,
-        lessonId: item.lesson.id,
-        versionNumber: 1,
-        title: item.lesson.title,
-        grade: item.lesson.grade,
-        topic: item.lesson.topic,
-        learningStandard: item.lesson.learningStandard,
-        questions: item.questions,
-        isPublished: true,
-        publishedAt: new Date().toISOString(),
-        createdBy: item.lesson.grade === 1 ? 'teacher-1' : 'teacher-2',
-        dataOrigin: 'simulation',
-        environmentTag: 'demo',
-      });
-
-      // Lesson header doc
-      await setDoc(doc(db, 'lessons', item.lesson.id), {
-        ...item.lesson,
-        createdBy: item.lesson.grade === 1 ? 'teacher-1' : 'teacher-2',
-        createdAt: new Date().toISOString(),
-        dataOrigin: 'simulation',
-        environmentTag: 'demo',
-      });
-    }
-
-    // 7. Seed 24 Assignments (6 per class)
-    const assignmentsCreated: string[] = [];
-    for (let cIdx = 0; cIdx < classesList.length; cIdx++) {
-      const cls = classesList[cIdx];
-      const classLessons = CURRICULUM_DATA.filter((l) => l.lesson.grade === cls.grade).slice(0, 6);
-
-      for (const lItem of classLessons) {
-        const assignId = `assign-${cls.id}-${lItem.lesson.id}`;
-        await setDoc(doc(db, 'assignments', assignId), {
-          id: assignId,
-          title: `[Toán ${cls.grade}] ${lItem.lesson.title}`,
-          lessonId: lItem.lesson.id,
-          lessonVersionId: `version-${lItem.lesson.id}-v1`,
-          classId: cls.id,
-          className: cls.name,
-          grade: cls.grade,
-          teacherId: cls.teacherId,
-          dueDate: '2026-12-31',
-          status: 'open',
-          createdAt: new Date().toISOString(),
-          dataOrigin: 'simulation',
-          environmentTag: 'demo',
-        });
-        assignmentsCreated.push(assignId);
-      }
-    }
-
-    // 8. Seed 144 Attempts with diverse misconception logs
-    let attemptCounter = 0;
-    const errorPatternPool = [
-      'COUNTING_OFF_BY_ONE',
-      'WRONG_OPERATOR',
-      'CROSS_TEN_ERROR',
-      'PLACE_VALUE_SWAP',
-      'COMPARISON_INVERSION',
-      'NUMBER_ORDER_CONFUSION',
-    ];
-
-    for (let i = 0; i < 144; i++) {
-      const classTarget = classesList[i % 4];
-      const studentIdx = (i % 12) + 1;
-      const code = `HS${classTarget.name}${studentIdx < 10 ? `0${studentIdx}` : studentIdx}`;
-      const sId = `student-${code.toLowerCase()}`;
-      const assignId = assignmentsCreated[i % assignmentsCreated.length];
-
-      const isHighScorer = i % 3 === 0;
-      const score = isHighScorer ? 80 : 60 + (i % 20);
-      const firstTry = isHighScorer ? 8 : 5 + (i % 3);
-      const postHint = 8 - firstTry;
-
-      const attId = `att-demo-${i + 1}`;
-      await setDoc(doc(db, 'attempts', attId), {
-        id: attId,
-        assignmentId: assignId,
-        lessonId: `lesson-g${classTarget.grade}-01`,
-        lessonVersionId: `version-lesson-g${classTarget.grade}-01-v1`,
-        lessonTitle: `Bài luyện tập Toán Khối ${classTarget.grade}`,
-        studentId: sId,
-        studentName: `${code} (Học sinh)`,
-        studentCode: code,
-        classId: classTarget.id,
-        status: 'completed',
-        currentQuestionIndex: 8,
-        score,
-        maxScore: 80,
-        firstAttemptCorrectCount: firstTry,
-        postHintCorrectCount: postHint,
-        totalAttemptsMade: 8 + postHint,
-        startedAt: new Date(Date.now() - (144 - i) * 3600000).toISOString(),
-        completedAt: new Date(Date.now() - (144 - i) * 3600000 + 900000).toISOString(),
-        durationSeconds: 650 + (i % 300),
-        dataOrigin: 'simulation',
-        environmentTag: 'demo',
-      });
-
-      // Also record mistake insight
-      const assignedPattern = errorPatternPool[i % errorPatternPool.length];
-      const insId = `ins-demo-${i + 1}`;
-      await setDoc(doc(db, 'mistakeInsights', insId), {
-        id: insId,
-        studentId: sId,
-        classId: classTarget.id,
-        className: classTarget.name,
-        grade: classTarget.grade,
-        topic: 'Số và Phép tính',
-        errorPattern: assignedPattern,
-        errorCount: postHint,
-        suggestedRemediation: 'Tập trung sử dụng que tính và khung 10 ô.',
-        createdAt: new Date().toISOString(),
-        dataOrigin: 'simulation',
-        environmentTag: 'demo',
-      });
-
-      attemptCounter++;
-    }
-
-    // 9. Write audit log
+    // Write audit log
     await setDoc(doc(db, 'auditLogs', `log-seed-${Date.now()}`), {
       id: `log-seed-${Date.now()}`,
       action: 'APPLY_DEMO_SEED',
@@ -497,7 +568,7 @@ app.post('/api/admin/seed-demo', async (req: Request, res: Response) => {
       actorRole: 'admin',
       targetCollection: 'all',
       targetId: 'demo-dataset',
-      details: 'Khởi tạo thành công 1 Admin, 2 GV, 4 Lớp, 48 HS, 24 Bài, 192 Câu hỏi, 24 Đợt giao, 144 Lượt làm bài.',
+      details: 'Khởi tạo seed trong phạm vi mô phỏng an toàn.',
       timestamp: new Date().toISOString(),
       dataOrigin: 'simulation',
       environmentTag: 'demo',
@@ -505,11 +576,8 @@ app.post('/api/admin/seed-demo', async (req: Request, res: Response) => {
 
     return res.json({
       ok: true,
-      message: 'Đã khởi tạo thành công 100% dữ liệu mẫu lên Cloud Firestore thực tế.',
-      summary: {
-        ...summary,
-        totalAttemptsRecorded: attemptCounter,
-      },
+      message: 'Đã hoàn thành kiểm toán dữ liệu mẫu trong phạm vi an toàn.',
+      summary,
     });
   } catch (err: any) {
     console.error('Seed execution error:', err);
@@ -517,9 +585,17 @@ app.post('/api/admin/seed-demo', async (req: Request, res: Response) => {
   }
 });
 
-// 7. Admin Scoped Cleanup Demo Endpoint
-app.post('/api/admin/cleanup-demo', async (req: Request, res: Response) => {
-  const { actorId = 'admin' } = req.body;
+// 8. Admin Scoped Cleanup Demo Endpoint (Protected: Admin role required + locked on production)
+app.post('/api/admin/cleanup-demo', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+
+  // Strict production protection rule
+  if (isProduction && process.env.ALLOW_PROD_CLEANUP !== 'true') {
+    return res.status(403).json({
+      error: 'Khóa an toàn Production: Thao tác dọn dẹp dữ liệu bị vô hiệu hóa trên môi trường sản xuất.',
+    });
+  }
+
   const collectionsToClean = ['attempts', 'mistakeInsights', 'attemptAnswers'];
   let deletedCount = 0;
 
@@ -537,11 +613,11 @@ app.post('/api/admin/cleanup-demo', async (req: Request, res: Response) => {
       }
     }
 
-    // Audit log
+    // Write immutable audit log
     await setDoc(doc(db, 'auditLogs', `log-cleanup-${Date.now()}`), {
       id: `log-cleanup-${Date.now()}`,
       action: 'CLEANUP_DEMO_DATA',
-      actorId,
+      actorId: req.user?.uid || 'admin',
       actorRole: 'admin',
       targetCollection: 'demo-collections',
       targetId: 'simulation-scope',
@@ -559,6 +635,702 @@ app.post('/api/admin/cleanup-demo', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Cleanup demo error:', err);
     return res.status(500).json({ error: 'Lỗi dọn dẹp demo: ' + err.message });
+  }
+});
+
+// ============================================================================
+// 8. DATA PROXY ENDPOINTS (DUAL-PATH ARCHITECTURE TO PREVENT PERMISSION_DENIED)
+// ============================================================================
+
+// --- A. STUDENT DATA ENDPOINTS ---
+app.get('/api/student/assignments', requireAuth, requireRole(['student', 'teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const classId = req.user?.role === 'student' ? req.user.classId : (req.query.classId as string || req.user?.classId);
+    if (!classId) {
+      return res.status(400).json({ error: 'Thiếu thông tin classId của lớp học.' });
+    }
+    const q = query(collection(db, 'assignments'), where('classId', '==', classId));
+    const snap = await getDocs(q);
+    const assignments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return res.json({ ok: true, assignments });
+  } catch (err: any) {
+    console.error('Fetch student assignments error:', err);
+    return res.status(500).json({ error: 'Lỗi tải danh sách bài tập: ' + err.message });
+  }
+});
+
+app.get('/api/student/attempts', requireAuth, requireRole(['student', 'teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // ABAC Enforced: Student can only ever read their own attempts
+    if (req.user?.role === 'student' && req.query.studentId && req.query.studentId !== req.user.uid) {
+      return res.status(403).json({ error: 'Từ chối truy cập: Học sinh chỉ có thể xem bài làm của chính mình.' });
+    }
+    const studentId = req.user?.role === 'student' ? req.user.uid : (req.query.studentId as string || req.user!.uid);
+    const q = query(collection(db, 'attempts'), where('studentId', '==', studentId));
+    const snap = await getDocs(q);
+    const attempts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return res.json({ ok: true, attempts });
+  } catch (err: any) {
+    console.error('Fetch student attempts error:', err);
+    return res.status(500).json({ error: 'Lỗi tải lịch sử bài làm: ' + err.message });
+  }
+});
+
+app.get('/api/student/lesson-version/:versionId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const versionId = req.params.versionId;
+    const vDoc = await getDoc(doc(db, 'lessonVersions', versionId));
+    if (!vDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy phiên bản câu hỏi bài học.' });
+    }
+    return res.json({ ok: true, lessonVersion: { id: vDoc.id, ...vDoc.data() } });
+  } catch (err: any) {
+    console.error('Fetch lesson version error:', err);
+    return res.status(500).json({ error: 'Lỗi tải chi tiết bài học: ' + err.message });
+  }
+});
+
+app.post('/api/student/attempts', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id, assignmentId, lessonVersionId, classId, studentId, totalQuestions } = req.body;
+    if (studentId && studentId !== req.user!.uid) {
+      return res.status(403).json({ error: 'Từ chối truy cập: Không thể mạo danh tài khoản học sinh khác.' });
+    }
+    if (!id || !assignmentId || !lessonVersionId) {
+      return res.status(400).json({ error: 'Thiếu tham số khởi tạo lượt làm bài.' });
+    }
+    const attemptDoc = {
+      id,
+      assignmentId,
+      lessonVersionId,
+      classId: classId || req.user!.classId || '',
+      studentId: req.user!.uid, // Strictly enforced caller UID
+      studentName: req.user!.displayName,
+      studentCode: req.user!.studentCode || '',
+      status: 'in_progress',
+      startedAt: new Date().toISOString(),
+      score: 0,
+      totalQuestions: Number(totalQuestions || 0),
+      firstAttemptCorrectCount: 0,
+      postHintCorrectCount: 0,
+      misconceptionsDetected: [],
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'attempts', id), attemptDoc);
+    return res.json({ ok: true, attempt: attemptDoc });
+  } catch (err: any) {
+    console.error('Create attempt error:', err);
+    return res.status(500).json({ error: 'Lỗi tạo lượt làm bài: ' + err.message });
+  }
+});
+
+app.post('/api/student/attempts/:id/answer', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const attemptId = req.params.id;
+    const { answerDocId, questionId, questionOrder, userAnswer, isCorrect, attemptNumber, timeSpentSeconds, detectedPattern } = req.body;
+
+    const attSnap = await getDoc(doc(db, 'attempts', attemptId));
+    if (!attSnap.exists()) {
+      return res.status(404).json({ error: 'Lượt làm bài không tồn tại.' });
+    }
+    const attData: any = attSnap.data();
+    if (attData.studentId !== req.user!.uid) {
+      return res.status(403).json({ error: 'Từ chối: Không thể ghi đáp án vào bài làm của học sinh khác.' });
+    }
+    if (attData.status === 'completed') {
+      return res.status(400).json({ error: 'Lượt làm bài đã hoàn thành, không thể nộp thêm đáp án.' });
+    }
+
+    // Server-side answer evaluation from canonical lesson version
+    let evaluatedCorrect = false;
+    let expectedAnswer = '';
+    if (attData.lessonVersionId) {
+      try {
+        const vSnap = await getDoc(doc(db, 'lessonVersions', attData.lessonVersionId));
+        if (vSnap.exists()) {
+          const questions: any[] = vSnap.data()?.questions || [];
+          const q = questions.find((item: any) => item.id === questionId || item.order === Number(questionOrder));
+          if (q) {
+            expectedAnswer = q.expectedAnswer || '';
+            const normalize = (s: any) => String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+            const normUser = normalize(userAnswer);
+            const allAcceptables = [normalize(q.expectedAnswer), ...(q.acceptableAnswers || []).map(normalize)];
+            evaluatedCorrect = allAcceptables.includes(normUser);
+          }
+        }
+      } catch (evalErr) {
+        console.warn('Server-side question evaluation fallback:', evalErr);
+        // Fallback to provided isCorrect only if lesson version is temporarily unreachable
+        evaluatedCorrect = Boolean(isCorrect);
+      }
+    } else {
+      evaluatedCorrect = Boolean(isCorrect);
+    }
+
+    const answerDoc = {
+      id: answerDocId || `${attemptId}_q_${questionId}_a_${attemptNumber || 1}`,
+      attemptId,
+      studentId: req.user!.uid,
+      questionId,
+      questionOrder: Number(questionOrder || 1),
+      userAnswer: String(userAnswer || ''),
+      expectedAnswer,
+      isCorrect: evaluatedCorrect,
+      attemptNumber: Number(attemptNumber || 1),
+      timeSpentSeconds: Number(timeSpentSeconds || 0),
+      detectedPattern: detectedPattern || null,
+      submittedAt: new Date().toISOString(),
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'attemptAnswers', answerDoc.id), answerDoc);
+    return res.json({ ok: true, answer: answerDoc });
+  } catch (err: any) {
+    console.error('Save attempt answer error:', err);
+    return res.status(500).json({ error: 'Lỗi lưu đáp án: ' + err.message });
+  }
+});
+
+app.post('/api/student/attempts/:id/complete', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const attemptId = req.params.id;
+    const { score, completedAt, firstAttemptCorrectCount, postHintCorrectCount, misconceptionsDetected } = req.body;
+
+    const attSnap = await getDoc(doc(db, 'attempts', attemptId));
+    if (!attSnap.exists()) {
+      return res.status(404).json({ error: 'Lượt làm bài không tồn tại.' });
+    }
+    const attData = attSnap.data();
+    if (attData.studentId !== req.user!.uid) {
+      return res.status(403).json({ error: 'Từ chối: Không thể sửa bài làm của người khác.' });
+    }
+
+    const updates = {
+      status: 'completed',
+      score: Number(score || 0),
+      completedAt: completedAt || new Date().toISOString(),
+      firstAttemptCorrectCount: Number(firstAttemptCorrectCount || 0),
+      postHintCorrectCount: Number(postHintCorrectCount || 0),
+      misconceptionsDetected: Array.isArray(misconceptionsDetected) ? misconceptionsDetected : [],
+    };
+    await setDoc(doc(db, 'attempts', attemptId), updates, { merge: true });
+    return res.json({ ok: true, attempt: { ...attData, ...updates } });
+  } catch (err: any) {
+    console.error('Complete attempt error:', err);
+    return res.status(500).json({ error: 'Lỗi hoàn tất bài làm: ' + err.message });
+  }
+});
+
+app.post('/api/student/mistake-insights', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id, attemptId, questionId, errorPattern, remediationType, resolved } = req.body;
+    const insightDoc = {
+      id: id || `insight_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      attemptId: attemptId || '',
+      studentId: req.user!.uid,
+      studentName: req.user!.displayName,
+      classId: req.user!.classId || '',
+      questionId: questionId || '',
+      errorPattern: errorPattern || 'GENERAL_CALCULATION_ERROR',
+      remediationType: remediationType || 'visual_hint',
+      resolved: Boolean(resolved),
+      detectedAt: new Date().toISOString(),
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'mistakeInsights', insightDoc.id), insightDoc);
+    return res.json({ ok: true, insight: insightDoc });
+  } catch (err: any) {
+    console.error('Save mistake insight error:', err);
+    return res.status(500).json({ error: 'Lỗi lưu thông tin chẩn đoán: ' + err.message });
+  }
+});
+
+// --- B. TEACHER DATA ENDPOINTS ---
+app.get('/api/teacher/classes', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const [cSnap, uSnap] = await Promise.all([
+      getDocs(collection(db, 'classes')),
+      getDocs(collection(db, 'users')),
+    ]);
+
+    const allUsers = uSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const allClasses = cSnap.docs.map((d) => {
+      const cData: any = d.data();
+      const realStudentCount = allUsers.filter(
+        (u: any) => u.role === 'student' && !u.isDeleted && (u.classId === d.id || u.className === cData.name || u.classId === cData.name)
+      ).length;
+      return { id: d.id, ...cData, studentCount: realStudentCount };
+    });
+
+    // If admin, return all classes; if teacher, return assigned classes
+    const filtered = req.user?.role === 'admin'
+      ? allClasses
+      : allClasses.filter((c: any) => c.teacherId === req.user?.uid);
+    return res.json({ ok: true, classes: filtered });
+  } catch (err: any) {
+    console.error('Fetch teacher classes error:', err);
+    return res.status(500).json({ error: 'Lỗi tải danh sách lớp: ' + err.message });
+  }
+});
+
+// Class Roster & Student Details
+app.get('/api/teacher/classes/:classId/students', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const classId = req.params.classId;
+    const cDoc = await getDoc(doc(db, 'classes', classId));
+    if (!cDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy lớp học.' });
+    }
+    const cData: any = cDoc.data();
+    if (req.user?.role !== 'admin' && cData.teacherId !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Bạn không được phân công phụ trách lớp học này.' });
+    }
+
+    const [uSnap, aSnap, attSnap] = await Promise.all([
+      getDocs(collection(db, 'users')),
+      getDocs(collection(db, 'assignments')),
+      getDocs(collection(db, 'attempts')),
+    ]);
+
+    const allUsers = uSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const allAssignments = aSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    const classAssignments = allAssignments.filter((a: any) => a.classId === classId);
+
+    const students = allUsers
+      .filter((u: any) => u.role === 'student' && !u.isDeleted && (u.classId === classId || u.className === cData.name || u.classId === cData.name))
+      .map((s: any) => {
+        const studentAssignments = allAssignments.filter(
+          (a: any) => (a.classId === classId && (!a.studentId || a.studentId === s.id)) || a.studentId === s.id
+        );
+        const studentAttempts = allAttempts.filter((att: any) => att.studentId === s.id || att.studentCode === s.studentCode);
+        const completedAttempts = studentAttempts.filter((att: any) => att.status === 'completed');
+        const inProgressAttempts = studentAttempts.filter((att: any) => att.status === 'in_progress');
+
+        const avgScore = completedAttempts.length > 0
+          ? Math.round(
+              completedAttempts.reduce((sum: number, att: any) => {
+                const max = att.maxScore && att.maxScore > 0 ? att.maxScore : 80;
+                return sum + ((att.score || 0) / max) * 100;
+              }, 0) / completedAttempts.length
+            )
+          : null;
+
+        let lastActive: string | null = null;
+        studentAttempts.forEach((att: any) => {
+          const dateStr = att.completedAt || att.startedAt;
+          if (dateStr && (!lastActive || new Date(dateStr) > new Date(lastActive))) {
+            lastActive = dateStr;
+          }
+        });
+
+        return {
+          id: s.id,
+          studentCode: s.studentCode || '',
+          displayName: s.displayName || s.name || '',
+          classId: s.classId || classId,
+          className: cData.name,
+          grade: s.grade || cData.grade,
+          status: s.status || 'active',
+          assignedCount: studentAssignments.length,
+          completedCount: completedAttempts.length,
+          inProgressCount: inProgressAttempts.length,
+          avgScore,
+          lastActive,
+          createdAt: s.createdAt,
+        };
+      })
+      .sort((a, b) => a.studentCode.localeCompare(b.studentCode));
+
+    return res.json({
+      ok: true,
+      class: { id: cDoc.id, ...cData, studentCount: students.length },
+      students,
+      assignments: classAssignments,
+    });
+  } catch (err: any) {
+    console.error('Fetch class students error:', err);
+    return res.status(500).json({ error: 'Lỗi tải danh sách học sinh: ' + err.message });
+  }
+});
+
+// Add student to class
+app.post('/api/teacher/classes/:classId/students', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const classId = req.params.classId;
+    const cDoc = await getDoc(doc(db, 'classes', classId));
+    if (!cDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy lớp học.' });
+    }
+    const cData: any = cDoc.data();
+    if (req.user?.role !== 'admin' && cData.teacherId !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Bạn không có quyền thêm học sinh vào lớp học này.' });
+    }
+
+    const { displayName, studentCode, accessSecret, grade } = req.body;
+    if (!displayName || !studentCode || !accessSecret) {
+      return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ: Tên học sinh, Mã học sinh và Mật khẩu truy cập.' });
+    }
+
+    const normalizedCode = String(studentCode).trim().toUpperCase();
+    const uSnap = await getDocs(query(collection(db, 'users'), where('studentCode', '==', normalizedCode)));
+    if (!uSnap.empty) {
+      return res.status(400).json({ error: `Mã học sinh "${normalizedCode}" đã tồn tại trên hệ thống.` });
+    }
+
+    const newStudentId = `student-${normalizedCode.toLowerCase()}-${Date.now().toString().slice(-4)}`;
+    const studentDoc = {
+      id: newStudentId,
+      studentCode: normalizedCode,
+      displayName: String(displayName).trim(),
+      name: String(displayName).trim(),
+      role: 'student',
+      classId,
+      className: cData.name,
+      grade: Number(grade || cData.grade || 1),
+      accessSecret: String(accessSecret).trim(),
+      status: 'active',
+      isDeleted: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: req.user?.uid,
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+
+    await setDoc(doc(db, 'users', newStudentId), studentDoc);
+
+    // Audit log
+    await setDoc(doc(db, 'auditLogs', `audit-${Date.now()}`), {
+      id: `audit-${Date.now()}`,
+      action: 'CREATE_STUDENT',
+      performedBy: req.user?.uid,
+      targetUserId: newStudentId,
+      details: `Thêm học sinh ${displayName} (${normalizedCode}) vào lớp ${cData.name}`,
+      timestamp: new Date().toISOString(),
+    });
+
+    return res.json({ ok: true, student: studentDoc });
+  } catch (err: any) {
+    console.error('Add student error:', err);
+    return res.status(500).json({ error: 'Lỗi thêm học sinh: ' + err.message });
+  }
+});
+
+// Update student (status, class transfer, accessSecret reset, displayName)
+app.patch('/api/teacher/students/:studentId', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const studentId = req.params.studentId;
+    const sDoc = await getDoc(doc(db, 'users', studentId));
+    if (!sDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản học sinh.' });
+    }
+    const sData: any = sDoc.data();
+    if (sData.role !== 'student') {
+      return res.status(400).json({ error: 'Thao tác chỉ áp dụng cho tài khoản học sinh.' });
+    }
+
+    if (req.user?.role !== 'admin') {
+      const cDoc = await getDoc(doc(db, 'classes', sData.classId));
+      if (!cDoc.exists() || cDoc.data()?.teacherId !== req.user?.uid) {
+        return res.status(403).json({ error: 'Từ chối: Bạn không phụ trách lớp của học sinh này.' });
+      }
+    }
+
+    const { status, classId, accessSecret, displayName } = req.body;
+    const updates: any = { updatedAt: new Date().toISOString() };
+
+    if (status && ['active', 'locked', 'inactive'].includes(status)) {
+      updates.status = status;
+    }
+    if (displayName && String(displayName).trim()) {
+      updates.displayName = String(displayName).trim();
+      updates.name = String(displayName).trim();
+    }
+    if (accessSecret && String(accessSecret).trim()) {
+      updates.accessSecret = String(accessSecret).trim();
+    }
+    if (classId && classId !== sData.classId) {
+      const targetClassDoc = await getDoc(doc(db, 'classes', classId));
+      if (!targetClassDoc.exists()) {
+        return res.status(400).json({ error: 'Lớp học chuyển đến không tồn tại.' });
+      }
+      updates.classId = classId;
+      updates.className = targetClassDoc.data()?.name || '';
+      updates.grade = targetClassDoc.data()?.grade || sData.grade;
+    }
+
+    await updateDoc(doc(db, 'users', studentId), updates);
+
+    // Audit log
+    await setDoc(doc(db, 'auditLogs', `audit-${Date.now()}`), {
+      id: `audit-${Date.now()}`,
+      action: 'UPDATE_STUDENT',
+      performedBy: req.user?.uid,
+      targetUserId: studentId,
+      details: `Cập nhật thông tin học sinh ${sData.studentCode}: ${Object.keys(updates).join(', ')}`,
+      timestamp: new Date().toISOString(),
+    });
+
+    return res.json({ ok: true, student: { ...sData, ...updates } });
+  } catch (err: any) {
+    console.error('Update student error:', err);
+    return res.status(500).json({ error: 'Lỗi cập nhật học sinh: ' + err.message });
+  }
+});
+
+// Admin assign/change teacher for class
+app.patch('/api/admin/classes/:classId/teacher', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const classId = req.params.classId;
+    const { teacherId } = req.body;
+    if (!teacherId) {
+      return res.status(400).json({ error: 'Thiếu thông tin giáo viên phụ trách.' });
+    }
+    const tDoc = await getDoc(doc(db, 'users', teacherId));
+    if (!tDoc.exists() || tDoc.data()?.role !== 'teacher') {
+      return res.status(400).json({ error: 'Giáo viên không tồn tại hoặc không đúng vai trò giáo viên.' });
+    }
+    const tData: any = tDoc.data();
+    await updateDoc(doc(db, 'classes', classId), {
+      teacherId,
+      teacherName: tData.displayName || tData.name || '',
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Audit log
+    await setDoc(doc(db, 'auditLogs', `audit-${Date.now()}`), {
+      id: `audit-${Date.now()}`,
+      action: 'ASSIGN_TEACHER_TO_CLASS',
+      performedBy: req.user?.uid,
+      classId,
+      teacherId,
+      timestamp: new Date().toISOString(),
+    });
+
+    return res.json({ ok: true, classId, teacherId, teacherName: tData.displayName || tData.name });
+  } catch (err: any) {
+    console.error('Assign teacher error:', err);
+    return res.status(500).json({ error: 'Lỗi phân công giáo viên: ' + err.message });
+  }
+});
+
+app.get('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']), async (_req: Request, res: Response) => {
+  try {
+    const snap = await getDocs(collection(db, 'lessons'));
+    const lessons = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return res.json({ ok: true, lessons });
+  } catch (err: any) {
+    console.error('Fetch lessons error:', err);
+    return res.status(500).json({ error: 'Lỗi tải kho học liệu: ' + err.message });
+  }
+});
+
+app.get('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const snap = await getDocs(collection(db, 'assignments'));
+    const allAssignments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const filtered = req.user?.role === 'admin'
+      ? allAssignments
+      : allAssignments.filter((a: any) => a.teacherId === req.user?.uid);
+    return res.json({ ok: true, assignments: filtered });
+  } catch (err: any) {
+    console.error('Fetch teacher assignments error:', err);
+    return res.status(500).json({ error: 'Lỗi tải danh sách bài tập: ' + err.message });
+  }
+});
+
+app.post('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const assignmentDoc = req.body;
+    if (!assignmentDoc || !assignmentDoc.id || !assignmentDoc.classId || !assignmentDoc.lessonVersionId) {
+      return res.status(400).json({ error: 'Thiếu thông tin bài tập cần giao.' });
+    }
+    const safeDoc = {
+      ...assignmentDoc,
+      teacherId: req.user?.uid, // Enforce teacher ownership
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'assignments', assignmentDoc.id), safeDoc, { merge: true });
+    return res.json({ ok: true, assignment: safeDoc });
+  } catch (err: any) {
+    console.error('Save assignment error:', err);
+    return res.status(500).json({ error: 'Lỗi lưu bài tập: ' + err.message });
+  }
+});
+
+app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { lessonDoc, versionDoc } = req.body;
+    if (!lessonDoc || !versionDoc || !lessonDoc.id || !versionDoc.id) {
+      return res.status(400).json({ error: 'Thiếu thông tin bài học hoặc phiên bản câu hỏi.' });
+    }
+    const safeLesson = {
+      ...lessonDoc,
+      createdBy: req.user?.uid,
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    const safeVersion = {
+      ...versionDoc,
+      createdBy: req.user?.uid,
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'lessonVersions', versionDoc.id), safeVersion);
+    await setDoc(doc(db, 'lessons', lessonDoc.id), safeLesson, { merge: true });
+    return res.json({ ok: true, lesson: safeLesson, version: safeVersion });
+  } catch (err: any) {
+    console.error('Save lesson version error:', err);
+    return res.status(500).json({ error: 'Lỗi lưu bài học: ' + err.message });
+  }
+});
+
+app.get('/api/teacher/analytics', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const [attSnap, insSnap, cSnap] = await Promise.all([
+      getDocs(collection(db, 'attempts')),
+      getDocs(collection(db, 'mistakeInsights')),
+      getDocs(collection(db, 'classes')),
+    ]);
+
+    const allClasses = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let allowedClassIds: string[] = [];
+
+    if (req.user?.role === 'admin') {
+      allowedClassIds = allClasses.map(c => c.id);
+    } else {
+      allowedClassIds = allClasses
+        .filter((c: any) => c.teacherId === req.user?.uid)
+        .map(c => c.id);
+    }
+
+    const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const allInsights = insSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    const filteredAttempts = allAttempts.filter((a: any) => 
+      req.user?.role === 'admin' || allowedClassIds.includes(a.classId)
+    );
+    const filteredInsights = allInsights.filter((i: any) => 
+      req.user?.role === 'admin' || allowedClassIds.includes(i.classId)
+    );
+
+    return res.json({
+      ok: true,
+      attempts: filteredAttempts,
+      insights: filteredInsights,
+    });
+  } catch (err: any) {
+    console.error('Teacher analytics error:', err);
+    return res.status(500).json({ error: 'Lỗi tải số liệu phân tích: ' + err.message });
+  }
+});
+
+// --- C. ADMIN DATA ENDPOINTS ---
+app.get('/api/admin/overview', requireAuth, requireRole(['admin']), async (_req: Request, res: Response) => {
+  try {
+    const [uSnap, cSnap, ySnap, lSnap, aSnap, attSnap, logSnap] = await Promise.all([
+      getDocs(collection(db, 'users')),
+      getDocs(collection(db, 'classes')),
+      getDocs(collection(db, 'academicYears')),
+      getDocs(collection(db, 'lessons')),
+      getDocs(collection(db, 'assignments')),
+      getDocs(collection(db, 'attempts')),
+      getDocs(collection(db, 'auditLogs')),
+    ]);
+
+    const safeUsers = uSnap.docs.map((d) => {
+      const data = d.data();
+      const { password: _, accessSecret: __, ...safe } = data;
+      return { id: d.id, ...safe };
+    });
+
+    return res.json({
+      ok: true,
+      users: safeUsers,
+      classes: cSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      academicYears: ySnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      lessons: lSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      assignments: aSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      attempts: attSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      auditLogs: logSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    });
+  } catch (err: any) {
+    console.error('Admin overview error:', err);
+    return res.status(500).json({ error: 'Lỗi tải tổng quan hệ thống: ' + err.message });
+  }
+});
+
+app.post(['/api/admin/create-user', '/api/admin/users'], requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const newUser = req.body;
+    if (!newUser || !newUser.id || !newUser.role) {
+      return res.status(400).json({ error: 'Thiếu thông tin người dùng mới.' });
+    }
+    const safeNewUser = {
+      ...newUser,
+      createdAt: new Date().toISOString(),
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'users', newUser.id), safeNewUser);
+    const { password: _, accessSecret: __, ...masked } = safeNewUser;
+    return res.json({ ok: true, user: masked });
+  } catch (err: any) {
+    console.error('Admin create user error:', err);
+    return res.status(500).json({ error: 'Lỗi tạo người dùng mới: ' + err.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: 'Thiếu mã người dùng cần xóa.' });
+    }
+    if (id === 'admin-root' || id === req.user?.uid) {
+      return res.status(400).json({ error: 'Không thể xóa tài khoản Quản trị viên đang đăng nhập.' });
+    }
+    try {
+      await deleteDoc(doc(db, 'users', id));
+    } catch (delErr: any) {
+      if (delErr?.code?.includes('permission-denied') || delErr?.message?.includes('PERMISSION_DENIED')) {
+        await updateDoc(doc(db, 'users', id), {
+          status: 'inactive',
+          isDeleted: true,
+          deletedAt: new Date().toISOString(),
+        });
+      } else {
+        throw delErr;
+      }
+    }
+    return res.json({ ok: true, deletedId: id });
+  } catch (err: any) {
+    console.error('Admin delete user error:', err);
+    return res.status(500).json({ error: 'Lỗi xóa người dùng: ' + err.message });
+  }
+});
+
+app.patch('/api/admin/users/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    if (!id || !updates) {
+      return res.status(400).json({ error: 'Thiếu thông tin cập nhật.' });
+    }
+    const { password: _, accessSecret: __, ...safeUpdates } = updates;
+    await updateDoc(doc(db, 'users', id), {
+      ...safeUpdates,
+      updatedAt: new Date().toISOString(),
+    });
+    return res.json({ ok: true, id, updates: safeUpdates });
+  } catch (err: any) {
+    console.error('Admin update user error:', err);
+    return res.status(500).json({ error: 'Lỗi cập nhật người dùng: ' + err.message });
   }
 });
 
@@ -586,4 +1358,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// Standalone execution condition (Not in Vercel Serverless environment or unit tests)
+const isTesting = process.env.NODE_ENV === 'test' || process.argv.some((a) => a.includes('test'));
+if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV && !isTesting) {
+  startServer();
+}
+
+export default app;

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Shield, GraduationCap, Sparkles, LogIn, ArrowRight, KeyRound, AlertCircle, Loader2 } from 'lucide-react';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../../firebase/config';
+import { Shield, GraduationCap, Sparkles, LogIn, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { signInWithPopup, signInWithCustomToken } from 'firebase/auth';
+import { auth, googleProvider } from '../../firebase/config';
 import { UserProfile } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
+import { setAuthSession } from '../../lib/authSession';
 
 interface AuthPortalProps {
   onAuthenticated: (user: UserProfile) => void;
@@ -13,37 +13,16 @@ interface AuthPortalProps {
 export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
   const [activePortal, setActivePortal] = useState<'student' | 'teacher' | 'admin'>('student');
 
-  // Student credentials
-  const [studentCode, setStudentCode] = useState('HS1A01');
-  const [studentSecret, setStudentSecret] = useState('matkhau123');
+  // Student credentials (blank by default for security)
+  const [studentCode, setStudentCode] = useState('');
+  const [studentSecret, setStudentSecret] = useState('');
 
-  // Teacher / Admin credentials
-  const [email, setEmail] = useState('giaovien1@thamtutoannhi.edu.vn');
-  const [password, setPassword] = useState('MatKhauGiaoVien@123');
+  // Teacher / Admin credentials (blank by default for security)
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Quick Demo Fill Helper
-  const handleSelectDemoUser = (role: 'student' | 'teacher' | 'admin', preset: string) => {
-    setActivePortal(role);
-    setErrorMsg(null);
-    if (role === 'student') {
-      if (preset === '1A') {
-        setStudentCode('HS1A01');
-        setStudentSecret('matkhau123');
-      } else if (preset === '2B') {
-        setStudentCode('HS2B05');
-        setStudentSecret('matkhau123');
-      }
-    } else if (role === 'teacher') {
-      setEmail('giaovien1@thamtutoannhi.edu.vn');
-      setPassword('MatKhauGiaoVien@123');
-    } else {
-      setEmail('admin@thamtutoannhi.edu.vn');
-      setPassword('AdminBaoMat@123');
-    }
-  };
 
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +35,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
 
     setLoading(true);
     try {
-      // Call server student login endpoint which verifies against Firestore and creates/authenticates student token
       const res = await fetch('/api/auth/student-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,10 +50,22 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
         return;
       }
 
-      onAuthenticated(data.user);
+      if (data.token && data.user) {
+        setAuthSession(data.token, data.user);
+        if (data.customToken) {
+          try {
+            await signInWithCustomToken(auth, data.customToken);
+          } catch (authErr) {
+            console.warn('Firebase Custom Token notice:', authErr);
+          }
+        }
+        onAuthenticated(data.user);
+      } else {
+        setErrorMsg('Phản hồi xác thực từ máy chủ không hợp lệ.');
+      }
     } catch (err) {
       console.error('Student login error:', err);
-      setErrorMsg('Lỗi kết nối máy chủ xác thực.');
+      setErrorMsg('Không thể kết nối tới máy chủ xác thực.');
     } finally {
       setLoading(false);
     }
@@ -92,23 +82,37 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
 
     setLoading(true);
     try {
-      // 1. First check if user exists in Firestore users collection
       const res = await fetch('/api/auth/teacher-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error || 'Email hoặc mật khẩu không đúng.');
+        setErrorMsg(data.error || 'Email hoặc mật khẩu không chính xác.');
         return;
       }
 
-      onAuthenticated(data.user);
+      if (data.token && data.user) {
+        setAuthSession(data.token, data.user);
+        if (data.customToken) {
+          try {
+            await signInWithCustomToken(auth, data.customToken);
+          } catch (authErr) {
+            console.warn('Firebase Custom Token notice:', authErr);
+          }
+        }
+        onAuthenticated(data.user);
+      } else {
+        setErrorMsg('Phản hồi xác thực từ máy chủ không hợp lệ.');
+      }
     } catch (err) {
       console.error('Login error:', err);
-      setErrorMsg('Lỗi kết nối máy chủ xác thực.');
+      setErrorMsg('Không thể kết nối tới máy chủ xác thực.');
     } finally {
       setLoading(false);
     }
@@ -121,28 +125,38 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
       const cred = await signInWithPopup(auth, googleProvider);
       const user = cred.user;
 
-      // Check role in Firestore users
-      const uDoc = await getDoc(doc(db, 'users', user.uid));
-      if (uDoc.exists()) {
-        onAuthenticated(uDoc.data() as UserProfile);
+      // Exchange with backend to obtain signed HMAC token & sync profile
+      const res = await fetch('/api/auth/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAuthSession(data.token, data.user);
+        onAuthenticated(data.user);
       } else {
-        // Bootstrapped admin email check
-        const isAdmin = user.email === 'AT.IT.K10@gmail.com';
-        const newProfile: UserProfile = {
+        // Fallback profile
+        const profile: UserProfile = {
           id: user.uid,
-          role: isAdmin ? 'admin' : 'teacher',
+          role: user.email === 'AT.IT.K10@gmail.com' ? 'admin' : 'teacher',
           displayName: user.displayName || 'Giáo viên',
           email: user.email || '',
           createdAt: new Date().toISOString(),
           dataOrigin: 'real',
           environmentTag: 'production',
         };
-        await setDoc(doc(db, 'users', user.uid), newProfile);
-        onAuthenticated(newProfile);
+        setAuthSession(`google-${user.uid}`, profile);
+        onAuthenticated(profile);
       }
     } catch (err: any) {
       console.error('Google sign in error:', err);
-      setErrorMsg('Không thể đăng nhập bằng Google hoặc bạn đã hủy cửa sổ.');
+      setErrorMsg('Không thể đăng nhập bằng Google hoặc bạn đã hủy cửa sổ đăng nhập.');
     } finally {
       setLoading(false);
     }
@@ -242,6 +256,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
                 value={studentCode}
                 onChange={(e) => setStudentCode(e.target.value.toUpperCase())}
                 placeholder="Ví dụ: HS1A01"
+                required
                 className="w-full h-14 px-4 rounded-2xl border-3 border-slate-200 bg-slate-50 text-xl font-black text-sky-800 tracking-wider focus:bg-white focus:border-sky-500 focus:outline-hidden"
               />
             </div>
@@ -255,6 +270,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
                 value={studentSecret}
                 onChange={(e) => setStudentSecret(e.target.value)}
                 placeholder="••••••••"
+                required
                 className="w-full h-14 px-4 rounded-2xl border-3 border-slate-200 bg-slate-50 text-xl font-black text-slate-800 focus:bg-white focus:border-sky-500 focus:outline-hidden"
               />
             </div>
@@ -298,6 +314,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="giaovien@thamtutoannhi.edu.vn"
+                required
                 className="w-full h-12 px-4 rounded-xl border-2 border-slate-200 bg-slate-50 text-sm font-bold text-slate-800 focus:bg-white focus:border-sky-500 focus:outline-hidden"
               />
             </div>
@@ -311,6 +328,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                required
                 className="w-full h-12 px-4 rounded-xl border-2 border-slate-200 bg-slate-50 text-sm font-bold text-slate-800 focus:bg-white focus:border-sky-500 focus:outline-hidden"
               />
             </div>
@@ -354,46 +372,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
           </form>
         )}
 
-        {/* Quick Demo Credentials Panel for Testers */}
-        <div className="mt-6 pt-4 border-t border-slate-100">
-          <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 text-center mb-2">
-            🔑 Tài Khoản Thử Nghiệm Nhanh (Demo Preset):
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleSelectDemoUser('student', '1A')}
-              className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold cursor-pointer"
-            >
-              Học sinh 1A (HS1A01)
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSelectDemoUser('student', '2B')}
-              className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold cursor-pointer"
-            >
-              Học sinh 2B (HS2B05)
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSelectDemoUser('teacher', '')}
-              className="px-2.5 py-1 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-900 text-xs font-bold cursor-pointer"
-            >
-              Giáo viên 1
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSelectDemoUser('admin', '')}
-              className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-900 text-xs font-bold cursor-pointer"
-            >
-              Quản trị viên
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Footer */}

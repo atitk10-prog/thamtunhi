@@ -10,23 +10,23 @@ Mọi bản ghi thử nghiệm dưới đây được tạo trực tiếp trên 
 #### A. Quản Trị Viên (Admin)
 - **Họ và tên**: Ban Quản Trị Hệ Thống
 - **Email**: `admin@thamtutoannhi.edu.vn`
-- **Mật khẩu**: `AdminBaoMat@123`
-- **Vai trò**: Quản trị toàn hệ thống, giám sát sức khỏe hạ tầng, chạy seed & cleanup, xem audit log.
+- **Mật khẩu**: *[Được quản lý theo quy chế bảo mật tài khoản quản trị]*
+- **Vai trò**: Quản trị toàn hệ thống, giám sát sức khỏe hạ tầng, kiểm tra phiên đăng nhập, xem audit log.
 
 #### B. Giáo Viên Bộ Môn
 1. **Giáo viên Khối 1**:
    - **Họ và tên**: Cô Mai Lan (Khối 1)
    - **Email**: `giaovien1@thamtutoannhi.edu.vn`
-   - **Mật khẩu**: `MatKhauGiaoVien@123`
+   - **Mật khẩu**: *[Cấp riêng theo danh sách giáo viên]*
    - **Phụ trách**: Lớp 1A và Lớp 1B.
 2. **Giáo viên Khối 2**:
    - **Họ và tên**: Thầy Quốc Huy (Khối 2)
    - **Email**: `giaovien2@thamtutoannhi.edu.vn`
-   - **Mật khẩu**: `MatKhauGiaoVien@123`
+   - **Mật khẩu**: *[Cấp riêng theo danh sách giáo viên]*
    - **Phụ trách**: Lớp 2A và Lớp 2B.
 
 #### C. Học Sinh Khảo Nghiệm (48 học sinh mô phỏng)
-- **Mật khẩu truy cập dùng chung cho toàn bộ học sinh demo**: `matkhau123`
+- **Cơ chế truy cập**: Học sinh đăng nhập bằng Mã học sinh và mật khẩu được giáo viên bộ môn cấp phát.
 - **Lớp 1A (12 học sinh)**: `HS1A01`, `HS1A02`, `HS1A03`, `HS1A04`, `HS1A05`, `HS1A06`, `HS1A07`, `HS1A08`, `HS1A09`, `HS1A10`, `HS1A11`, `HS1A12`
 - **Lớp 1B (12 học sinh)**: `HS1B01`, `HS1B02`, `HS1B03`, `HS1B04`, `HS1B05`, `HS1B06`, `HS1B07`, `HS1B08`, `HS1B09`, `HS1B10`, `HS1B11`, `HS1B12`
 - **Lớp 2A (12 học sinh)**: `HS2A01`, `HS2A02`, `HS2A03`, `HS2A04`, `HS2A05`, `HS2A06`, `HS2A07`, `HS2A08`, `HS2A09`, `HS2A10`, `HS2A11`, `HS2A12`

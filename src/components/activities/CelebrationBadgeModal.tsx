@@ -11,6 +11,7 @@ interface CelebrationBadgeModalProps {
   postHintCount: number;
   durationSeconds: number;
   onFinish: () => void;
+  onRetry?: () => void;
 }
 
 export const CelebrationBadgeModal: React.FC<CelebrationBadgeModalProps> = ({
@@ -21,6 +22,7 @@ export const CelebrationBadgeModal: React.FC<CelebrationBadgeModalProps> = ({
   postHintCount,
   durationSeconds,
   onFinish,
+  onRetry,
 }) => {
   useEffect(() => {
     if (isOpen) {
@@ -94,7 +96,7 @@ export const CelebrationBadgeModal: React.FC<CelebrationBadgeModalProps> = ({
               <Star className="w-3.5 h-3.5 text-amber-500" /> Điểm số
             </div>
             <div className="text-xl font-black text-slate-800 mt-1">
-              {score}/{maxScore}
+              {score ?? 0}/{maxScore || 80}
             </div>
           </div>
 
@@ -121,14 +123,25 @@ export const CelebrationBadgeModal: React.FC<CelebrationBadgeModalProps> = ({
           Thời gian hoàn thành: {formatTime(durationSeconds)}
         </div>
 
-        {/* Action Button */}
-        <button
-          type="button"
-          onClick={onFinish}
-          className="w-full mt-6 py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-98 text-white text-lg font-black shadow-lg shadow-emerald-200 cursor-pointer transition-all flex items-center justify-center gap-2"
-        >
-          <Home className="w-5 h-5" /> Trở về Bàn Nhiệm Vụ
-        </button>
+        {/* Action Buttons */}
+        <div className="w-full flex flex-col gap-2 mt-6">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 active:scale-98 text-amber-950 text-base font-black shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
+            >
+              🔄 Luyện tập lại lượt mới
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onFinish}
+            className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-98 text-white text-base font-black shadow-lg shadow-emerald-200 cursor-pointer transition-all flex items-center justify-center gap-2"
+          >
+            <Home className="w-5 h-5" /> Trở về Bàn Nhiệm Vụ
+          </button>
+        </div>
       </div>
     </div>
   );

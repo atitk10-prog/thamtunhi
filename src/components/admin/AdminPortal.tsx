@@ -15,12 +15,14 @@ import {
   Layers,
   Calendar,
   Lock,
+  Unlock,
   Plus
 } from 'lucide-react';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { db, testConnection } from '../../firebase/config';
+import { dataService } from '../../lib/dataService';
+import { testConnection } from '../../firebase/config';
 import { UserProfile, Classroom, AcademicYear, AuditLog, SystemHealth } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
+import { getAuthHeaders } from '../../lib/authSession';
 
 interface AdminPortalProps {
   currentUser: UserProfile;
@@ -69,48 +71,30 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const fetchSystemData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Users
-      const uSnap = await getDocs(collection(db, 'users'));
-      const uList: UserProfile[] = [];
-      uSnap.forEach((d) => uList.push(d.data() as UserProfile));
+      const overview = await dataService.fetchAdminOverview();
+      const uList: UserProfile[] = overview.users || [];
+      const cList: Classroom[] = overview.classes || [];
+      const yList: AcademicYear[] = overview.academicYears || [];
+      const lList = overview.lessons || [];
+      const aList = overview.assignments || [];
+      const attList = overview.attempts || [];
+      const logList: AuditLog[] = overview.auditLogs || [];
 
+      const nonDeletedUsers = uList.filter((u: any) => !u.isDeleted);
       const filteredUsers = dataOriginFilter === 'all'
-        ? uList
-        : uList.filter((u) => u.dataOrigin === dataOriginFilter);
+        ? nonDeletedUsers
+        : nonDeletedUsers.filter((u) => u.dataOrigin === dataOriginFilter);
 
       setTeachers(filteredUsers.filter((u) => u.role === 'teacher'));
       setStudents(filteredUsers.filter((u) => u.role === 'student'));
-
-      // 2. Fetch Classes
-      const cSnap = await getDocs(collection(db, 'classes'));
-      const cList: Classroom[] = [];
-      cSnap.forEach((d) => cList.push(d.data() as Classroom));
       setClasses(cList);
-
-      // 3. Fetch Academic Years
-      const ySnap = await getDocs(collection(db, 'academicYears'));
-      const yList: AcademicYear[] = [];
-      ySnap.forEach((d) => yList.push(d.data() as AcademicYear));
       setAcademicYears(yList);
+      setLessonsCount(lList.length);
+      setAssignmentsCount(aList.length);
+      setAttemptsCount(attList.length);
+      setAuditLogs(logList.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || '')).slice(0, 50));
 
-      // 4. Fetch counts
-      const lSnap = await getDocs(collection(db, 'lessons'));
-      setLessonsCount(lSnap.size);
-
-      const aSnap = await getDocs(collection(db, 'assignments'));
-      setAssignmentsCount(aSnap.size);
-
-      const attSnap = await getDocs(collection(db, 'attempts'));
-      setAttemptsCount(attSnap.size);
-
-      // 5. Fetch Audit Logs
-      const logSnap = await getDocs(collection(db, 'auditLogs'));
-      const logList: AuditLog[] = [];
-      logSnap.forEach((d) => logList.push(d.data() as AuditLog));
-      setAuditLogs(logList.sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 50));
-
-      // 6. Check Health
-      const connTest = await testConnection();
+      // Check Health (truthful probe without faking)
       try {
         const hRes = await fetch('/api/health');
         if (hRes.ok) {
@@ -118,26 +102,43 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           setHealthInfo(hData);
         } else {
           setHealthInfo({
-            status: connTest.ok ? 'healthy' : 'degraded',
+            status: 'degraded',
             firebaseProjectId: 'indigo-lotus-2nmq3',
             databaseId: 'ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2',
-            authConnected: true,
-            geminiConfigured: true,
-            buildVersion: '1.0.0-prod',
-            environmentTag: 'demo',
+            authConnected: false,
+            geminiConfigured: false,
+            buildVersion: '1.1.0-prod',
+            environmentTag: 'production',
             demoStats: {
               teachersCount: filteredUsers.filter((u) => u.role === 'teacher').length,
               classesCount: cList.length,
               studentsCount: filteredUsers.filter((u) => u.role === 'student').length,
-              lessonsCount: lSnap.size,
-              assignmentsCount: aSnap.size,
-              attemptsCount: attSnap.size,
+              lessonsCount: lList.length,
+              assignmentsCount: aList.length,
+              attemptsCount: attList.length,
             },
-            warnings: [],
+            warnings: ['Không thể kết nối API Health Backend (/api/health). Vui lòng kiểm tra Vercel Functions.'],
           });
         }
       } catch {
-        // Fallback info
+        setHealthInfo({
+          status: 'degraded',
+          firebaseProjectId: 'indigo-lotus-2nmq3',
+          databaseId: 'ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2',
+          authConnected: false,
+          geminiConfigured: false,
+          buildVersion: '1.1.0-prod',
+          environmentTag: 'production',
+          demoStats: {
+            teachersCount: filteredUsers.filter((u) => u.role === 'teacher').length,
+            classesCount: cList.length,
+            studentsCount: filteredUsers.filter((u) => u.role === 'student').length,
+            lessonsCount: lList.length,
+            assignmentsCount: aList.length,
+            attemptsCount: attList.length,
+          },
+          warnings: ['Lỗi kết nối mạng tới máy chủ API.'],
+        });
       }
     } catch (err) {
       console.error('Fetch admin data error:', err);
@@ -146,14 +147,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  // Seed Handler (calls backend idempotent seed)
+  // Seed Handler (calls backend idempotent seed with auth token)
   const handleSeed = async (apply: boolean) => {
     setIsSeeding(true);
     setSeedOutput(null);
     try {
       const res = await fetch('/api/admin/seed-demo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({
+          'x-admin-confirm': apply ? 'CONFIRM_APPLY' : 'DRY_RUN',
+        }),
         body: JSON.stringify({
           apply,
           actorId: currentUser.id,
@@ -162,7 +165,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
       const data = await res.json();
       setSeedOutput(JSON.stringify(data, null, 2));
-      if (apply) {
+      if (apply && res.ok) {
         fetchSystemData();
       }
     } catch (err) {
@@ -172,7 +175,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  // Cleanup Demo Handler (scoped to namespace demo only)
+  // Cleanup Demo Handler (scoped to namespace demo only, authenticated)
   const handleCleanupDemo = async () => {
     if (!confirm('XÁC NHẬN: Bạn có chắc chắn muốn dọn dẹp các bản ghi mô phỏng demo? Dữ liệu người dùng thực tế sẽ được bảo toàn tuyệt đối.')) {
       return;
@@ -183,12 +186,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     try {
       const res = await fetch('/api/admin/cleanup-demo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ actorId: currentUser.id }),
       });
       const data = await res.json();
       setSeedOutput(JSON.stringify(data, null, 2));
-      fetchSystemData();
+      if (res.ok) {
+        fetchSystemData();
+      }
     } catch (err) {
       setSeedOutput(`Lỗi dọn dẹp demo: ${String(err)}`);
     } finally {
@@ -217,7 +222,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         environmentTag: 'production',
       };
 
-      await setDoc(doc(db, 'users', newUid), newUser);
+      await dataService.adminCreateUser(newUser);
       alert(`Đã tạo thành công tài khoản ${newRole}: ${newDisplayName}`);
       setIsCreateUserOpen(false);
       setNewDisplayName('');
@@ -225,6 +230,39 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     } catch (err) {
       console.error('Create user error:', err);
       alert('Lỗi tạo tài khoản.');
+    }
+  };
+
+  // Delete User Handler (Admin real CRUD)
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn xóa tài khoản "${userName}"?`)) {
+      return;
+    }
+    try {
+      await dataService.adminDeleteUser(userId);
+      alert(`Đã xóa thành công tài khoản "${userName}".`);
+      fetchSystemData();
+    } catch (err: any) {
+      console.error('Delete user error:', err);
+      alert(err.message || 'Lỗi xóa tài khoản.');
+    }
+  };
+
+  // Toggle Lock User Handler (Admin real CRUD)
+  const handleToggleLockUser = async (user: UserProfile) => {
+    const isLocked = user.status === 'inactive' || user.status === 'locked';
+    const newStatus = isLocked ? 'active' : 'locked';
+    const actionLabel = isLocked ? 'Mở khóa' : 'Khóa';
+    if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn ${actionLabel} tài khoản "${user.displayName || user.studentCode}"?`)) {
+      return;
+    }
+    try {
+      await dataService.adminUpdateUser(user.id, { status: newStatus });
+      alert(`Đã ${actionLabel.toLowerCase()} thành công tài khoản "${user.displayName || user.studentCode}".`);
+      fetchSystemData();
+    } catch (err: any) {
+      console.error('Toggle lock error:', err);
+      alert(err.message || `Lỗi ${actionLabel.toLowerCase()} tài khoản.`);
     }
   };
 
@@ -474,7 +512,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <th className="px-6 py-3">Họ và tên</th>
                       <th className="px-6 py-3">Email liên hệ</th>
                       <th className="px-6 py-3">Vai trò</th>
+                      <th className="px-6 py-3">Trạng thái</th>
                       <th className="px-6 py-3">Nguồn</th>
+                      <th className="px-6 py-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -488,7 +528,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           </span>
                         </td>
                         <td className="px-6 py-3.5 text-xs">
+                          {t.status === 'inactive' ? (
+                            <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-extrabold text-[11px] border border-rose-200">
+                              Đã khóa
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-extrabold text-[11px] border border-emerald-200">
+                              Hoạt động
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3.5 text-xs">
                           {t.dataOrigin === 'simulation' ? 'Mô phỏng' : 'Thật'}
+                        </td>
+                        <td className="px-6 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLockUser(t)}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                t.status === 'inactive'
+                                  ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800'
+                                  : 'text-amber-600 hover:bg-amber-50 hover:text-amber-800'
+                              }`}
+                              title={t.status === 'inactive' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                            >
+                              {t.status === 'inactive' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(t.id, t.displayName)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                              title="Xóa tài khoản"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -509,7 +584,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <th className="px-6 py-3">Mã học sinh</th>
                       <th className="px-6 py-3">Họ và tên</th>
                       <th className="px-6 py-3">Lớp</th>
+                      <th className="px-6 py-3">Trạng thái</th>
                       <th className="px-6 py-3">Nguồn dữ liệu</th>
+                      <th className="px-6 py-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -519,7 +596,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <td className="px-6 py-3 font-bold text-slate-900">{s.displayName}</td>
                         <td className="px-6 py-3 text-xs font-bold">{s.classId}</td>
                         <td className="px-6 py-3 text-xs">
+                          {s.status === 'inactive' ? (
+                            <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-extrabold text-[11px] border border-rose-200">
+                              Đã khóa
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-extrabold text-[11px] border border-emerald-200">
+                              Hoạt động
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3 text-xs">
                           {s.dataOrigin === 'simulation' ? 'Mô phỏng (Demo)' : 'Thật'}
+                        </td>
+                        <td className="px-6 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLockUser(s)}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                s.status === 'inactive'
+                                  ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800'
+                                  : 'text-amber-600 hover:bg-amber-50 hover:text-amber-800'
+                              }`}
+                              title={s.status === 'inactive' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                            >
+                              {s.status === 'inactive' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(s.id, s.displayName)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                              title="Xóa tài khoản"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

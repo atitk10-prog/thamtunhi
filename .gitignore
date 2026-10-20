@@ -9,3 +9,6 @@ coverage/
 credentials/
 secrets/
 *.local
+.vercel
+.backup/
+backup/

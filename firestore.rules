@@ -14,6 +14,7 @@ service cloud.firestore {
     function isBootstrappedAdmin() {
       return isSignedIn() && 
         (request.auth.token.email == 'AT.IT.K10@gmail.com' ||
+         (request.auth.token.role == 'admin') ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
@@ -21,78 +22,114 @@ service cloud.firestore {
     function isTeacher() {
       return isSignedIn() && 
         (isBootstrappedAdmin() || 
+         (request.auth.token.role == 'teacher') ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher'));
     }
 
-    // Users Collection
+    // 1. Users Collection (Profile, Role, and Identity)
+    // Strictly blocks privilege escalation, unauthorized reads, and password modification
     match /users/{userId} {
-      allow read: if true;
-      allow create, update: if true;
-      allow delete: if isBootstrappedAdmin() || (resource.data.environmentTag == 'demo');
-    }
-
-    // Academic Years Collection
-    match /academicYears/{yearId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // Classes Collection
-    match /classes/{classId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // Lessons Collection
-    match /lessons/{lessonId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // Lesson Versions (Immutable Snapshots)
-    match /lessonVersions/{versionId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // Assignments Collection
-    match /assignments/{assignmentId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // Attempts Collection (Student submissions & real-time auto save)
-    match /attempts/{attemptId} {
-      allow read: if true;
-      allow create, update: if true;
-      allow delete: if isBootstrappedAdmin() || (resource.data.environmentTag == 'demo');
-    }
-
-    // Attempt Answers (Granular question interactions & misconception tracking)
-    match /attemptAnswers/{answerId} {
-      allow read: if true;
-      allow create, update: if true;
-      allow delete: if isBootstrappedAdmin() || (resource.data.environmentTag == 'demo');
-    }
-
-    // Mistake Insights Collection
-    match /mistakeInsights/{insightId} {
-      allow read: if true;
-      allow create, update: if true;
+      allow read: if isBootstrappedAdmin() || 
+                     isCurrentUser(userId) || 
+                     (isTeacher() && resource.data.role == 'student');
+      allow create: if isBootstrappedAdmin();
+      allow update: if isBootstrappedAdmin() || 
+                       (isCurrentUser(userId) && 
+                        request.resource.data.role == resource.data.role && 
+                        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'dataOrigin', 'environmentTag', 'password', 'accessSecret']));
       allow delete: if isBootstrappedAdmin();
     }
 
-    // Audit Logs Collection
-    match /auditLogs/{logId} {
-      allow read: if true;
-      allow create: if true;
-      allow update, delete: if false; // Immutable audit trail
+    // 2. Academic Years Collection
+    match /academicYears/{yearId} {
+      allow read: if isSignedIn();
+      allow write: if isBootstrappedAdmin();
     }
 
-    // Connection testing
+    // 3. Classes Collection
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow create: if isTeacher();
+      allow update: if isBootstrappedAdmin() || 
+                       (isTeacher() && resource.data.teacherId == request.auth.uid);
+      allow delete: if isBootstrappedAdmin();
+    }
+
+    // 4. Lessons Collection
+    match /lessons/{lessonId} {
+      allow read: if isSignedIn();
+      allow create: if isTeacher();
+      allow update: if isBootstrappedAdmin() || 
+                       (isTeacher() && (resource.data.createdBy == request.auth.uid || request.resource.data.createdBy == request.auth.uid));
+      allow delete: if isBootstrappedAdmin();
+    }
+
+    // 5. Lesson Versions (Immutable Snapshots - strictly no edits or deletions once published)
+    match /lessonVersions/{versionId} {
+      allow read: if isSignedIn();
+      allow create: if isTeacher();
+      allow update, delete: if false; // Immutable snapshot invariant
+    }
+
+    // 6. Assignments Collection
+    match /assignments/{assignmentId} {
+      allow read: if isSignedIn();
+      allow create: if isTeacher();
+      allow update: if isBootstrappedAdmin() || 
+                       (isTeacher() && resource.data.teacherId == request.auth.uid);
+      allow delete: if isBootstrappedAdmin() || 
+                       (isTeacher() && resource.data.teacherId == request.auth.uid);
+    }
+
+    // 7. Attempts Collection (Student submissions & auto-save)
+    // Students can only create/update their own; locked when completed; no cross-student read
+    match /attempts/{attemptId} {
+      allow read: if isBootstrappedAdmin() || 
+                     isTeacher() || 
+                     (isSignedIn() && resource.data.studentId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isSignedIn() && 
+                       resource.data.studentId == request.auth.uid && 
+                       resource.data.status != 'completed';
+      allow delete: if isBootstrappedAdmin();
+    }
+
+    // 8. Attempt Answers Collection (Granular question interactions)
+    match /attemptAnswers/{answerId} {
+      allow read: if isBootstrappedAdmin() || 
+                     isTeacher() || 
+                     (isSignedIn() && resource.data.studentId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.studentId == request.auth.uid;
+      allow delete: if isBootstrappedAdmin();
+    }
+
+    // 9. Mistake Insights Collection
+    match /mistakeInsights/{insightId} {
+      allow read: if isBootstrappedAdmin() || 
+                     isTeacher() || 
+                     (isSignedIn() && resource.data.studentId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update, delete: if isBootstrappedAdmin();
+    }
+
+    // 10. Audit Logs Collection (Immutable Audit Trail)
+    match /auditLogs/{logId} {
+      allow read: if isBootstrappedAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false; // Immutable audit trail invariant
+    }
+
+    // 11. Public Connectivity Testing Endpoint (Health probe only, read-only, no sensitive data)
     match /test/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Default: Deny-by-default for any unmapped paths
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

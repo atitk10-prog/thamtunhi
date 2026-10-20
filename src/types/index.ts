@@ -18,6 +18,8 @@ export interface UserProfile {
   className?: string;
   grade?: 1 | 2;
   schoolYearId?: string;
+  status?: 'active' | 'inactive';
+  isDeleted?: boolean;
   createdAt: string;
   updatedAt?: string;
   dataOrigin: DataOrigin;
@@ -67,8 +69,12 @@ export type MathErrorPattern =
   | 'GENERAL_CALCULATION_ERROR';    // Lỗi tính toán thông thường
 
 export interface VisualAssetConfig {
-  type: 'counters' | 'ten_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story';
+  type: 'counters' | 'ten_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story' | 'comparison';
   count?: number;
+  leftCount?: number;
+  rightCount?: number;
+  leftLabel?: string;
+  rightLabel?: string;
   iconName?: string; // apple, star, candy, fish, pencil, block
   tens?: number;
   ones?: number;
@@ -111,6 +117,7 @@ export interface Lesson {
   totalQuestions: number;
   status: 'draft' | 'published' | 'archived';
   currentVersion: number;
+  currentVersionId?: string;
   createdBy: string;
   createdAt: string;
   updatedAt?: string;
@@ -141,6 +148,8 @@ export interface Assignment {
   lessonVersionId: string;
   classId: string;
   className?: string;
+  studentId?: string; // Tùy chọn: Giao riêng cho từng học sinh cụ thể
+  studentName?: string;
   grade: 1 | 2;
   teacherId: string;
   dueDate: string;
