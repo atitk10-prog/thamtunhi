@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Copy, ArrowUp, ArrowDown, Save, Send, X, AlertCircle } from 'lucide-react';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { dataService } from '../../lib/dataService';
 import { Lesson, LessonVersion, Question, InteractionType } from '../../types';
 
 interface LessonEditorModalProps {
@@ -160,8 +159,6 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
         dataOrigin: 'real',
         environmentTag: 'demo',
       };
-      await setDoc(doc(db, 'lessonVersions', versionId), versionDoc);
-
       // 2. Create or update Lesson header
       const lessonDoc: Lesson = {
         id: lessonId,
@@ -180,7 +177,9 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
         dataOrigin: 'real',
         environmentTag: 'demo',
       };
-      await setDoc(doc(db, 'lessons', lessonId), lessonDoc, { merge: true });
+
+      // 3. Save snapshot & header via unified dataService (Dual-Path)
+      await dataService.saveLessonVersion(lessonDoc, versionDoc);
 
       onSaved();
       onClose();

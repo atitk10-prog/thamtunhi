@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { X, Send, CheckSquare, Square, Calendar, Loader2 } from 'lucide-react';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { dataService } from '../../lib/dataService';
 import { Lesson, Classroom } from '../../types';
 
 interface AssignModalProps {
@@ -80,7 +79,7 @@ export const AssignModal: React.FC<AssignModalProps> = ({
           environmentTag: 'demo',
         };
 
-        await setDoc(doc(db, 'assignments', idempotencyKey), assignmentDoc, { merge: true });
+        await dataService.saveAssignment(assignmentDoc as any);
       }
 
       onAssigned();

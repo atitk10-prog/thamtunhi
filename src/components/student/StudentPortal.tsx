@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, Clock, Award, LogOut, Sparkles, BookOpen } from 'lucide-react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
 import { Assignment, LessonVersion, Attempt, UserProfile } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
 import { MissionPlayer } from './MissionPlayer';
+import { dataService } from '../../lib/dataService';
 
 interface StudentPortalProps {
   currentUser: UserProfile;
@@ -31,24 +30,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const fetchStudentAssignments = async () => {
     setLoading(true);
     try {
-      // 1. Fetch assignments for student's class
-      const q = query(
-        collection(db, 'assignments'),
-        where('classId', '==', currentUser.classId || 'class-1a')
-      );
-      const snap = await getDocs(q);
-      const list: Assignment[] = [];
-      snap.forEach((d) => list.push(d.data() as Assignment));
+      // 1. Fetch assignments for student's class via unified data service
+      const list = await dataService.fetchStudentAssignments(currentUser.classId || 'class-1a');
 
-      // 2. Fetch attempts for current student
-      const attQ = query(
-        collection(db, 'attempts'),
-        where('studentId', '==', currentUser.id)
-      );
-      const attSnap = await getDocs(attQ);
+      // 2. Fetch attempts for current student via unified data service
+      const attList = await dataService.fetchStudentAttempts(currentUser.id);
       const attMap: Record<string, Attempt> = {};
-      attSnap.forEach((d) => {
-        const att = d.data() as Attempt;
+      attList.forEach((att) => {
         attMap[att.assignmentId] = att;
       });
 
@@ -64,16 +52,17 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const handleStartMission = async (assignment: Assignment) => {
     setLoadingMission(true);
     try {
-      // Fetch the immutable LessonVersion
-      const versionDoc = await getDoc(doc(db, 'lessonVersions', assignment.lessonVersionId));
-      if (versionDoc.exists()) {
-        setActiveLessonVersion(versionDoc.data() as LessonVersion);
+      // Fetch the immutable LessonVersion via unified data service
+      const version = await dataService.fetchLessonVersion(assignment.lessonVersionId);
+      if (version) {
+        setActiveLessonVersion(version);
         setActiveAssignment(assignment);
       } else {
         alert('Không tìm thấy nội dung bài học. Vui lòng báo giáo viên.');
       }
     } catch (err) {
       console.error('Load mission error:', err);
+      alert('Không thể tải bài học. Vui lòng thử lại.');
     } finally {
       setLoadingMission(false);
     }

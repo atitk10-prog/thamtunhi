@@ -383,6 +383,102 @@ async function runTestSuite() {
   // Rule 17: Updating immutable audit log -> DENIED
   assert(rules.canUpdateAuditLog({ auth: adminUser }) === false, 'Rules: Bất biến nhật ký hệ thống auditLogs (Không ai được sửa/xóa audit log)');
 
+  // --- 9. UNIFIED DATA PROXY & PERMISSION_DENIED RESOLUTION TESTS ---
+  console.log('\n--- PHẦN 9: KIỂM THỬ UNIFIED DATA ENDPOINTS & TRIỆT TIÊU PERMISSION_DENIED ---');
+  // Student assignments proxy
+  const stuAssignNoToken = await request('GET', '/api/student/assignments?classId=class-1a');
+  assert(stuAssignNoToken.status === 401, 'Proxy: Chặn truy cập danh sách bài tập khi chưa đăng nhập (HTTP 401)');
+
+  const stuAssignWithToken = await request('GET', '/api/student/assignments?classId=class-1a', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  });
+  assert(stuAssignWithToken.status === 200, 'Proxy: Học sinh tải danh sách bài tập lớp qua backend proxy (HTTP 200)');
+  assert(Array.isArray(stuAssignWithToken.body.assignments), 'Proxy: Danh sách bài tập trả về mảng hợp lệ');
+
+  // Student attempts privacy protection
+  const stuAttemptsOwn = await request('GET', `/api/student/attempts?studentId=${stuValidRes.body.user.id}`, {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  });
+  assert(stuAttemptsOwn.status === 200, 'Proxy: Học sinh đọc lịch sử làm bài của chính mình (HTTP 200)');
+
+  const stuAttemptsOther = await request('GET', '/api/student/attempts?studentId=other-student-id-999', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  });
+  assert(stuAttemptsOther.status === 403, 'Proxy: Chặn Học sinh đọc bài làm của học sinh khác (HTTP 403 Forbidden)');
+
+  // Student attempt forgery prevention
+  const forgedAttempt = await request('POST', '/api/student/attempts', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  }, {
+    id: `attempt-forged-${Date.now()}`,
+    studentId: 'victim-student-uid',
+    assignmentId: 'assign-1',
+    lessonVersionId: 'version-1',
+  });
+  assert(forgedAttempt.status === 403, 'Proxy: Chặn Học sinh tạo bài làm mạo danh tài khoản khác (HTTP 403 Forbidden)');
+
+  // Teacher classes proxy
+  const teacherClassesStudentToken = await request('GET', '/api/teacher/classes', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  });
+  assert(teacherClassesStudentToken.status === 403, 'Proxy: Chặn Học sinh gọi API danh sách lớp giáo viên (HTTP 403 Forbidden)');
+
+  const teacherClassesRes = await request('GET', '/api/teacher/classes', {
+    Authorization: `Bearer ${teacherLoginRes.body.token}`,
+  });
+  assert(teacherClassesRes.status === 200, 'Proxy: Giáo viên tải danh sách lớp học phụ trách (HTTP 200)');
+
+  // Teacher lessons library proxy
+  const teacherLessonsRes = await request('GET', '/api/teacher/lessons', {
+    Authorization: `Bearer ${teacherLoginRes.body.token}`,
+  });
+  assert(teacherLessonsRes.status === 200, 'Proxy: Giáo viên tải thư viện bài học qua proxy (HTTP 200)');
+
+  // Teacher assignments proxy
+  const teacherAssignmentsRes = await request('GET', '/api/teacher/assignments', {
+    Authorization: `Bearer ${teacherLoginRes.body.token}`,
+  });
+  assert(teacherAssignmentsRes.status === 200, 'Proxy: Giáo viên tải danh sách bài đã giao (HTTP 200)');
+
+  // Teacher analytics proxy
+  const teacherAnalyticsRes = await request('GET', '/api/teacher/analytics', {
+    Authorization: `Bearer ${teacherLoginRes.body.token}`,
+  });
+  assert(teacherAnalyticsRes.status === 200, 'Proxy: Giáo viên tải số liệu phân tích lỗi sai (HTTP 200)');
+
+  const teacherAnalyticsStudent = await request('GET', '/api/teacher/analytics', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  });
+  assert(teacherAnalyticsStudent.status === 403, 'Proxy: Chặn Học sinh truy cập thống kê phân tích của Giáo viên (HTTP 403 Forbidden)');
+
+  // Admin overview proxy
+  const adminOverviewStudent = await request('GET', '/api/admin/overview', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  });
+  assert(adminOverviewStudent.status === 403, 'Proxy: Chặn Học sinh truy cập trang tổng quan Admin (HTTP 403 Forbidden)');
+
+  const adminOverviewTeacher = await request('GET', '/api/admin/overview', {
+    Authorization: `Bearer ${teacherLoginRes.body.token}`,
+  });
+  assert(adminOverviewTeacher.status === 403, 'Proxy: Chặn Giáo viên truy cập trang tổng quan Admin (HTTP 403 Forbidden)');
+
+  const adminOverviewAdmin = await request('GET', '/api/admin/overview', {
+    Authorization: `Bearer ${adminLoginRes.body.token}`,
+  });
+  assert(adminOverviewAdmin.status === 200, 'Proxy: Quản trị viên tải thành công tổng quan hệ thống (HTTP 200)');
+
+  // Google Login session exchange
+  const googleLoginMissing = await request('POST', '/api/auth/google-login', {}, {});
+  assert(googleLoginMissing.status === 400, 'Google Login: Chặn yêu cầu thiếu định danh (HTTP 400)');
+
+  const googleLoginValid = await request('POST', '/api/auth/google-login', {}, {
+    uid: 'google-test-user-1',
+    email: 'test@example.com',
+    displayName: 'Test Google User',
+  });
+  assert(googleLoginValid.status === 200, 'Google Login: Tạo và xác thực phiên đăng nhập Google thành công (HTTP 200)');
+  assert(Boolean(googleLoginValid.body.token), 'Google Login: Cấp token phiên HMAC an toàn');
+
   console.log('\n================================================================');
   console.log(` TỔNG KẾT KIỂM THỬ: ${passedTests}/${totalTests} TESTS PASS (100% ĐẠT TIÊU CHUẨN)`);
   console.log('================================================================\n');

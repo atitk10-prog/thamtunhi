@@ -31,6 +31,34 @@ const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
+// Initialize Firebase Admin SDK if service account provided
+import { initializeApp as initAdminApp, cert as adminCert, App as AdminApp } from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+
+let adminApp: AdminApp | null = null;
+const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT;
+if (saEnv) {
+  try {
+    const sa = JSON.parse(saEnv);
+    adminApp = initAdminApp({
+      credential: adminCert(sa),
+      projectId: firebaseConfig.projectId,
+    }, 'admin-thamtutoannhi');
+  } catch (e) {
+    console.warn('Notice: Firebase Admin service account parse error:', e);
+  }
+}
+
+export async function mintCustomToken(uid: string, claims: Record<string, any>): Promise<string | null> {
+  if (!adminApp) return null;
+  try {
+    return await getAdminAuth(adminApp).createCustomToken(uid, claims);
+  } catch (e) {
+    console.warn('Notice: Custom token generation error:', e);
+    return null;
+  }
+}
+
 // Gemini AI client initialization
 let genAI: GoogleGenAI | null = null;
 if (process.env.GEMINI_API_KEY) {
@@ -197,7 +225,14 @@ app.post('/api/auth/student-login', async (req: Request, res: Response) => {
       grade: safeUser.grade,
     });
 
-    return res.json({ ok: true, user: safeUser, token });
+    const customToken = await mintCustomToken(safeUser.id, {
+      role: 'student',
+      studentCode: safeUser.studentCode,
+      classId: safeUser.classId,
+      grade: safeUser.grade,
+    });
+
+    return res.json({ ok: true, user: safeUser, token, customToken });
   } catch (err: any) {
     console.error('Student login server error:', err);
     return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực học sinh.' });
@@ -246,7 +281,12 @@ app.post('/api/auth/teacher-login', async (req: Request, res: Response) => {
       email: safeUser.email,
     });
 
-    return res.json({ ok: true, user: safeUser, token });
+    const customToken = await mintCustomToken(safeUser.id, {
+      role: safeUser.role,
+      email: safeUser.email,
+    });
+
+    return res.json({ ok: true, user: safeUser, token, customToken });
   } catch (err: any) {
     console.error('User login server error:', err);
     return res.status(500).json({ error: 'Lỗi xác thực người dùng.' });
@@ -272,6 +312,51 @@ app.get('/api/auth/verify-session', requireAuth, async (req: AuthenticatedReques
   } catch (err: any) {
     console.error('Verify session error:', err);
     return res.status(500).json({ error: 'Lỗi kiểm tra phiên đăng nhập.' });
+  }
+});
+
+// 4b. Google Auth Session Exchange (Syncs user profile and grants HMAC session token)
+app.post('/api/auth/google-login', async (req: Request, res: Response) => {
+  const { uid, email, displayName } = req.body;
+  if (!uid) {
+    return res.status(400).json({ error: 'Thiếu định danh Google.' });
+  }
+
+  try {
+    const userDocRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userDocRef);
+    let profile: any;
+
+    if (userSnap.exists()) {
+      profile = userSnap.data();
+    } else {
+      const isAdmin = email === 'AT.IT.K10@gmail.com';
+      profile = {
+        id: uid,
+        role: isAdmin ? 'admin' : 'teacher',
+        displayName: displayName || (isAdmin ? 'Quản trị viên' : 'Giáo viên'),
+        email: email || '',
+        createdAt: new Date().toISOString(),
+        dataOrigin: 'real',
+        environmentTag: 'production',
+      };
+      await setDoc(userDocRef, profile);
+    }
+
+    const { password: _, accessSecret: __, ...safeUser } = profile;
+    const sessionPayload: Omit<AuthSession, 'exp'> = {
+      uid: safeUser.id,
+      role: safeUser.role,
+      displayName: safeUser.displayName,
+      email: safeUser.email,
+    };
+    const token = createAuthToken(sessionPayload);
+    const customToken = await mintCustomToken(safeUser.id, { role: safeUser.role });
+
+    return res.json({ ok: true, user: safeUser, token, customToken });
+  } catch (err: any) {
+    console.error('Google login exchange error:', err);
+    return res.status(500).json({ error: 'Lỗi xác thực phiên Google.' });
   }
 });
 
@@ -525,6 +610,347 @@ app.post('/api/admin/cleanup-demo', requireAuth, requireRole(['admin']), async (
   } catch (err: any) {
     console.error('Cleanup demo error:', err);
     return res.status(500).json({ error: 'Lỗi dọn dẹp demo: ' + err.message });
+  }
+});
+
+// ============================================================================
+// 8. DATA PROXY ENDPOINTS (DUAL-PATH ARCHITECTURE TO PREVENT PERMISSION_DENIED)
+// ============================================================================
+
+// --- A. STUDENT DATA ENDPOINTS ---
+app.get('/api/student/assignments', requireAuth, requireRole(['student', 'teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const classId = req.user?.role === 'student' ? req.user.classId : (req.query.classId as string || req.user?.classId);
+    if (!classId) {
+      return res.status(400).json({ error: 'Thiếu thông tin classId của lớp học.' });
+    }
+    const q = query(collection(db, 'assignments'), where('classId', '==', classId));
+    const snap = await getDocs(q);
+    const assignments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return res.json({ ok: true, assignments });
+  } catch (err: any) {
+    console.error('Fetch student assignments error:', err);
+    return res.status(500).json({ error: 'Lỗi tải danh sách bài tập: ' + err.message });
+  }
+});
+
+app.get('/api/student/attempts', requireAuth, requireRole(['student', 'teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // ABAC Enforced: Student can only ever read their own attempts
+    if (req.user?.role === 'student' && req.query.studentId && req.query.studentId !== req.user.uid) {
+      return res.status(403).json({ error: 'Từ chối truy cập: Học sinh chỉ có thể xem bài làm của chính mình.' });
+    }
+    const studentId = req.user?.role === 'student' ? req.user.uid : (req.query.studentId as string || req.user!.uid);
+    const q = query(collection(db, 'attempts'), where('studentId', '==', studentId));
+    const snap = await getDocs(q);
+    const attempts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return res.json({ ok: true, attempts });
+  } catch (err: any) {
+    console.error('Fetch student attempts error:', err);
+    return res.status(500).json({ error: 'Lỗi tải lịch sử bài làm: ' + err.message });
+  }
+});
+
+app.get('/api/student/lesson-version/:versionId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const versionId = req.params.versionId;
+    const vDoc = await getDoc(doc(db, 'lessonVersions', versionId));
+    if (!vDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy phiên bản câu hỏi bài học.' });
+    }
+    return res.json({ ok: true, lessonVersion: { id: vDoc.id, ...vDoc.data() } });
+  } catch (err: any) {
+    console.error('Fetch lesson version error:', err);
+    return res.status(500).json({ error: 'Lỗi tải chi tiết bài học: ' + err.message });
+  }
+});
+
+app.post('/api/student/attempts', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id, assignmentId, lessonVersionId, classId, studentId, totalQuestions } = req.body;
+    if (studentId && studentId !== req.user!.uid) {
+      return res.status(403).json({ error: 'Từ chối truy cập: Không thể mạo danh tài khoản học sinh khác.' });
+    }
+    if (!id || !assignmentId || !lessonVersionId) {
+      return res.status(400).json({ error: 'Thiếu tham số khởi tạo lượt làm bài.' });
+    }
+    const attemptDoc = {
+      id,
+      assignmentId,
+      lessonVersionId,
+      classId: classId || req.user!.classId || '',
+      studentId: req.user!.uid, // Strictly enforced caller UID
+      studentName: req.user!.displayName,
+      studentCode: req.user!.studentCode || '',
+      status: 'in_progress',
+      startedAt: new Date().toISOString(),
+      score: 0,
+      totalQuestions: Number(totalQuestions || 0),
+      firstAttemptCorrectCount: 0,
+      postHintCorrectCount: 0,
+      misconceptionsDetected: [],
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'attempts', id), attemptDoc);
+    return res.json({ ok: true, attempt: attemptDoc });
+  } catch (err: any) {
+    console.error('Create attempt error:', err);
+    return res.status(500).json({ error: 'Lỗi tạo lượt làm bài: ' + err.message });
+  }
+});
+
+app.post('/api/student/attempts/:id/answer', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const attemptId = req.params.id;
+    const { answerDocId, questionId, questionOrder, userAnswer, isCorrect, attemptNumber, timeSpentSeconds, detectedPattern } = req.body;
+
+    const attSnap = await getDoc(doc(db, 'attempts', attemptId));
+    if (!attSnap.exists()) {
+      return res.status(404).json({ error: 'Lượt làm bài không tồn tại.' });
+    }
+    const attData = attSnap.data();
+    if (attData.studentId !== req.user!.uid) {
+      return res.status(403).json({ error: 'Từ chối: Không thể ghi đáp án vào bài làm của học sinh khác.' });
+    }
+    if (attData.status === 'completed') {
+      return res.status(400).json({ error: 'Lượt làm bài đã hoàn thành, không thể nộp thêm đáp án.' });
+    }
+
+    const answerDoc = {
+      id: answerDocId || `${attemptId}_q_${questionId}_a_${attemptNumber}`,
+      attemptId,
+      studentId: req.user!.uid,
+      questionId,
+      questionOrder: Number(questionOrder || 1),
+      userAnswer: String(userAnswer || ''),
+      isCorrect: Boolean(isCorrect),
+      attemptNumber: Number(attemptNumber || 1),
+      timeSpentSeconds: Number(timeSpentSeconds || 0),
+      detectedPattern: detectedPattern || null,
+      submittedAt: new Date().toISOString(),
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'attemptAnswers', answerDoc.id), answerDoc);
+    return res.json({ ok: true, answer: answerDoc });
+  } catch (err: any) {
+    console.error('Save attempt answer error:', err);
+    return res.status(500).json({ error: 'Lỗi lưu đáp án: ' + err.message });
+  }
+});
+
+app.post('/api/student/attempts/:id/complete', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const attemptId = req.params.id;
+    const { score, completedAt, firstAttemptCorrectCount, postHintCorrectCount, misconceptionsDetected } = req.body;
+
+    const attSnap = await getDoc(doc(db, 'attempts', attemptId));
+    if (!attSnap.exists()) {
+      return res.status(404).json({ error: 'Lượt làm bài không tồn tại.' });
+    }
+    const attData = attSnap.data();
+    if (attData.studentId !== req.user!.uid) {
+      return res.status(403).json({ error: 'Từ chối: Không thể sửa bài làm của người khác.' });
+    }
+
+    const updates = {
+      status: 'completed',
+      score: Number(score || 0),
+      completedAt: completedAt || new Date().toISOString(),
+      firstAttemptCorrectCount: Number(firstAttemptCorrectCount || 0),
+      postHintCorrectCount: Number(postHintCorrectCount || 0),
+      misconceptionsDetected: Array.isArray(misconceptionsDetected) ? misconceptionsDetected : [],
+    };
+    await setDoc(doc(db, 'attempts', attemptId), updates, { merge: true });
+    return res.json({ ok: true, attempt: { ...attData, ...updates } });
+  } catch (err: any) {
+    console.error('Complete attempt error:', err);
+    return res.status(500).json({ error: 'Lỗi hoàn tất bài làm: ' + err.message });
+  }
+});
+
+app.post('/api/student/mistake-insights', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id, attemptId, questionId, errorPattern, remediationType, resolved } = req.body;
+    const insightDoc = {
+      id: id || `insight_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      attemptId: attemptId || '',
+      studentId: req.user!.uid,
+      studentName: req.user!.displayName,
+      classId: req.user!.classId || '',
+      questionId: questionId || '',
+      errorPattern: errorPattern || 'GENERAL_CALCULATION_ERROR',
+      remediationType: remediationType || 'visual_hint',
+      resolved: Boolean(resolved),
+      detectedAt: new Date().toISOString(),
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'mistakeInsights', insightDoc.id), insightDoc);
+    return res.json({ ok: true, insight: insightDoc });
+  } catch (err: any) {
+    console.error('Save mistake insight error:', err);
+    return res.status(500).json({ error: 'Lỗi lưu thông tin chẩn đoán: ' + err.message });
+  }
+});
+
+// --- B. TEACHER DATA ENDPOINTS ---
+app.get('/api/teacher/classes', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const snap = await getDocs(collection(db, 'classes'));
+    const allClasses = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // If admin, return all classes; if teacher, return assigned classes
+    const filtered = req.user?.role === 'admin'
+      ? allClasses
+      : allClasses.filter((c: any) => c.teacherId === req.user?.uid);
+    return res.json({ ok: true, classes: filtered });
+  } catch (err: any) {
+    console.error('Fetch teacher classes error:', err);
+    return res.status(500).json({ error: 'Lỗi tải danh sách lớp: ' + err.message });
+  }
+});
+
+app.get('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']), async (_req: Request, res: Response) => {
+  try {
+    const snap = await getDocs(collection(db, 'lessons'));
+    const lessons = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return res.json({ ok: true, lessons });
+  } catch (err: any) {
+    console.error('Fetch lessons error:', err);
+    return res.status(500).json({ error: 'Lỗi tải kho học liệu: ' + err.message });
+  }
+});
+
+app.get('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const snap = await getDocs(collection(db, 'assignments'));
+    const allAssignments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const filtered = req.user?.role === 'admin'
+      ? allAssignments
+      : allAssignments.filter((a: any) => a.teacherId === req.user?.uid);
+    return res.json({ ok: true, assignments: filtered });
+  } catch (err: any) {
+    console.error('Fetch teacher assignments error:', err);
+    return res.status(500).json({ error: 'Lỗi tải danh sách bài tập: ' + err.message });
+  }
+});
+
+app.post('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const assignmentDoc = req.body;
+    if (!assignmentDoc || !assignmentDoc.id || !assignmentDoc.classId || !assignmentDoc.lessonVersionId) {
+      return res.status(400).json({ error: 'Thiếu thông tin bài tập cần giao.' });
+    }
+    const safeDoc = {
+      ...assignmentDoc,
+      teacherId: req.user?.uid, // Enforce teacher ownership
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'assignments', assignmentDoc.id), safeDoc, { merge: true });
+    return res.json({ ok: true, assignment: safeDoc });
+  } catch (err: any) {
+    console.error('Save assignment error:', err);
+    return res.status(500).json({ error: 'Lỗi lưu bài tập: ' + err.message });
+  }
+});
+
+app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { lessonDoc, versionDoc } = req.body;
+    if (!lessonDoc || !versionDoc || !lessonDoc.id || !versionDoc.id) {
+      return res.status(400).json({ error: 'Thiếu thông tin bài học hoặc phiên bản câu hỏi.' });
+    }
+    const safeLesson = {
+      ...lessonDoc,
+      createdBy: req.user?.uid,
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    const safeVersion = {
+      ...versionDoc,
+      createdBy: req.user?.uid,
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'lessonVersions', versionDoc.id), safeVersion);
+    await setDoc(doc(db, 'lessons', lessonDoc.id), safeLesson, { merge: true });
+    return res.json({ ok: true, lesson: safeLesson, version: safeVersion });
+  } catch (err: any) {
+    console.error('Save lesson version error:', err);
+    return res.status(500).json({ error: 'Lỗi lưu bài học: ' + err.message });
+  }
+});
+
+app.get('/api/teacher/analytics', requireAuth, requireRole(['teacher', 'admin']), async (_req: Request, res: Response) => {
+  try {
+    const attSnap = await getDocs(collection(db, 'attempts'));
+    const insSnap = await getDocs(collection(db, 'mistakeInsights'));
+    return res.json({
+      ok: true,
+      attempts: attSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      insights: insSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    });
+  } catch (err: any) {
+    console.error('Teacher analytics error:', err);
+    return res.status(500).json({ error: 'Lỗi tải số liệu phân tích: ' + err.message });
+  }
+});
+
+// --- C. ADMIN DATA ENDPOINTS ---
+app.get('/api/admin/overview', requireAuth, requireRole(['admin']), async (_req: Request, res: Response) => {
+  try {
+    const [uSnap, cSnap, ySnap, lSnap, aSnap, attSnap, logSnap] = await Promise.all([
+      getDocs(collection(db, 'users')),
+      getDocs(collection(db, 'classes')),
+      getDocs(collection(db, 'academicYears')),
+      getDocs(collection(db, 'lessons')),
+      getDocs(collection(db, 'assignments')),
+      getDocs(collection(db, 'attempts')),
+      getDocs(collection(db, 'auditLogs')),
+    ]);
+
+    const safeUsers = uSnap.docs.map((d) => {
+      const data = d.data();
+      const { password: _, accessSecret: __, ...safe } = data;
+      return { id: d.id, ...safe };
+    });
+
+    return res.json({
+      ok: true,
+      users: safeUsers,
+      classes: cSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      academicYears: ySnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      lessons: lSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      assignments: aSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      attempts: attSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      auditLogs: logSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    });
+  } catch (err: any) {
+    console.error('Admin overview error:', err);
+    return res.status(500).json({ error: 'Lỗi tải tổng quan hệ thống: ' + err.message });
+  }
+});
+
+app.post('/api/admin/create-user', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const newUser = req.body;
+    if (!newUser || !newUser.id || !newUser.role) {
+      return res.status(400).json({ error: 'Thiếu thông tin người dùng mới.' });
+    }
+    const safeNewUser = {
+      ...newUser,
+      createdAt: new Date().toISOString(),
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'users', newUser.id), safeNewUser);
+    const { password: _, accessSecret: __, ...masked } = safeNewUser;
+    return res.json({ ok: true, user: masked });
+  } catch (err: any) {
+    console.error('Admin create user error:', err);
+    return res.status(500).json({ error: 'Lỗi tạo người dùng mới: ' + err.message });
   }
 });
 

@@ -14,8 +14,7 @@ import {
   Calendar,
   Layers
 } from 'lucide-react';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { dataService } from '../../lib/dataService';
 import { Lesson, LessonVersion, Classroom, UserProfile, Assignment } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
 import { LessonEditorModal } from './LessonEditorModal';
@@ -65,21 +64,11 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Lessons
-      const lSnap = await getDocs(collection(db, 'lessons'));
-      const lList: Lesson[] = [];
-      lSnap.forEach((d) => lList.push(d.data() as Lesson));
-
-      // 2. Fetch Classes
-      const cSnap = await getDocs(collection(db, 'classes'));
-      const cList: Classroom[] = [];
-      cSnap.forEach((d) => cList.push(d.data() as Classroom));
-
-      // 3. Fetch Assignments
-      const aSnap = await getDocs(collection(db, 'assignments'));
-      const aList: Assignment[] = [];
-      aSnap.forEach((d) => aList.push(d.data() as Assignment));
-
+      const [lList, cList, aList] = await Promise.all([
+        dataService.fetchTeacherLessons(),
+        dataService.fetchTeacherClasses(currentUser.id),
+        dataService.fetchTeacherAssignments(currentUser.id),
+      ]);
       setLessons(lList);
       setClasses(cList);
       setAssignments(aList);
@@ -93,12 +82,12 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const handleOpenEditor = async (lesson?: Lesson) => {
     if (lesson) {
       setEditingLesson(lesson);
-      // Fetch current version
       const vId = `version-${lesson.id}-v${lesson.currentVersion || 1}`;
-      const vDoc = await getDoc(doc(db, 'lessonVersions', vId));
-      if (vDoc.exists()) {
-        setEditingVersion(vDoc.data() as LessonVersion);
-      } else {
+      try {
+        const v = await dataService.fetchLessonVersion(vId);
+        setEditingVersion(v || null);
+      } catch (err) {
+        console.error('Fetch lesson version error:', err);
         setEditingVersion(null);
       }
     } else {
@@ -115,11 +104,16 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
   const handlePreviewLesson = async (lesson: Lesson) => {
     const vId = `version-${lesson.id}-v${lesson.currentVersion || 1}`;
-    const vDoc = await getDoc(doc(db, 'lessonVersions', vId));
-    if (vDoc.exists()) {
-      setPreviewLessonVersion(vDoc.data() as LessonVersion);
-    } else {
-      alert('Chưa có phiên bản nội dung bài học để xem trước.');
+    try {
+      const v = await dataService.fetchLessonVersion(vId);
+      if (v) {
+        setPreviewLessonVersion(v);
+      } else {
+        alert('Chưa có phiên bản nội dung bài học để xem trước.');
+      }
+    } catch (err) {
+      console.error('Preview lesson fetch error:', err);
+      alert('Không thể tải bài học để xem trước.');
     }
   };
 

@@ -17,8 +17,8 @@ import {
   Lock,
   Plus
 } from 'lucide-react';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { db, testConnection } from '../../firebase/config';
+import { dataService } from '../../lib/dataService';
+import { testConnection } from '../../firebase/config';
 import { UserProfile, Classroom, AcademicYear, AuditLog, SystemHealth } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
 import { getAuthHeaders } from '../../lib/authSession';
@@ -70,10 +70,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const fetchSystemData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Users
-      const uSnap = await getDocs(collection(db, 'users'));
-      const uList: UserProfile[] = [];
-      uSnap.forEach((d) => uList.push(d.data() as UserProfile));
+      const overview = await dataService.fetchAdminOverview();
+      const uList: UserProfile[] = overview.users || [];
+      const cList: Classroom[] = overview.classes || [];
+      const yList: AcademicYear[] = overview.academicYears || [];
+      const lList = overview.lessons || [];
+      const aList = overview.assignments || [];
+      const attList = overview.attempts || [];
+      const logList: AuditLog[] = overview.auditLogs || [];
 
       const filteredUsers = dataOriginFilter === 'all'
         ? uList
@@ -81,38 +85,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
       setTeachers(filteredUsers.filter((u) => u.role === 'teacher'));
       setStudents(filteredUsers.filter((u) => u.role === 'student'));
-
-      // 2. Fetch Classes
-      const cSnap = await getDocs(collection(db, 'classes'));
-      const cList: Classroom[] = [];
-      cSnap.forEach((d) => cList.push(d.data() as Classroom));
       setClasses(cList);
-
-      // 3. Fetch Academic Years
-      const ySnap = await getDocs(collection(db, 'academicYears'));
-      const yList: AcademicYear[] = [];
-      ySnap.forEach((d) => yList.push(d.data() as AcademicYear));
       setAcademicYears(yList);
+      setLessonsCount(lList.length);
+      setAssignmentsCount(aList.length);
+      setAttemptsCount(attList.length);
+      setAuditLogs(logList.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || '')).slice(0, 50));
 
-      // 4. Fetch counts
-      const lSnap = await getDocs(collection(db, 'lessons'));
-      setLessonsCount(lSnap.size);
-
-      const aSnap = await getDocs(collection(db, 'assignments'));
-      setAssignmentsCount(aSnap.size);
-
-      const attSnap = await getDocs(collection(db, 'attempts'));
-      setAttemptsCount(attSnap.size);
-
-      // 5. Fetch Audit Logs
-      const logSnap = await getDocs(collection(db, 'auditLogs'));
-      const logList: AuditLog[] = [];
-      logSnap.forEach((d) => logList.push(d.data() as AuditLog));
-      setAuditLogs(logList.sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 50));
-
-      // 6. Check Health
-      // 6. Check Health (truthful probe without faking)
-      const connTest = await testConnection();
+      // Check Health (truthful probe without faking)
       try {
         const hRes = await fetch('/api/health');
         if (hRes.ok) {
@@ -131,9 +111,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               teachersCount: filteredUsers.filter((u) => u.role === 'teacher').length,
               classesCount: cList.length,
               studentsCount: filteredUsers.filter((u) => u.role === 'student').length,
-              lessonsCount: lSnap.size,
-              assignmentsCount: aSnap.size,
-              attemptsCount: attSnap.size,
+              lessonsCount: lList.length,
+              assignmentsCount: aList.length,
+              attemptsCount: attList.length,
             },
             warnings: ['Không thể kết nối API Health Backend (/api/health). Vui lòng kiểm tra Vercel Functions.'],
           });
@@ -151,9 +131,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             teachersCount: filteredUsers.filter((u) => u.role === 'teacher').length,
             classesCount: cList.length,
             studentsCount: filteredUsers.filter((u) => u.role === 'student').length,
-            lessonsCount: lSnap.size,
-            assignmentsCount: aSnap.size,
-            attemptsCount: attSnap.size,
+            lessonsCount: lList.length,
+            assignmentsCount: aList.length,
+            attemptsCount: attList.length,
           },
           warnings: ['Lỗi kết nối mạng tới máy chủ API.'],
         });
@@ -240,7 +220,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         environmentTag: 'production',
       };
 
-      await setDoc(doc(db, 'users', newUid), newUser);
+      await dataService.adminCreateUser(newUser);
       alert(`Đã tạo thành công tài khoản ${newRole}: ${newDisplayName}`);
       setIsCreateUserOpen(false);
       setNewDisplayName('');

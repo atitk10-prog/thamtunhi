@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Sparkles, Filter, AlertTriangle, CheckCircle, TrendingUp, RefreshCw, Loader2 } from 'lucide-react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { dataService } from '../../lib/dataService';
 import { Attempt, MistakeInsight, MathErrorPattern } from '../../types';
 import { ERROR_PATTERN_LABELS } from '../../lib/mathEngine';
 import { getAuthHeaders } from '../../lib/authSession';
@@ -29,30 +28,17 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
   const fetchAnalyticsData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Attempts
-      let attQ = collection(db, 'attempts');
-      const attSnap = await getDocs(attQ);
-      let attList: Attempt[] = [];
-      attSnap.forEach((d) => attList.push(d.data() as Attempt));
+      const data = await dataService.fetchTeacherAnalytics(teacherId);
+      let attList = data.attempts;
+      let insList = data.insights;
 
       // Apply client filter for dataOrigin & class
       if (dataOriginFilter !== 'all') {
         attList = attList.filter((a) => a.dataOrigin === dataOriginFilter);
-      }
-      if (selectedClass !== 'all') {
-        attList = attList.filter((a) => a.classId === selectedClass);
-      }
-
-      // 2. Fetch Insights
-      let insQ = collection(db, 'mistakeInsights');
-      const insSnap = await getDocs(insQ);
-      let insList: MistakeInsight[] = [];
-      insSnap.forEach((d) => insList.push(d.data() as MistakeInsight));
-
-      if (dataOriginFilter !== 'all') {
         insList = insList.filter((i) => i.dataOrigin === dataOriginFilter);
       }
       if (selectedClass !== 'all') {
+        attList = attList.filter((a) => a.classId === selectedClass);
         insList = insList.filter((i) => i.classId === selectedClass);
       }
 

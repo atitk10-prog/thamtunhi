@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, GraduationCap, Sparkles, LogIn, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
-import { signInWithPopup } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../../firebase/config';
+import { signInWithPopup, signInWithCustomToken } from 'firebase/auth';
+import { auth, googleProvider } from '../../firebase/config';
 import { UserProfile } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
 import { setAuthSession } from '../../lib/authSession';
@@ -77,6 +76,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
 
       if (data.token && data.user) {
         setAuthSession(data.token, data.user);
+        if (data.customToken) {
+          try {
+            await signInWithCustomToken(auth, data.customToken);
+          } catch (authErr) {
+            console.warn('Firebase Custom Token notice:', authErr);
+          }
+        }
         onAuthenticated(data.user);
       } else {
         setErrorMsg('Phản hồi xác thực từ máy chủ không hợp lệ.');
@@ -117,6 +123,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
 
       if (data.token && data.user) {
         setAuthSession(data.token, data.user);
+        if (data.customToken) {
+          try {
+            await signInWithCustomToken(auth, data.customToken);
+          } catch (authErr) {
+            console.warn('Firebase Custom Token notice:', authErr);
+          }
+        }
         onAuthenticated(data.user);
       } else {
         setErrorMsg('Phản hồi xác thực từ máy chủ không hợp lệ.');
@@ -136,30 +149,35 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onAuthenticated }) => {
       const cred = await signInWithPopup(auth, googleProvider);
       const user = cred.user;
 
-      // Check role in Firestore users
-      const uDoc = await getDoc(doc(db, 'users', user.uid));
-      let profile: UserProfile;
+      // Exchange with backend to obtain signed HMAC token & sync profile
+      const res = await fetch('/api/auth/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+        }),
+      });
 
-      if (uDoc.exists()) {
-        profile = uDoc.data() as UserProfile;
+      if (res.ok) {
+        const data = await res.json();
+        setAuthSession(data.token, data.user);
+        onAuthenticated(data.user);
       } else {
-        // Bootstrapped admin email check
-        const isAdmin = user.email === 'AT.IT.K10@gmail.com';
-        profile = {
+        // Fallback profile
+        const profile: UserProfile = {
           id: user.uid,
-          role: isAdmin ? 'admin' : 'teacher',
+          role: user.email === 'AT.IT.K10@gmail.com' ? 'admin' : 'teacher',
           displayName: user.displayName || 'Giáo viên',
           email: user.email || '',
           createdAt: new Date().toISOString(),
           dataOrigin: 'real',
           environmentTag: 'production',
         };
-        await setDoc(doc(db, 'users', user.uid), profile);
+        setAuthSession(`google-${user.uid}`, profile);
+        onAuthenticated(profile);
       }
-
-      // Synthesize client session token for Google provider
-      setAuthSession(`google-${user.uid}`, profile);
-      onAuthenticated(profile);
     } catch (err: any) {
       console.error('Google sign in error:', err);
       setErrorMsg('Không thể đăng nhập bằng Google hoặc bạn đã hủy cửa sổ đăng nhập.');

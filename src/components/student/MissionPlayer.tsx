@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Volume2, ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
-import { doc, setDoc, updateDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../firebase/config';
-import { Assignment, LessonVersion, Question, UserProfile } from '../../types';
+
+import { Assignment, LessonVersion, Question, UserProfile, Attempt } from '../../types';
+import { dataService } from '../../lib/dataService';
 import { evaluateAnswer } from '../../lib/mathEngine';
 import { SingleChoiceQuestion } from '../activities/SingleChoiceQuestion';
 import { NumberInputQuestion } from '../activities/NumberInputQuestion';
@@ -68,8 +68,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       setAttemptId(newAttemptId);
 
       try {
-        const attemptRef = doc(db, 'attempts', newAttemptId);
-        await setDoc(attemptRef, {
+        const attemptDoc: Attempt = {
           id: newAttemptId,
           assignmentId: assignment.id,
           lessonId: assignment.lessonId,
@@ -89,9 +88,9 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
           startedAt: new Date().toISOString(),
           durationSeconds: 0,
           dataOrigin: 'real',
-          environmentTag: 'demo',
-          createdAt: serverTimestamp(),
-        }, { merge: true });
+          environmentTag: 'production',
+        };
+        await dataService.createAttempt(attemptDoc);
       } catch (err) {
         console.error('Failed to init attempt:', err);
       }
@@ -169,9 +168,9 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       setFirstTryCount(nextFirstTry);
       setPostHintCount(nextPostHint);
 
-      // Record answer in Firestore
+      // Record answer via unified data service
       try {
-        await setDoc(doc(db, 'attemptAnswers', answerDocId), {
+        await dataService.saveAttemptAnswer({
           id: answerDocId,
           attemptId,
           questionId: currentQuestion.id,
@@ -183,7 +182,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
           attemptsCount: hasFailedFirstTry ? 2 : 1,
           answeredAt: new Date().toISOString(),
           dataOrigin: 'real',
-          environmentTag: 'demo',
+          environmentTag: 'production',
         });
       } catch (err) {
         console.error('Record answer error:', err);
@@ -200,7 +199,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         setIsCompleted(true);
 
         try {
-          await updateDoc(doc(db, 'attempts', attemptId), {
+          await dataService.completeAttempt(attemptId, {
             status: 'completed',
             score: nextScore,
             firstAttemptCorrectCount: nextFirstTry,
@@ -218,7 +217,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
       // Save mistake insight to attemptAnswers and mistakeInsights
       try {
-        await setDoc(doc(db, 'attemptAnswers', answerDocId), {
+        await dataService.saveAttemptAnswer({
           id: answerDocId,
           attemptId,
           questionId: currentQuestion.id,
@@ -233,13 +232,13 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
           hintReinforcementType: result.visualGuidance || '',
           answeredAt: new Date().toISOString(),
           dataOrigin: 'real',
-          environmentTag: 'demo',
+          environmentTag: 'production',
         });
 
-        // Record aggregated insight for teacher
+        // Record aggregated insight for teacher via dataService
         if (result.detectedPattern) {
           const insightId = `ins-${currentUser.classId || 'class'}-${result.detectedPattern}-${Date.now()}`;
-          await setDoc(doc(db, 'mistakeInsights', insightId), {
+          await dataService.saveMistakeInsight({
             id: insightId,
             studentId: currentUser.id,
             studentName: currentUser.displayName,
@@ -248,10 +247,10 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
             topic: lessonVersion.topic,
             errorPattern: result.detectedPattern,
             errorCount: 1,
-            suggestedRemediation: result.visualGuidance || result.hintText,
+            suggestedRemediation: result.visualGuidance || result.hintText || 'Xem lại hướng dẫn của Thám Tử Cáo',
             createdAt: new Date().toISOString(),
             dataOrigin: 'real',
-            environmentTag: 'demo',
+            environmentTag: 'production',
           });
         }
       } catch (err) {
