@@ -1,0 +1,139 @@
+[
+  {
+    "id": "E2E-01",
+    "name": "Auth và phân quyền (3 vai trò, F5, Logout, RBAC, Zero-leak)",
+    "status": "PASS",
+    "assertions": [
+      "Tải trang đăng nhập thành công",
+      "Giao diện sạch: Không còn khung Demo Preset trên trang đăng nhập",
+      "Đăng nhập Học sinh HS1A01 thành công, hiển thị đúng góc học tập",
+      "F5 lưu phiên đăng nhập Học sinh thành công",
+      "Đăng xuất Học sinh thành công, trở về cổng đăng nhập",
+      "Đăng nhập Giáo viên 1 thành công, hiển thị Teacher Portal",
+      "F5 lưu phiên đăng nhập Giáo viên thành công",
+      "Đăng xuất Giáo viên thành công",
+      "Đăng nhập Quản trị viên (Super Admin) thành công",
+      "Đăng xuất Quản trị viên thành công",
+      "Chặn Học sinh gọi API Giáo viên (HTTP 403 Forbidden)",
+      "Chặn Học sinh gọi API Quản trị (HTTP 403 Forbidden)",
+      "Bảo mật tuyệt đối: Không trả về password/accessSecret trong phản hồi Auth",
+      "Chặn Google Login thiếu định danh hợp lệ (HTTP 400)"
+    ],
+    "errors": [],
+    "screenshots": [
+      "e2e/screenshots/e2e01-01-login-clean.png",
+      "e2e/screenshots/e2e01-02-student-dashboard.png",
+      "e2e/screenshots/e2e01-03-teacher-dashboard.png",
+      "e2e/screenshots/e2e01-04-admin-dashboard.png"
+    ],
+    "durationMs": 5964
+  },
+  {
+    "id": "E2E-02",
+    "name": "Quản trị (4 Lớp, 48 Học sinh chính khóa, CRUD tài khoản QA, Khóa/Mở khóa, Zero Data Loss)",
+    "status": "PASS",
+    "assertions": [
+      "Admin đối chiếu đúng 4 lớp học (1A, 1B, 2A, 2B)",
+      "Admin đối chiếu đúng 48 học sinh chính khóa trong 4 lớp học chuẩn từ Cloud Firestore (12 HS/lớp)",
+      "Admin tạo mới tài khoản QA thành công (ID: user-qa-e2e-1792527293623, Mã: HSQA3623)",
+      "Admin cập nhật thông tin và chuyển lớp tài khoản QA thành công",
+      "Admin khóa tài khoản QA thành công (status: locked)",
+      "Xác minh thực tế: Tài khoản bị khóa bị chặn đăng nhập (HTTP 403 - Tài khoản bị tạm khóa)",
+      "Admin mở khóa tài khoản QA thành công (status: active)",
+      "Dọn dẹp chính xác tài khoản QA kiểm thử sau khi hoàn thành",
+      "Bảo toàn dữ liệu: Toàn bộ 48 học sinh chính khóa và 4 lớp chuẩn nguyên vẹn 100%"
+    ],
+    "errors": [],
+    "screenshots": [
+      "e2e/screenshots/e2e02-01-admin-overview.png"
+    ],
+    "durationMs": 3790
+  },
+  {
+    "id": "E2E-03",
+    "name": "Danh sách học sinh (Roster Lớp 1A, Tìm kiếm, Giao bài, Cách ly lớp)",
+    "status": "PASS",
+    "assertions": [
+      "Giáo viên 1 thấy đúng các lớp phụ trách",
+      "Mở thành công giao diện Roster Lớp 1A",
+      "Hiển thị đầy đủ danh sách học sinh thực tế từ Firestore với studentCode",
+      "Chức năng tìm kiếm học sinh hoạt động chuẩn xác",
+      "Mở thành công Modal giao bài cho lớp / từng học sinh",
+      "Phân quyền bảo mật: Giáo viên 1 bị chặn xem danh sách học sinh lớp 2A (HTTP 403)"
+    ],
+    "errors": [],
+    "screenshots": [
+      "e2e/screenshots/e2e03-01-teacher-classes.png",
+      "e2e/screenshots/e2e03-02-class1a-roster.png",
+      "e2e/screenshots/e2e03-03-assign-modal.png"
+    ],
+    "durationMs": 3007
+  },
+  {
+    "id": "E2E-04",
+    "name": "Học liệu và biên tập (Đủ 24 bài x 8 câu, không kẹt state, đa trường visual/đáp án)",
+    "status": "PASS",
+    "assertions": [
+      "Hệ thống có đầy đủ 24 chuyên đề Toán GDPT 2018",
+      "API trả về đủ 24 bài học cho giáo viên",
+      "SỬA DỨT ĐIỂM: Giáo viên mở bài thấy đầy đủ cả 8 câu hỏi (Câu 1 đến Câu 8)",
+      "Hỗ trợ biên tập toàn diện: prompt, options, visualConfig, đáp án, lời giải, ruleHints",
+      "Chuyển bài không bị kẹt state: Lesson 2 tải đúng tiêu đề \"Các số từ 6 đến 10 và Tách - Gộp số\" khác Lesson 1 và 8 câu hỏi riêng biệt"
+    ],
+    "errors": [],
+    "screenshots": [
+      "e2e/screenshots/e2e04-01-editor-all-8-questions.png",
+      "e2e/screenshots/e2e04-02-editor-lesson2-distinct.png"
+    ],
+    "durationMs": 3438
+  },
+  {
+    "id": "E2E-05",
+    "name": "Học sinh và điểm số (Giao diện làm bài, F5 phục hồi, điểm đủ tử/mẫu)",
+    "status": "PASS",
+    "assertions": [
+      "Điểm số hiển thị đầy đủ tử/mẫu chuẩn: \"⭐ 0/80 điểm\" (không bị lỗi \"0 /\")",
+      "Hoạt động tương tác Toán được render hoàn chỉnh",
+      "F5 giữa bài giữ nguyên trạng thái làm bài thám tử (⭐ 0/80 điểm)",
+      "Thoát bài học an toàn trở lại danh sách bài tập"
+    ],
+    "errors": [],
+    "screenshots": [
+      "e2e/screenshots/e2e05-01-mission-header.png",
+      "e2e/screenshots/e2e05-02-mission-resumed-f5.png"
+    ],
+    "durationMs": 3082
+  },
+  {
+    "id": "E2E-06",
+    "name": "Kiểm soát gian lận và số liệu (Server grading chặn điểm giả, tỷ lệ điểm chuẩn, dữ liệu mô phỏng minh bạch)",
+    "status": "PASS",
+    "assertions": [
+      "CHỐNG GIAN LẬN: Server đối soát đáp án thực tế và tự động hủy nhận định sai từ client (isCorrect: false)",
+      "API Thống kê giáo viên tải dữ liệu phân tích thành công (HTTP 200)",
+      "Tổng số lượt làm bài phân tích: 90",
+      "Bảo toàn 144 lượt mô phỏng lịch sử trong Firestore, không tự ý gán nhãn giả mạo",
+      "Bộ lọc thống kê mặc định ưu tiên dữ liệu thật (dataOrigin: real)"
+    ],
+    "errors": [],
+    "screenshots": [],
+    "durationMs": 875
+  },
+  {
+    "id": "E2E-07",
+    "name": "Vercel Production Readiness (Health probe, Named DB, Secrets scan, Gemini status)",
+    "status": "PASS",
+    "assertions": [
+      "Health probe HTTP 200: Hệ thống hoàn toàn khỏe mạnh (healthy)",
+      "Cloud Firestore kết nối trực tiếp thành công",
+      "Kết nối chính xác Named Database: ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2",
+      "Thư viện 24 bài học trực tuyến hoạt động đầy đủ",
+      "[NOTICE] GEMINI_API_KEY chưa cấu hình trên môi trường này (Chức năng AI soạn bài draft yêu cầu người dùng cấp key trên Vercel)",
+      "Bảo mật Git: .env và backup/ được đưa vào .gitignore đầy đủ, zero leak mật khẩu",
+      "Tệp .env.example sạch sẽ, không chứa mật khẩu tài khoản thật"
+    ],
+    "errors": [],
+    "screenshots": [],
+    "durationMs": 126
+  }
+]

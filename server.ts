@@ -227,6 +227,11 @@ app.post('/api/auth/student-login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Mã học sinh hoặc mật khẩu không chính xác.' });
     }
 
+    // Check account status: locked or inactive accounts cannot log in
+    if (studentDoc.status === 'locked' || studentDoc.status === 'inactive') {
+      return res.status(403).json({ error: 'Tài khoản học sinh này đã bị tạm khóa.' });
+    }
+
     // Mask secrets before sending to client
     const { accessSecret: _, password: __, ...safeUser } = studentDoc;
 
@@ -283,6 +288,11 @@ app.post('/api/auth/teacher-login', async (req: Request, res: Response) => {
     // Strict validation: Reject missing password or mismatch, NO fallback backdoor
     if (!expectedPassword || cleanPassword !== expectedPassword) {
       return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác.' });
+    }
+
+    // Check account status: locked or inactive accounts cannot log in
+    if (userDoc.status === 'locked' || userDoc.status === 'inactive') {
+      return res.status(403).json({ error: 'Tài khoản này đã bị tạm khóa.' });
     }
 
     // Mask secrets
@@ -1255,7 +1265,7 @@ app.get('/api/admin/overview', requireAuth, requireRole(['admin']), async (_req:
   }
 });
 
-app.post('/api/admin/create-user', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+app.post(['/api/admin/create-user', '/api/admin/users'], requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const newUser = req.body;
     if (!newUser || !newUser.id || !newUser.role) {

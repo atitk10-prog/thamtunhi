@@ -412,7 +412,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-amber-400 text-amber-950 text-xs sm:text-sm font-black shadow-sm">
-            ⭐ {score} điểm
+            ⭐ {score}/{questions.length * 10 || 80} điểm
           </span>
         </div>
       </div>

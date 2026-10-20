@@ -194,10 +194,32 @@ export const dataService = {
   // --- 2. TEACHER OPERATIONS ---
 
   async fetchTeacherClasses(teacherId: string): Promise<any[]> {
+    try {
+      const res = await fetch(`/api/teacher/classes?teacherId=${encodeURIComponent(teacherId)}`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.classes || [];
+      }
+    } catch (apiErr) {
+      console.warn('API fetchTeacherClasses fallback to client SDK:', apiErr);
+    }
+
     if (auth.currentUser) {
       try {
-        const snap = await getDocs(collection(db, 'classes'));
-        const allClasses = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const [snap, uSnap] = await Promise.all([
+          getDocs(collection(db, 'classes')),
+          getDocs(collection(db, 'users')),
+        ]);
+        const users = uSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const allClasses = snap.docs.map((d) => {
+          const cData: any = d.data();
+          const studentCount = users.filter(
+            (u: any) => u.role === 'student' && !u.isDeleted && (u.classId === d.id || u.className === cData.name || u.classId === cData.name)
+          ).length;
+          return { id: d.id, ...cData, studentCount };
+        });
         return allClasses.filter((c: any) => !teacherId || c.teacherId === teacherId);
       } catch (err: any) {
         if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
@@ -205,15 +227,7 @@ export const dataService = {
         }
       }
     }
-
-    const res = await fetch(`/api/teacher/classes?teacherId=${encodeURIComponent(teacherId)}`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
-      throw new Error('Không thể tải danh sách lớp học.');
-    }
-    const data = await res.json();
-    return data.classes || [];
+    return [];
   },
 
   async fetchTeacherLessons(): Promise<Lesson[]> {

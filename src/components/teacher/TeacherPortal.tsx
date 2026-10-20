@@ -374,9 +374,9 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                           type="button"
                           onClick={() => handleOpenEditor(lesson)}
                           title="Biên tập chỉnh sửa (v2)"
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-colors"
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
                         >
-                          <Edit3 className="w-4 h-4" />
+                          <Edit3 className="w-3.5 h-3.5" /> Biên tập
                         </button>
                       </div>
 

@@ -282,6 +282,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             type="button"
+            id="btn-assign-class"
             onClick={() => onAssignToClass(classroom.id)}
             className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-all active:scale-95"
           >
@@ -290,6 +291,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
 
           <button
             type="button"
+            id="btn-add-student"
             onClick={handleOpenAddModal}
             className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-all active:scale-95"
           >
@@ -305,6 +307,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
+              id="roster-search-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo Mã học sinh hoặc Họ tên..."
@@ -810,7 +813,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
 
                       <div className="text-right">
                         <div className="text-lg font-black text-slate-900">
-                          {att.score || 0} / {max}
+                          {att.score ?? 0}/{max}
                         </div>
                         <div className={`text-xs font-black px-2 py-0.5 rounded-full inline-block ${
                           pct >= 80 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'

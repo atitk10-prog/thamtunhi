@@ -250,8 +250,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Toggle Lock User Handler (Admin real CRUD)
   const handleToggleLockUser = async (user: UserProfile) => {
-    const isLocked = user.status === 'inactive';
-    const newStatus = isLocked ? 'active' : 'inactive';
+    const isLocked = user.status === 'inactive' || user.status === 'locked';
+    const newStatus = isLocked ? 'active' : 'locked';
     const actionLabel = isLocked ? 'Mở khóa' : 'Khóa';
     if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn ${actionLabel} tài khoản "${user.displayName || user.studentCode}"?`)) {
       return;

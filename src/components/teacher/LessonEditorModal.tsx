@@ -334,6 +334,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                 </label>
                 <input
                   type="text"
+                  id="lesson-editor-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Ví dụ: Phép cộng có nhớ trong phạm vi 20"

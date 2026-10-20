@@ -96,7 +96,7 @@ export const CelebrationBadgeModal: React.FC<CelebrationBadgeModalProps> = ({
               <Star className="w-3.5 h-3.5 text-amber-500" /> Điểm số
             </div>
             <div className="text-xl font-black text-slate-800 mt-1">
-              {score}/{maxScore}
+              {score ?? 0}/{maxScore || 80}
             </div>
           </div>
 

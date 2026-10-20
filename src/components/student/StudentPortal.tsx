@@ -25,6 +25,16 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   useEffect(() => {
     fetchStudentAssignments();
+    try {
+      const savedAssignment = sessionStorage.getItem('thamtunhi_active_mission_assignment');
+      const savedVersion = sessionStorage.getItem('thamtunhi_active_mission_version');
+      if (savedAssignment && savedVersion) {
+        setActiveAssignment(JSON.parse(savedAssignment));
+        setActiveLessonVersion(JSON.parse(savedVersion));
+      }
+    } catch (e) {
+      console.warn('Failed to restore mission session:', e);
+    }
   }, [currentUser]);
 
   const fetchStudentAssignments = async () => {
@@ -55,6 +65,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       // Fetch the immutable LessonVersion via unified data service
       const version = await dataService.fetchLessonVersion(assignment.lessonVersionId);
       if (version) {
+        try {
+          sessionStorage.setItem('thamtunhi_active_mission_assignment', JSON.stringify(assignment));
+          sessionStorage.setItem('thamtunhi_active_mission_version', JSON.stringify(version));
+        } catch (e) {}
         setActiveLessonVersion(version);
         setActiveAssignment(assignment);
       } else {
@@ -76,6 +90,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           lessonVersion={activeLessonVersion}
           currentUser={currentUser}
           onExit={() => {
+            try {
+              sessionStorage.removeItem('thamtunhi_active_mission_assignment');
+              sessionStorage.removeItem('thamtunhi_active_mission_version');
+            } catch (e) {}
             setActiveAssignment(null);
             setActiveLessonVersion(null);
             fetchStudentAssignments();
@@ -212,7 +230,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                           <Award className="w-4 h-4 text-amber-600" /> Điểm số:
                         </div>
                         <span className="text-lg font-black text-amber-900">
-                          {attempt.score} / {attempt.maxScore}
+                          {attempt.score ?? 0}/{attempt.maxScore || 80}
                         </span>
                       </div>
                     )}
