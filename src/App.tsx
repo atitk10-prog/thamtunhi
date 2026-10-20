@@ -5,44 +5,37 @@ import { StudentPortal } from './components/student/StudentPortal';
 import { TeacherPortal } from './components/teacher/TeacherPortal';
 import { AdminPortal } from './components/admin/AdminPortal';
 import { testConnection } from './firebase/config';
+import { verifyCurrentSession, clearAuthSession } from './lib/authSession';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem('thamtutoannhi_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
     async function boot() {
-      // Test server connectivity on initial boot as required by Firebase skill
-      await testConnection();
-      setIsInitializing(false);
+      try {
+        // Probe connectivity
+        await testConnection();
+
+        // Verify active token with backend
+        const verifiedUser = await verifyCurrentSession();
+        setCurrentUser(verifiedUser);
+      } catch (err) {
+        console.error('App boot error:', err);
+      } finally {
+        setIsInitializing(false);
+      }
     }
     boot();
   }, []);
 
   const handleAuthenticated = (user: UserProfile) => {
     setCurrentUser(user);
-    try {
-      localStorage.setItem('thamtutoannhi_user', JSON.stringify(user));
-    } catch (e) {
-      console.warn('Storage warning:', e);
-    }
   };
 
   const handleLogout = () => {
+    clearAuthSession();
     setCurrentUser(null);
-    try {
-      localStorage.removeItem('thamtutoannhi_user');
-    } catch (e) {
-      console.warn('Storage warning:', e);
-    }
   };
 
   if (isInitializing) {

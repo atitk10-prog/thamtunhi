@@ -4,6 +4,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { Attempt, MistakeInsight, MathErrorPattern } from '../../types';
 import { ERROR_PATTERN_LABELS } from '../../lib/mathEngine';
+import { getAuthHeaders } from '../../lib/authSession';
 
 interface MisconceptionAnalyticsProps {
   teacherId: string;
@@ -143,7 +144,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
 
       const res = await fetch('/api/teacher/summarize-insights', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           patterns: topPatterns,
           totalAttempts,

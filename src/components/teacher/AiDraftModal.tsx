@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, X, AlertTriangle, Check, Loader2 } from 'lucide-react';
 import { Question } from '../../types';
+import { getAuthHeaders } from '../../lib/authSession';
 
 interface AiDraftModalProps {
   isOpen: boolean;
@@ -33,7 +34,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
     try {
       const res = await fetch('/api/teacher/generate-draft', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           grade,
           topic,

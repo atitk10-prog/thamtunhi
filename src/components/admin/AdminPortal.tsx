@@ -21,6 +21,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore'
 import { db, testConnection } from '../../firebase/config';
 import { UserProfile, Classroom, AcademicYear, AuditLog, SystemHealth } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
+import { getAuthHeaders } from '../../lib/authSession';
 
 interface AdminPortalProps {
   currentUser: UserProfile;
@@ -110,6 +111,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setAuditLogs(logList.sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 50));
 
       // 6. Check Health
+      // 6. Check Health (truthful probe without faking)
       const connTest = await testConnection();
       try {
         const hRes = await fetch('/api/health');
@@ -118,13 +120,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           setHealthInfo(hData);
         } else {
           setHealthInfo({
-            status: connTest.ok ? 'healthy' : 'degraded',
+            status: 'degraded',
             firebaseProjectId: 'indigo-lotus-2nmq3',
             databaseId: 'ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2',
-            authConnected: true,
-            geminiConfigured: true,
-            buildVersion: '1.0.0-prod',
-            environmentTag: 'demo',
+            authConnected: false,
+            geminiConfigured: false,
+            buildVersion: '1.1.0-prod',
+            environmentTag: 'production',
             demoStats: {
               teachersCount: filteredUsers.filter((u) => u.role === 'teacher').length,
               classesCount: cList.length,
@@ -133,11 +135,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               assignmentsCount: aSnap.size,
               attemptsCount: attSnap.size,
             },
-            warnings: [],
+            warnings: ['Không thể kết nối API Health Backend (/api/health). Vui lòng kiểm tra Vercel Functions.'],
           });
         }
       } catch {
-        // Fallback info
+        setHealthInfo({
+          status: 'degraded',
+          firebaseProjectId: 'indigo-lotus-2nmq3',
+          databaseId: 'ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2',
+          authConnected: false,
+          geminiConfigured: false,
+          buildVersion: '1.1.0-prod',
+          environmentTag: 'production',
+          demoStats: {
+            teachersCount: filteredUsers.filter((u) => u.role === 'teacher').length,
+            classesCount: cList.length,
+            studentsCount: filteredUsers.filter((u) => u.role === 'student').length,
+            lessonsCount: lSnap.size,
+            assignmentsCount: aSnap.size,
+            attemptsCount: attSnap.size,
+          },
+          warnings: ['Lỗi kết nối mạng tới máy chủ API.'],
+        });
       }
     } catch (err) {
       console.error('Fetch admin data error:', err);
@@ -146,14 +165,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  // Seed Handler (calls backend idempotent seed)
+  // Seed Handler (calls backend idempotent seed with auth token)
   const handleSeed = async (apply: boolean) => {
     setIsSeeding(true);
     setSeedOutput(null);
     try {
       const res = await fetch('/api/admin/seed-demo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({
+          'x-admin-confirm': apply ? 'CONFIRM_APPLY' : 'DRY_RUN',
+        }),
         body: JSON.stringify({
           apply,
           actorId: currentUser.id,
@@ -162,7 +183,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
       const data = await res.json();
       setSeedOutput(JSON.stringify(data, null, 2));
-      if (apply) {
+      if (apply && res.ok) {
         fetchSystemData();
       }
     } catch (err) {
@@ -172,7 +193,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  // Cleanup Demo Handler (scoped to namespace demo only)
+  // Cleanup Demo Handler (scoped to namespace demo only, authenticated)
   const handleCleanupDemo = async () => {
     if (!confirm('XÁC NHẬN: Bạn có chắc chắn muốn dọn dẹp các bản ghi mô phỏng demo? Dữ liệu người dùng thực tế sẽ được bảo toàn tuyệt đối.')) {
       return;
@@ -183,12 +204,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     try {
       const res = await fetch('/api/admin/cleanup-demo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ actorId: currentUser.id }),
       });
       const data = await res.json();
       setSeedOutput(JSON.stringify(data, null, 2));
-      fetchSystemData();
+      if (res.ok) {
+        fetchSystemData();
+      }
     } catch (err) {
       setSeedOutput(`Lỗi dọn dẹp demo: ${String(err)}`);
     } finally {

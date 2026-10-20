@@ -71,17 +71,17 @@ npm run build
 
 ---
 
-## 🔑 TÀI KHOẢN THỬ NGHIỆM MẪU (DEMO ACCOUNTS)
+## 🔑 TÀI KHOẢN TRẢI NGHIỆM HỆ THỐNG (ACCESS DIRECTORY)
 
-| Vai trò | Thông tin đăng nhập | Mật khẩu |
+| Vai trò | Thông tin tài khoản | Trạng thái mật khẩu |
 | :--- | :--- | :--- |
-| **Quản trị viên** | `admin@thamtutoannhi.edu.vn` | `AdminBaoMat@123` |
-| **Giáo viên 1 (Khối 1)** | `giaovien1@thamtutoannhi.edu.vn` | `MatKhauGiaoVien@123` |
-| **Giáo viên 2 (Khối 2)** | `giaovien2@thamtutoannhi.edu.vn` | `MatKhauGiaoVien@123` |
-| **Học sinh Lớp 1A** | Mã: `HS1A01` ... `HS1A12` | `matkhau123` |
-| **Học sinh Lớp 2B** | Mã: `HS2B01` ... `HS2B12` | `matkhau123` |
+| **Quản trị viên** | `admin@thamtutoannhi.edu.vn` | *Cấp phát riêng cho quản trị viên, không lưu công khai* |
+| **Giáo viên 1 (Khối 1)** | `giaovien1@thamtutoannhi.edu.vn` | *Cấp phát riêng theo tài khoản giáo viên bộ môn* |
+| **Giáo viên 2 (Khối 2)** | `giaovien2@thamtutoannhi.edu.vn` | *Cấp phát riêng theo tài khoản giáo viên bộ môn* |
+| **Học sinh Lớp 1A** | Mã: `HS1A01` ... `HS1A12` | *Cấp phát theo phiếu nhiệm vụ học sinh lớp 1A* |
+| **Học sinh Lớp 2B** | Mã: `HS2B01` ... `HS2B12` | *Cấp phát theo phiếu nhiệm vụ học sinh lớp 2B* |
 
-*Ghi chú*: Trên màn hình đăng nhập, có sẵn các nút bấm một chạm **"Tài Khoản Thử Nghiệm Nhanh"** để quý thầy cô và giám khảo trải nghiệm ngay lập tức.
+*Ghi chú*: Trong môi trường phát triển cục bộ (`localhost`) hoặc URL kèm tham số thử nghiệm (`?demo=true`), hệ thống cung cấp các nút kiểm thử tự động để hỗ trợ hội đồng đánh giá mà không để lộ mật khẩu trên môi trường sản xuất.
 
 ---
 
