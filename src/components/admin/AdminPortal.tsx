@@ -15,6 +15,7 @@ import {
   Layers,
   Calendar,
   Lock,
+  Unlock,
   Plus
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
@@ -79,10 +80,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const attList = overview.attempts || [];
       const logList: AuditLog[] = overview.auditLogs || [];
 
-      const activeUsers = uList.filter((u: any) => !u.isDeleted && u.status !== 'inactive');
+      const nonDeletedUsers = uList.filter((u: any) => !u.isDeleted);
       const filteredUsers = dataOriginFilter === 'all'
-        ? activeUsers
-        : activeUsers.filter((u) => u.dataOrigin === dataOriginFilter);
+        ? nonDeletedUsers
+        : nonDeletedUsers.filter((u) => u.dataOrigin === dataOriginFilter);
 
       setTeachers(filteredUsers.filter((u) => u.role === 'teacher'));
       setStudents(filteredUsers.filter((u) => u.role === 'student'));
@@ -244,6 +245,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     } catch (err: any) {
       console.error('Delete user error:', err);
       alert(err.message || 'Lỗi xóa tài khoản.');
+    }
+  };
+
+  // Toggle Lock User Handler (Admin real CRUD)
+  const handleToggleLockUser = async (user: UserProfile) => {
+    const isLocked = user.status === 'inactive';
+    const newStatus = isLocked ? 'active' : 'inactive';
+    const actionLabel = isLocked ? 'Mở khóa' : 'Khóa';
+    if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn ${actionLabel} tài khoản "${user.displayName || user.studentCode}"?`)) {
+      return;
+    }
+    try {
+      await dataService.adminUpdateUser(user.id, { status: newStatus });
+      alert(`Đã ${actionLabel.toLowerCase()} thành công tài khoản "${user.displayName || user.studentCode}".`);
+      fetchSystemData();
+    } catch (err: any) {
+      console.error('Toggle lock error:', err);
+      alert(err.message || `Lỗi ${actionLabel.toLowerCase()} tài khoản.`);
     }
   };
 
@@ -493,6 +512,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <th className="px-6 py-3">Họ và tên</th>
                       <th className="px-6 py-3">Email liên hệ</th>
                       <th className="px-6 py-3">Vai trò</th>
+                      <th className="px-6 py-3">Trạng thái</th>
                       <th className="px-6 py-3">Nguồn</th>
                       <th className="px-6 py-3 text-right">Thao tác</th>
                     </tr>
@@ -508,17 +528,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           </span>
                         </td>
                         <td className="px-6 py-3.5 text-xs">
+                          {t.status === 'inactive' ? (
+                            <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-extrabold text-[11px] border border-rose-200">
+                              Đã khóa
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-extrabold text-[11px] border border-emerald-200">
+                              Hoạt động
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3.5 text-xs">
                           {t.dataOrigin === 'simulation' ? 'Mô phỏng' : 'Thật'}
                         </td>
                         <td className="px-6 py-3.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteUser(t.id, t.displayName)}
-                            className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
-                            title="Xóa tài khoản"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLockUser(t)}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                t.status === 'inactive'
+                                  ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800'
+                                  : 'text-amber-600 hover:bg-amber-50 hover:text-amber-800'
+                              }`}
+                              title={t.status === 'inactive' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                            >
+                              {t.status === 'inactive' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(t.id, t.displayName)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                              title="Xóa tài khoản"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -539,6 +584,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <th className="px-6 py-3">Mã học sinh</th>
                       <th className="px-6 py-3">Họ và tên</th>
                       <th className="px-6 py-3">Lớp</th>
+                      <th className="px-6 py-3">Trạng thái</th>
                       <th className="px-6 py-3">Nguồn dữ liệu</th>
                       <th className="px-6 py-3 text-right">Thao tác</th>
                     </tr>
@@ -550,17 +596,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <td className="px-6 py-3 font-bold text-slate-900">{s.displayName}</td>
                         <td className="px-6 py-3 text-xs font-bold">{s.classId}</td>
                         <td className="px-6 py-3 text-xs">
+                          {s.status === 'inactive' ? (
+                            <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-extrabold text-[11px] border border-rose-200">
+                              Đã khóa
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-extrabold text-[11px] border border-emerald-200">
+                              Hoạt động
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3 text-xs">
                           {s.dataOrigin === 'simulation' ? 'Mô phỏng (Demo)' : 'Thật'}
                         </td>
                         <td className="px-6 py-3.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteUser(s.id, s.displayName)}
-                            className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
-                            title="Xóa tài khoản"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLockUser(s)}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                s.status === 'inactive'
+                                  ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800'
+                                  : 'text-amber-600 hover:bg-amber-50 hover:text-amber-800'
+                              }`}
+                              title={s.status === 'inactive' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                            >
+                              {s.status === 'inactive' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(s.id, s.displayName)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                              title="Xóa tài khoản"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

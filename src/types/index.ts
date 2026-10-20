@@ -18,6 +18,8 @@ export interface UserProfile {
   className?: string;
   grade?: 1 | 2;
   schoolYearId?: string;
+  status?: 'active' | 'inactive';
+  isDeleted?: boolean;
   createdAt: string;
   updatedAt?: string;
   dataOrigin: DataOrigin;
