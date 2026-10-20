@@ -136,3 +136,32 @@ Tuân thủ nghiêm ngặt quy tắc: *"Báo danh sách cho chủ sở hữu duy
 | **Nhật ký hoạt động** | **PASS** | Thời gian GMT+7, danh tính xác thực từ phiên làm việc, không còn lỗi rỗng |
 | **Cài đặt hệ thống** | **PASS** | Trạng thái dịch vụ trung thực; Không lộ secrets |
 | **AI Soạn bài tự động (Gemini)** | **BLOCKED** | Hiển thị trung thực "AI chưa được cấu hình" do `GEMINI_API_KEY` chưa nạp trên Vercel. Không chặn bất kỳ luồng học tập hay quản trị nào của hệ thống. |
+
+---
+
+## 7. XÁC NHẬN TRIỂN KHAI VÀ NGHIỆM THU PRODUCTION
+
+- **Git Commit Main**: [`139f0e3`](https://github.com/atitk10-prog/thamtunhi/commit/139f0e3)
+- **URL Production**: [https://thamtunhi.vercel.app](https://thamtunhi.vercel.app/)
+- **Phản hồi `/api/health` Production (HTTP 200 OK)**:
+```json
+{
+  "status": "healthy",
+  "firebaseProjectId": "indigo-lotus-2nmq3",
+  "databaseId": "ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2",
+  "firestoreConnected": true,
+  "lessonsCount": 24,
+  "geminiConfigured": false,
+  "authSecretConfigured": true,
+  "authSecretStatus": "CONFIGURED",
+  "buildVersion": "1.1.0-prod",
+  "environmentTag": "production"
+}
+```
+- **Xác minh bảo vệ Production Endpoint**:
+  - `POST /api/admin/seed-demo`: HTTP 403 `PRODUCTION_ENDPOINT_DISABLED` (Khóa cứng cấp độ máy chủ).
+  - `POST /api/admin/cleanup-demo`: HTTP 403 `PRODUCTION_ENDPOINT_DISABLED` (Khóa cứng cấp độ máy chủ).
+  - `POST /api/auth/student-login` (Mã `HS1A01`): HTTP 200 OK (Cấp Token phiên).
+  - `POST /api/auth/teacher-login` (Admin): HTTP 200 OK (Cấp Token Super Admin).
+  - `GET /api/admin/overview`: HTTP 200 OK (Trả về 92 tài khoản người dùng, 4 lớp học, 24 bài học GDPT 2018, 26 bài giao).
+
