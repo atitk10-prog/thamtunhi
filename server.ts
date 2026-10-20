@@ -566,8 +566,17 @@ Trả về định dạng JSON:
 
 // 7. Admin Seed Demo Data (Protected: Admin role required + explicit guard)
 app.post('/api/admin/seed-demo', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
-  const { apply = false } = req.body;
   const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+
+  // Strict production protection rule: completely disabled on production
+  if (isProduction) {
+    return res.status(403).json({
+      error: 'Khóa an toàn Production: Thao tác Seed dữ liệu bị vô hiệu hóa hoàn toàn trên môi trường sản xuất để bảo toàn dữ liệu.',
+      code: 'PRODUCTION_ENDPOINT_DISABLED',
+    });
+  }
+
+  const { apply = false } = req.body;
 
   const summary = {
     mode: apply ? 'APPLY' : 'DRY_RUN',
@@ -589,14 +598,6 @@ app.post('/api/admin/seed-demo', requireAuth, requireRole(['admin']), async (req
       ok: true,
       message: 'Kiểm thử chế độ DRY-RUN thành công. Không có dữ liệu nào bị ghi.',
       plan: summary,
-    });
-  }
-
-  // Strict production protection rule: completely disabled on production
-  if (isProduction) {
-    return res.status(403).json({
-      error: 'Khóa an toàn Production: Thao tác Seed dữ liệu bị vô hiệu hóa hoàn toàn trên môi trường sản xuất để bảo toàn dữ liệu.',
-      code: 'PRODUCTION_ENDPOINT_DISABLED',
     });
   }
 
