@@ -330,6 +330,63 @@ async function runE2E() {
         assertions.push('Admin mở khóa tài khoản QA thành công (status: active)');
       }
 
+      // Verify student can log in again after unlock
+      const unlockedLoginRes = await requestApi('/api/auth/student-login', {
+        method: 'POST',
+        body: JSON.stringify({ studentCode: qaCode, accessSecret: 'matkhau123' })
+      });
+      if (unlockedLoginRes.status === 200) {
+        assertions.push('Xác minh thực tế: Học sinh đăng nhập lại thành công sau khi Admin mở khóa (HTTP 200)');
+      } else {
+        errors.push(`Học sinh không thể đăng nhập sau khi mở khóa: trả mã ${unlockedLoginRes.status}`);
+      }
+
+      // Verify Admin cannot self-lock
+      const selfLockRes = await requestApi(`/api/admin/users/${adminAuth.body.user.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({ status: 'locked' })
+      });
+      if (selfLockRes.status === 400) {
+        assertions.push('Bảo vệ an toàn: Chặn Admin tự khóa tài khoản của chính mình (HTTP 400)');
+      } else {
+        errors.push(`Admin tự khóa tài khoản trả mã ${selfLockRes.status}, kỳ vọng 400`);
+      }
+
+      // Verify Teacher Lock and Unlock
+      const targetTeacher = allUsers.find((u: any) => u.email === 'giaovien2@thamtutoannhi.edu.vn') || allUsers.find((u: any) => u.role === 'teacher' && u.email !== 'giaovien1@thamtutoannhi.edu.vn');
+      const teacherId = targetTeacher?.id || 'teacher-2';
+
+      const lockTeacherRes = await requestApi(`/api/admin/users/${teacherId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({ status: 'locked' })
+      });
+      const lockedTeacherRes = await requestApi('/api/auth/teacher-login', {
+        method: 'POST',
+        body: JSON.stringify({ email: targetTeacher?.email || 'giaovien2@thamtutoannhi.edu.vn', password: 'MatKhauGiaoVien@123' })
+      });
+      if (lockTeacherRes.status === 200 && lockedTeacherRes.status === 403) {
+        assertions.push('Khóa Giáo viên: Giáo viên bị khóa bị chặn đăng nhập (HTTP 403)');
+      } else {
+        errors.push(`Khóa giáo viên thất bại: lockStatus=${lockTeacherRes.status}, loginStatus=${lockedTeacherRes.status}`);
+      }
+
+      const unlockTeacherRes = await requestApi(`/api/admin/users/${teacherId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({ status: 'active' })
+      });
+      const unlockedTeacherRes = await requestApi('/api/auth/teacher-login', {
+        method: 'POST',
+        body: JSON.stringify({ email: targetTeacher?.email || 'giaovien2@thamtutoannhi.edu.vn', password: 'MatKhauGiaoVien@123' })
+      });
+      if (unlockTeacherRes.status === 200 && unlockedTeacherRes.status === 200) {
+        assertions.push('Mở khóa Giáo viên: Giáo viên đăng nhập lại bình thường sau khi mở khóa (HTTP 200)');
+      } else {
+        errors.push(`Mở khóa giáo viên thất bại: unlockStatus=${unlockTeacherRes.status}, loginStatus=${unlockedTeacherRes.status}`);
+      }
+
       // Clean up ONLY this test QA account
       const deleteQaRes = await requestApi(`/api/admin/users/${qaUserId}`, {
         method: 'DELETE',
@@ -566,8 +623,8 @@ async function runE2E() {
       await page.click('button:has-text("Vào Phá Án Toán Học")');
       await page.waitForSelector('text=Góc Học Tập Thám Tử', { timeout: 10000 });
 
-      // Start first mission
-      await page.click('button:has-text("Bắt đầu phá án") >> nth=0');
+      // Start first mission (support both fresh attempt or replay)
+      await page.locator('button:has-text("Bắt đầu phá án"), button:has-text("Luyện tập lại")').first().click();
       await page.waitForSelector('text=⭐', { timeout: 10000 });
 
       // Verify score display format
@@ -731,9 +788,9 @@ async function runE2E() {
 
       // 2. Gemini status check
       if (health.body.geminiConfigured) {
-        assertions.push('Gemini AI API đã được cấu hình với key hợp lệ');
+        assertions.push('Gemini AI API đã được cấu hình với key hợp lệ (PASS)');
       } else {
-        assertions.push('[NOTICE] GEMINI_API_KEY chưa cấu hình trên môi trường này (Chức năng AI soạn bài draft yêu cầu người dùng cấp key trên Vercel)');
+        assertions.push('[BLOCKED] GEMINI_API_KEY chưa cấu hình trên môi trường này (Chức năng AI soạn bài draft ở trạng thái BLOCKED cho đến khi người dùng cấp key trên Vercel)');
       }
 
       // 3. Secrets scan check

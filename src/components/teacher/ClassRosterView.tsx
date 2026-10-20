@@ -141,7 +141,8 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
 
   // Toggle lock / unlock
   const handleToggleLock = async (student: StudentRosterItem) => {
-    const nextStatus = student.status === 'locked' ? 'active' : 'locked';
+    const isLocked = student.status === 'locked' || student.status === 'inactive';
+    const nextStatus: 'active' | 'locked' = isLocked ? 'active' : 'locked';
     const confirmMsg = nextStatus === 'locked'
       ? `Bạn có chắc muốn KHÓA tài khoản của học sinh ${student.displayName} (${student.studentCode})?`
       : `Mở khóa tài khoản cho học sinh ${student.displayName} (${student.studentCode})?`;
@@ -371,7 +372,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
                 {filteredStudents.map((student) => {
-                  const isLocked = student.status === 'locked';
+                  const isLocked = student.status === 'locked' || student.status === 'inactive';
 
                   return (
                     <tr key={student.id} className="hover:bg-slate-50/70 transition-colors">
@@ -788,7 +789,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
                 </div>
               ) : (
                 studentAttempts.map((att) => {
-                  const max = att.maxScore && att.maxScore > 0 ? att.maxScore : 80;
+                  const max = att.maxScore && att.maxScore > 0 ? att.maxScore : (att.totalQuestions ? att.totalQuestions * 10 : 80);
                   const pct = Math.round(((att.score || 0) / max) * 100);
 
                   return (

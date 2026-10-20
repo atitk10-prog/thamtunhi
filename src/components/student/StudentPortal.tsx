@@ -230,7 +230,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                           <Award className="w-4 h-4 text-amber-600" /> Điểm số:
                         </div>
                         <span className="text-lg font-black text-amber-900">
-                          {attempt.score ?? 0}/{attempt.maxScore || 80}
+                          {attempt.score ?? 0}/{(attempt.maxScore && attempt.maxScore > 0) ? attempt.maxScore : (attempt.totalQuestions ? attempt.totalQuestions * 10 : 80)}
                         </span>
                       </div>
                     )}

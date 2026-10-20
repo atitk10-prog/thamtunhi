@@ -26,7 +26,7 @@
       "e2e/screenshots/e2e01-03-teacher-dashboard.png",
       "e2e/screenshots/e2e01-04-admin-dashboard.png"
     ],
-    "durationMs": 5964
+    "durationMs": 4178
   },
   {
     "id": "E2E-02",
@@ -35,11 +35,15 @@
     "assertions": [
       "Admin đối chiếu đúng 4 lớp học (1A, 1B, 2A, 2B)",
       "Admin đối chiếu đúng 48 học sinh chính khóa trong 4 lớp học chuẩn từ Cloud Firestore (12 HS/lớp)",
-      "Admin tạo mới tài khoản QA thành công (ID: user-qa-e2e-1792527293623, Mã: HSQA3623)",
+      "Admin tạo mới tài khoản QA thành công (ID: user-qa-e2e-1792528693675, Mã: HSQA3675)",
       "Admin cập nhật thông tin và chuyển lớp tài khoản QA thành công",
       "Admin khóa tài khoản QA thành công (status: locked)",
       "Xác minh thực tế: Tài khoản bị khóa bị chặn đăng nhập (HTTP 403 - Tài khoản bị tạm khóa)",
       "Admin mở khóa tài khoản QA thành công (status: active)",
+      "Xác minh thực tế: Học sinh đăng nhập lại thành công sau khi Admin mở khóa (HTTP 200)",
+      "Bảo vệ an toàn: Chặn Admin tự khóa tài khoản của chính mình (HTTP 400)",
+      "Khóa Giáo viên: Giáo viên bị khóa bị chặn đăng nhập (HTTP 403)",
+      "Mở khóa Giáo viên: Giáo viên đăng nhập lại bình thường sau khi mở khóa (HTTP 200)",
       "Dọn dẹp chính xác tài khoản QA kiểm thử sau khi hoàn thành",
       "Bảo toàn dữ liệu: Toàn bộ 48 học sinh chính khóa và 4 lớp chuẩn nguyên vẹn 100%"
     ],
@@ -47,7 +51,7 @@
     "screenshots": [
       "e2e/screenshots/e2e02-01-admin-overview.png"
     ],
-    "durationMs": 3790
+    "durationMs": 4789
   },
   {
     "id": "E2E-03",
@@ -67,7 +71,7 @@
       "e2e/screenshots/e2e03-02-class1a-roster.png",
       "e2e/screenshots/e2e03-03-assign-modal.png"
     ],
-    "durationMs": 3007
+    "durationMs": 2943
   },
   {
     "id": "E2E-04",
@@ -85,7 +89,7 @@
       "e2e/screenshots/e2e04-01-editor-all-8-questions.png",
       "e2e/screenshots/e2e04-02-editor-lesson2-distinct.png"
     ],
-    "durationMs": 3438
+    "durationMs": 3627
   },
   {
     "id": "E2E-05",
@@ -102,7 +106,7 @@
       "e2e/screenshots/e2e05-01-mission-header.png",
       "e2e/screenshots/e2e05-02-mission-resumed-f5.png"
     ],
-    "durationMs": 3082
+    "durationMs": 3541
   },
   {
     "id": "E2E-06",
@@ -111,13 +115,13 @@
     "assertions": [
       "CHỐNG GIAN LẬN: Server đối soát đáp án thực tế và tự động hủy nhận định sai từ client (isCorrect: false)",
       "API Thống kê giáo viên tải dữ liệu phân tích thành công (HTTP 200)",
-      "Tổng số lượt làm bài phân tích: 90",
+      "Tổng số lượt làm bài phân tích: 108",
       "Bảo toàn 144 lượt mô phỏng lịch sử trong Firestore, không tự ý gán nhãn giả mạo",
       "Bộ lọc thống kê mặc định ưu tiên dữ liệu thật (dataOrigin: real)"
     ],
     "errors": [],
     "screenshots": [],
-    "durationMs": 875
+    "durationMs": 991
   },
   {
     "id": "E2E-07",
@@ -128,12 +132,12 @@
       "Cloud Firestore kết nối trực tiếp thành công",
       "Kết nối chính xác Named Database: ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2",
       "Thư viện 24 bài học trực tuyến hoạt động đầy đủ",
-      "[NOTICE] GEMINI_API_KEY chưa cấu hình trên môi trường này (Chức năng AI soạn bài draft yêu cầu người dùng cấp key trên Vercel)",
+      "[BLOCKED] GEMINI_API_KEY chưa cấu hình trên môi trường này (Chức năng AI soạn bài draft ở trạng thái BLOCKED cho đến khi người dùng cấp key trên Vercel)",
       "Bảo mật Git: .env và backup/ được đưa vào .gitignore đầy đủ, zero leak mật khẩu",
       "Tệp .env.example sạch sẽ, không chứa mật khẩu tài khoản thật"
     ],
     "errors": [],
     "screenshots": [],
-    "durationMs": 126
+    "durationMs": 119
   }
 ]

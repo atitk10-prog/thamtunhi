@@ -61,7 +61,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
   const avgScore = completedAttempts > 0
     ? Math.round(
         completedAttemptsList.reduce((sum, a) => {
-          const max = a.maxScore && a.maxScore > 0 ? a.maxScore : 80;
+          const max = a.maxScore && a.maxScore > 0 ? a.maxScore : (a.totalQuestions ? a.totalQuestions * 10 : 80);
           return sum + ((a.score || 0) / max) * 100;
         }, 0) / completedAttempts
       )
@@ -103,7 +103,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
     ];
 
     const rows = attempts.map((a) => {
-      const max = a.maxScore && a.maxScore > 0 ? a.maxScore : 80;
+      const max = a.maxScore && a.maxScore > 0 ? a.maxScore : (a.totalQuestions ? a.totalQuestions * 10 : 80);
       const pct = Math.round(((a.score || 0) / max) * 100);
       const statusLabel = a.status === 'completed' ? 'Đã hoàn thành' : 'Đang làm dở';
       const originLabel = a.dataOrigin === 'simulation' ? 'Dữ liệu thử nghiệm' : 'Dữ liệu học sinh thật';

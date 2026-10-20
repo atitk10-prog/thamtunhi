@@ -19,8 +19,7 @@ import {
   Plus
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
-import { testConnection } from '../../firebase/config';
-import { UserProfile, Classroom, AcademicYear, AuditLog, SystemHealth } from '../../types';
+import { UserProfile, Classroom, AcademicYear, AuditLog, SystemHealth, UserAccountStatus } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
 import { getAuthHeaders } from '../../lib/authSession';
 
@@ -37,6 +36,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [dataOriginFilter, setDataOriginFilter] = useState<'all' | 'simulation' | 'real'>('all');
 
   // Stats
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [teachers, setTeachers] = useState<UserProfile[]>([]);
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [classes, setClasses] = useState<Classroom[]>([]);
@@ -85,6 +85,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         ? nonDeletedUsers
         : nonDeletedUsers.filter((u) => u.dataOrigin === dataOriginFilter);
 
+      setAllUsers(uList);
       setTeachers(filteredUsers.filter((u) => u.role === 'teacher'));
       setStudents(filteredUsers.filter((u) => u.role === 'student'));
       setClasses(cList);
@@ -248,11 +249,29 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
+  const isUserLocked = (u: UserProfile): boolean => u.status === 'locked' || u.status === 'inactive';
+
   // Toggle Lock User Handler (Admin real CRUD)
   const handleToggleLockUser = async (user: UserProfile) => {
-    const isLocked = user.status === 'inactive' || user.status === 'locked';
-    const newStatus = isLocked ? 'active' : 'locked';
+    const isLocked = isUserLocked(user);
+    const newStatus: UserAccountStatus = isLocked ? 'active' : 'locked';
     const actionLabel = isLocked ? 'Mở khóa' : 'Khóa';
+
+    // Protection: Admin cannot self-lock and cannot lock the last active admin
+    if (user.role === 'admin' && !isLocked) {
+      if (user.id === currentUser.id || user.id === 'admin-root') {
+        alert('Không thể tự khóa tài khoản Quản trị viên đang đăng nhập.');
+        return;
+      }
+      const activeAdmins = allUsers.filter(
+        (u: UserProfile) => u.role === 'admin' && !isUserLocked(u) && !u.isDeleted
+      );
+      if (activeAdmins.length <= 1) {
+        alert('Không thể khóa tài khoản Quản trị viên cuối cùng của hệ thống.');
+        return;
+      }
+    }
+
     if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn ${actionLabel} tài khoản "${user.displayName || user.studentCode}"?`)) {
       return;
     }
@@ -528,7 +547,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           </span>
                         </td>
                         <td className="px-6 py-3.5 text-xs">
-                          {t.status === 'inactive' ? (
+                          {isUserLocked(t) ? (
                             <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-extrabold text-[11px] border border-rose-200">
                               Đã khóa
                             </span>
@@ -547,13 +566,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               type="button"
                               onClick={() => handleToggleLockUser(t)}
                               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                t.status === 'inactive'
+                                isUserLocked(t)
                                   ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800'
                                   : 'text-amber-600 hover:bg-amber-50 hover:text-amber-800'
                               }`}
-                              title={t.status === 'inactive' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                              title={isUserLocked(t) ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
                             >
-                              {t.status === 'inactive' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                              {isUserLocked(t) ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                             </button>
                             <button
                               type="button"
@@ -596,7 +615,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <td className="px-6 py-3 font-bold text-slate-900">{s.displayName}</td>
                         <td className="px-6 py-3 text-xs font-bold">{s.classId}</td>
                         <td className="px-6 py-3 text-xs">
-                          {s.status === 'inactive' ? (
+                          {isUserLocked(s) ? (
                             <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-extrabold text-[11px] border border-rose-200">
                               Đã khóa
                             </span>
@@ -615,13 +634,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               type="button"
                               onClick={() => handleToggleLockUser(s)}
                               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                s.status === 'inactive'
+                                isUserLocked(s)
                                   ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800'
                                   : 'text-amber-600 hover:bg-amber-50 hover:text-amber-800'
                               }`}
-                              title={s.status === 'inactive' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                              title={isUserLocked(s) ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
                             >
-                              {s.status === 'inactive' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                              {isUserLocked(s) ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                             </button>
                             <button
                               type="button"
