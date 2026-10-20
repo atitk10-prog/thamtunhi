@@ -12,3 +12,5 @@ secrets/
 .vercel
 .backup/
 backup/
+backups/
+*.backup.json
