@@ -59,6 +59,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   const [durationSeconds, setDurationSeconds] = useState(0);
 
   const currentQuestion: Question | undefined = questions[currentIndex];
+  const calculatedMaxScore = questions.reduce((sum, q) => sum + (Number((q as any).points) || 10), 0) || (questions.length > 0 ? questions.length * 10 : 80);
 
   const cacheKey = `thamtunhi_active_mission_${assignment.id}_${currentUser.id}`;
 
@@ -103,7 +104,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
           status: 'in_progress',
           currentQuestionIndex: 0,
           score: 0,
-          maxScore: questions.length * 10,
+          maxScore: calculatedMaxScore,
           firstAttemptCorrectCount: 0,
           postHintCorrectCount: 0,
           totalAttemptsMade: 0,
@@ -364,7 +365,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         status: 'in_progress',
         currentQuestionIndex: 0,
         score: 0,
-        maxScore: questions.length * 10,
+        maxScore: calculatedMaxScore,
         firstAttemptCorrectCount: 0,
         postHintCorrectCount: 0,
         totalAttemptsMade: 0,
@@ -412,7 +413,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-amber-400 text-amber-950 text-xs sm:text-sm font-black shadow-sm">
-            ⭐ {score}/{questions.length * 10 || 80} điểm
+            ⭐ {score}/{calculatedMaxScore} điểm
           </span>
         </div>
       </div>
@@ -543,7 +544,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       <CelebrationBadgeModal
         isOpen={isCompleted}
         score={score}
-        maxScore={questions.length * 10}
+        maxScore={calculatedMaxScore}
         firstTryCount={firstTryCount}
         postHintCount={postHintCount}
         durationSeconds={durationSeconds}

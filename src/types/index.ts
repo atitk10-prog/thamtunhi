@@ -18,13 +18,15 @@ export interface UserProfile {
   className?: string;
   grade?: 1 | 2;
   schoolYearId?: string;
-  status?: 'active' | 'inactive';
+  status?: UserAccountStatus;
   isDeleted?: boolean;
   createdAt: string;
   updatedAt?: string;
   dataOrigin: DataOrigin;
   environmentTag: EnvironmentTag;
 }
+
+export type UserAccountStatus = 'active' | 'locked' | 'inactive';
 
 export interface AcademicYear {
   id: string;
@@ -174,6 +176,7 @@ export interface Attempt {
   currentQuestionIndex: number;
   score: number; // Thang 10 hoặc tổng điểm
   maxScore: number;
+  totalQuestions?: number;
   firstAttemptCorrectCount: number;
   postHintCorrectCount: number;
   totalAttemptsMade: number;

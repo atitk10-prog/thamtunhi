@@ -593,6 +593,93 @@ async function runTestSuite() {
     });
   }
 
+  // 9. Admin self-lock prevention & last admin protection
+  const adminSelfLockRes = await request('PATCH', `/api/admin/users/${adminLoginRes.body.user.id}`, {
+    Authorization: `Bearer ${adminLoginRes.body.token}`,
+  }, {
+    status: 'locked',
+  });
+  assert(adminSelfLockRes.status === 400, 'Bảo vệ Admin: Chặn Admin tự khóa tài khoản của chính mình (HTTP 400)');
+
+  // 10. Teacher lock and unlock workflow
+  const targetTeacher2 = (adminOverviewAdmin.body.users || []).find((u: any) => u.email === 'giaovien2@thamtutoannhi.edu.vn') ||
+                         (adminOverviewAdmin.body.users || []).find((u: any) => u.role === 'teacher' && u.id !== teacherLoginRes.body.user.id);
+  const teacher2Id = targetTeacher2?.id || 'teacher-2';
+
+  const lockTeacherRes = await request('PATCH', `/api/admin/users/${teacher2Id}`, {
+    Authorization: `Bearer ${adminLoginRes.body.token}`,
+  }, {
+    status: 'locked',
+  });
+  assert(lockTeacherRes.status === 200, 'Quản lý GV: Khóa tài khoản Giáo viên 2 thành công (HTTP 200)');
+
+  const lockedTeacherLoginRes = await request('POST', '/api/auth/teacher-login', {}, {
+    email: targetTeacher2?.email || 'giaovien2@thamtutoannhi.edu.vn',
+    password: 'MatKhauGiaoVien@123',
+  });
+  assert(lockedTeacherLoginRes.status === 403, 'Quản lý GV: Chặn Giáo viên bị khóa đăng nhập (HTTP 403)');
+
+  const unlockTeacherRes = await request('PATCH', `/api/admin/users/${teacher2Id}`, {
+    Authorization: `Bearer ${adminLoginRes.body.token}`,
+  }, {
+    status: 'active',
+  });
+  assert(unlockTeacherRes.status === 200, 'Quản lý GV: Mở khóa tài khoản Giáo viên 2 thành công (HTTP 200)');
+
+  const unlockedTeacherLoginRes = await request('POST', '/api/auth/teacher-login', {}, {
+    email: targetTeacher2?.email || 'giaovien2@thamtutoannhi.edu.vn',
+    password: 'MatKhauGiaoVien@123',
+  });
+  assert(unlockedTeacherLoginRes.status === 200, 'Quản lý GV: Giáo viên 2 đăng nhập lại bình thường sau khi mở khóa (HTTP 200)');
+
+  // 11. Dynamic maxScore calculations (4, 6, 8, 10 questions)
+  const att4Res = await request('POST', '/api/student/attempts', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  }, {
+    id: `att-q4-${Date.now()}`,
+    assignmentId: 'assign-test',
+    lessonVersionId: 'version-custom-q4',
+    studentId: stuValidRes.body.user.id,
+    totalQuestions: 4,
+    maxScore: 40,
+  });
+  assert(att4Res.body.attempt?.maxScore === 40, 'Tính điểm tối đa: Bài 4 câu tính đúng maxScore = 40');
+
+  const att6Res = await request('POST', '/api/student/attempts', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  }, {
+    id: `att-q6-${Date.now()}`,
+    assignmentId: 'assign-test',
+    lessonVersionId: 'version-custom-q6',
+    studentId: stuValidRes.body.user.id,
+    totalQuestions: 6,
+    maxScore: 60,
+  });
+  assert(att6Res.body.attempt?.maxScore === 60, 'Tính điểm tối đa: Bài 6 câu tính đúng maxScore = 60');
+
+  const att8Res = await request('POST', '/api/student/attempts', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  }, {
+    id: `att-q8-${Date.now()}`,
+    assignmentId: 'assign-test',
+    lessonVersionId: 'version-lesson-g1-01-v1',
+    studentId: stuValidRes.body.user.id,
+    totalQuestions: 8,
+  });
+  assert(att8Res.body.attempt?.maxScore === 80, 'Tính điểm tối đa: Bài 8 câu tính đúng maxScore = 80 từ lessonVersion');
+
+  const att10Res = await request('POST', '/api/student/attempts', {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  }, {
+    id: `att-q10-${Date.now()}`,
+    assignmentId: 'assign-test',
+    lessonVersionId: 'version-custom-q10',
+    studentId: stuValidRes.body.user.id,
+    totalQuestions: 10,
+    maxScore: 100,
+  });
+  assert(att10Res.body.attempt?.maxScore === 100, 'Tính điểm tối đa: Bài 10 câu tính đúng maxScore = 100');
+
   // 9. Server-side answer grading enforcement
   // Create test in-progress attempt for student
   const testAttemptId = `att-server-eval-${Date.now()}`;

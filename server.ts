@@ -85,7 +85,11 @@ if (process.env.GEMINI_API_KEY) {
 }
 
 // Secret for stateless HMAC session tokens
-const AUTH_SECRET = process.env.AUTH_SECRET || process.env.SESSION_SECRET || 'thamtutoannhi-secure-session-key-gdpt2018-hmac';
+// Supports AUTH_SECRET as primary, with SESSION_SECRET and JWT_SECRET as recognized aliases
+const CONFIGURED_SECRET = process.env.AUTH_SECRET || process.env.SESSION_SECRET || process.env.JWT_SECRET;
+const isProdEnvironment = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+// Security: Never allow insecure fallback secret in Production environment
+const AUTH_SECRET = CONFIGURED_SECRET || (!isProdEnvironment ? 'thamtutoannhi-dev-insecure-secret-key-change-in-production' : '');
 
 export interface AuthSession {
   uid: string;
@@ -99,6 +103,9 @@ export interface AuthSession {
 }
 
 export function createAuthToken(payload: Omit<AuthSession, 'exp'>, expiresInDays = 7): string {
+  if (!AUTH_SECRET) {
+    throw new Error('BLOCKED: Biến môi trường AUTH_SECRET chưa được cấu hình trên môi trường Production!');
+  }
   const exp = Math.floor(Date.now() / 1000) + expiresInDays * 86400;
   const session: AuthSession = { ...payload, exp };
   const encodedPayload = Buffer.from(JSON.stringify(session)).toString('base64url');
@@ -107,7 +114,7 @@ export function createAuthToken(payload: Omit<AuthSession, 'exp'>, expiresInDays
 }
 
 export function verifyAuthToken(token: string): AuthSession | null {
-  if (!token || typeof token !== 'string') return null;
+  if (!AUTH_SECRET || !token || typeof token !== 'string') return null;
   const parts = token.split('.');
   if (parts.length !== 2) return null;
   const [encodedPayload, signature] = parts;
@@ -188,8 +195,10 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     firestoreConnected,
     lessonsCount,
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+    authSecretConfigured: Boolean(CONFIGURED_SECRET),
+    authSecretStatus: CONFIGURED_SECRET ? 'CONFIGURED' : (isProdEnvironment ? 'BLOCKED' : 'DEV_FALLBACK'),
     buildVersion: '1.1.0-prod',
-    environmentTag: (process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production') ? 'production' : 'development',
+    environmentTag: isProdEnvironment ? 'production' : 'development',
     timestamp: new Date().toISOString(),
     ...(errorDetail ? { warning: 'Cloud Firestore kết nối gián đoạn' } : {}),
   });
@@ -198,6 +207,12 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 // 2. Student Authentication endpoint (Student Code + Access Secret)
 // Zero fallback passwords, sanitized response, signed JWT session token
 app.post('/api/auth/student-login', async (req: Request, res: Response) => {
+  if (!AUTH_SECRET) {
+    return res.status(503).json({
+      error: 'BẢO MẬT: Hệ thống đang ở trạng thái BLOCKED do chưa cấu hình biến môi trường AUTH_SECRET trên Production. Vui lòng cấu hình AUTH_SECRET trong Vercel Console.',
+      code: 'AUTH_SECRET_BLOCKED'
+    });
+  }
   const { studentCode, accessSecret } = req.body;
 
   if (!studentCode || !accessSecret) {
@@ -262,6 +277,12 @@ app.post('/api/auth/student-login', async (req: Request, res: Response) => {
 // 3. Teacher & Admin Authentication endpoint
 // Eliminated fixed admin backdoor & default password bypass
 app.post('/api/auth/teacher-login', async (req: Request, res: Response) => {
+  if (!AUTH_SECRET) {
+    return res.status(503).json({
+      error: 'BẢO MẬT: Hệ thống đang ở trạng thái BLOCKED do chưa cấu hình biến môi trường AUTH_SECRET trên Production. Vui lòng cấu hình AUTH_SECRET trong Vercel Console.',
+      code: 'AUTH_SECRET_BLOCKED'
+    });
+  }
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -342,6 +363,12 @@ app.get('/api/auth/verify-session', requireAuth, async (req: AuthenticatedReques
 
 // 4b. Google Auth Session Exchange (Syncs user profile and grants HMAC session token)
 app.post('/api/auth/google-login', async (req: Request, res: Response) => {
+  if (!AUTH_SECRET) {
+    return res.status(503).json({
+      error: 'BẢO MẬT: Hệ thống đang ở trạng thái BLOCKED do chưa cấu hình biến môi trường AUTH_SECRET trên Production. Vui lòng cấu hình AUTH_SECRET trong Vercel Console.',
+      code: 'AUTH_SECRET_BLOCKED'
+    });
+  }
   const { uid, email, displayName } = req.body;
   if (!uid) {
     return res.status(400).json({ error: 'Thiếu định danh Google.' });
@@ -692,13 +719,36 @@ app.get('/api/student/lesson-version/:versionId', requireAuth, async (req: Reque
 
 app.post('/api/student/attempts', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id, assignmentId, lessonVersionId, classId, studentId, totalQuestions } = req.body;
+    const { id, assignmentId, lessonVersionId, classId, studentId, totalQuestions, maxScore } = req.body;
     if (studentId && studentId !== req.user!.uid) {
       return res.status(403).json({ error: 'Từ chối truy cập: Không thể mạo danh tài khoản học sinh khác.' });
     }
     if (!id || !assignmentId || !lessonVersionId) {
       return res.status(400).json({ error: 'Thiếu tham số khởi tạo lượt làm bài.' });
     }
+
+    // Determine actual questions count and maxScore from lesson version or payload
+    let computedTotalQuestions = Number(totalQuestions || 0);
+    let computedMaxScore = Number(maxScore || 0);
+
+    if (lessonVersionId) {
+      try {
+        const vSnap = await getDoc(doc(db, 'lessonVersions', lessonVersionId));
+        if (vSnap.exists()) {
+          const qList: any[] = vSnap.data()?.questions || [];
+          if (qList.length > 0) {
+            computedTotalQuestions = qList.length;
+            computedMaxScore = qList.reduce((sum: number, q: any) => sum + (Number(q.points) || 10), 0);
+          }
+        }
+      } catch (err) {
+        console.warn('Notice: Failed to fetch lesson version for maxScore:', err);
+      }
+    }
+    if (!computedMaxScore) {
+      computedMaxScore = computedTotalQuestions > 0 ? computedTotalQuestions * 10 : 80;
+    }
+
     const attemptDoc = {
       id,
       assignmentId,
@@ -710,7 +760,8 @@ app.post('/api/student/attempts', requireAuth, requireRole(['student']), async (
       status: 'in_progress',
       startedAt: new Date().toISOString(),
       score: 0,
-      totalQuestions: Number(totalQuestions || 0),
+      totalQuestions: computedTotalQuestions,
+      maxScore: computedMaxScore,
       firstAttemptCorrectCount: 0,
       postHintCorrectCount: 0,
       misconceptionsDetected: [],
@@ -795,20 +846,38 @@ app.post('/api/student/attempts/:id/answer', requireAuth, requireRole(['student'
 app.post('/api/student/attempts/:id/complete', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const attemptId = req.params.id;
-    const { score, completedAt, firstAttemptCorrectCount, postHintCorrectCount, misconceptionsDetected } = req.body;
+    const { score, maxScore, completedAt, firstAttemptCorrectCount, postHintCorrectCount, misconceptionsDetected } = req.body;
 
     const attSnap = await getDoc(doc(db, 'attempts', attemptId));
     if (!attSnap.exists()) {
       return res.status(404).json({ error: 'Lượt làm bài không tồn tại.' });
     }
-    const attData = attSnap.data();
+    const attData: any = attSnap.data();
     if (attData.studentId !== req.user!.uid) {
       return res.status(403).json({ error: 'Từ chối: Không thể sửa bài làm của người khác.' });
+    }
+
+    // Preserve or determine actual maxScore
+    let finalMaxScore = Number(attData.maxScore || maxScore || 0);
+    if (!finalMaxScore && attData.lessonVersionId) {
+      try {
+        const vSnap = await getDoc(doc(db, 'lessonVersions', attData.lessonVersionId));
+        if (vSnap.exists()) {
+          const qList: any[] = vSnap.data()?.questions || [];
+          if (qList.length > 0) {
+            finalMaxScore = qList.reduce((sum: number, q: any) => sum + (Number(q.points) || 10), 0);
+          }
+        }
+      } catch (err) {}
+    }
+    if (!finalMaxScore) {
+      finalMaxScore = attData.totalQuestions ? attData.totalQuestions * 10 : 80;
     }
 
     const updates = {
       status: 'completed',
       score: Number(score || 0),
+      maxScore: finalMaxScore,
       completedAt: completedAt || new Date().toISOString(),
       firstAttemptCorrectCount: Number(firstAttemptCorrectCount || 0),
       postHintCorrectCount: Number(postHintCorrectCount || 0),
@@ -1322,6 +1391,29 @@ app.patch('/api/admin/users/:id', requireAuth, requireRole(['admin']), async (re
     if (!id || !updates) {
       return res.status(400).json({ error: 'Thiếu thông tin cập nhật.' });
     }
+
+    // Check target user
+    const targetDoc = await getDoc(doc(db, 'users', id));
+    if (!targetDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản người dùng.' });
+    }
+    const targetData: any = targetDoc.data();
+
+    // Protection: Admin cannot self-lock and cannot lock the last admin
+    if (targetData.role === 'admin' && (updates.status === 'locked' || updates.status === 'inactive')) {
+      if (id === req.user?.uid || id === 'admin-root') {
+        return res.status(400).json({ error: 'Không thể tự khóa tài khoản Quản trị viên đang đăng nhập.' });
+      }
+      const allUsersSnap = await getDocs(collection(db, 'users'));
+      const activeAdmins = allUsersSnap.docs.filter((d) => {
+        const u: any = d.data();
+        return u.role === 'admin' && u.status !== 'locked' && u.status !== 'inactive' && !u.isDeleted;
+      });
+      if (activeAdmins.length <= 1) {
+        return res.status(400).json({ error: 'Không thể khóa tài khoản Quản trị viên cuối cùng của hệ thống.' });
+      }
+    }
+
     const { password: _, accessSecret: __, ...safeUpdates } = updates;
     await updateDoc(doc(db, 'users', id), {
       ...safeUpdates,

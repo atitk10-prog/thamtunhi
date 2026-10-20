@@ -11,7 +11,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { getAuthHeaders } from './authSession';
-import { Assignment, Attempt, Lesson, LessonVersion, MistakeInsight } from '../types';
+import { Assignment, Attempt, Lesson, LessonVersion, MistakeInsight, UserProfile, UserAccountStatus } from '../types';
 
 /**
  * Unified Data Service for THÁM TỬ TOÁN NHÍ
@@ -380,7 +380,7 @@ export const dataService = {
     return res.json();
   },
 
-  async updateStudent(studentId: string, updates: { status?: string; classId?: string; accessSecret?: string; displayName?: string }): Promise<any> {
+  async updateStudent(studentId: string, updates: { status?: UserAccountStatus; classId?: string; accessSecret?: string; displayName?: string }): Promise<any> {
     const res = await fetch(`/api/teacher/students/${encodeURIComponent(studentId)}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
@@ -490,7 +490,7 @@ export const dataService = {
     }
   },
 
-  async adminUpdateUser(userId: string, updates: any): Promise<void> {
+  async adminUpdateUser(userId: string, updates: Partial<UserProfile>): Promise<void> {
     if (auth.currentUser) {
       try {
         await updateDoc(doc(db, 'users', userId), updates);
