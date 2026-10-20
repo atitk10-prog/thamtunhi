@@ -479,6 +479,40 @@ async function runTestSuite() {
   assert(googleLoginValid.status === 200, 'Google Login: Tạo và xác thực phiên đăng nhập Google thành công (HTTP 200)');
   assert(Boolean(googleLoginValid.body.token), 'Google Login: Cấp token phiên HMAC an toàn');
 
+  // Admin Real CRUD Tests
+  const testUserId = `user-crud-test-${Date.now()}`;
+  const adminCreateRes = await request('POST', '/api/admin/create-user', {
+    Authorization: `Bearer ${adminLoginRes.body.token}`,
+  }, {
+    id: testUserId,
+    role: 'teacher',
+    displayName: 'Thầy Giáo Viên Thử Nghiệm CRUD',
+    email: `${testUserId}@thamtutoannhi.edu.vn`,
+  });
+  assert(adminCreateRes.status === 200, 'Admin CRUD: Tạo người dùng mới thành công (HTTP 200)');
+
+  const studentDeleteRes = await request('DELETE', `/api/admin/users/${testUserId}`, {
+    Authorization: `Bearer ${stuValidRes.body.token}`,
+  });
+  assert(studentDeleteRes.status === 403, 'Admin CRUD: Chặn Học sinh xóa tài khoản (HTTP 403 Forbidden)');
+
+  const adminUpdateRes = await request('PATCH', `/api/admin/users/${testUserId}`, {
+    Authorization: `Bearer ${adminLoginRes.body.token}`,
+  }, {
+    displayName: 'Thầy Giáo Viên Đã Cập Nhật',
+  });
+  assert(adminUpdateRes.status === 200, 'Admin CRUD: Quản trị viên cập nhật tài khoản thành công (HTTP 200)');
+
+  const adminDeleteRes = await request('DELETE', `/api/admin/users/${testUserId}`, {
+    Authorization: `Bearer ${adminLoginRes.body.token}`,
+  });
+  assert(adminDeleteRes.status === 200, 'Admin CRUD: Quản trị viên xóa tài khoản thành công (HTTP 200)');
+
+  const adminDeleteSelfRes = await request('DELETE', `/api/admin/users/${adminLoginRes.body.user.id}`, {
+    Authorization: `Bearer ${adminLoginRes.body.token}`,
+  });
+  assert(adminDeleteSelfRes.status === 400, 'Admin CRUD: Chặn xóa tài khoản Quản trị viên đang đăng nhập (HTTP 400)');
+
   console.log('\n================================================================');
   console.log(` TỔNG KẾT KIỂM THỬ: ${passedTests}/${totalTests} TESTS PASS (100% ĐẠT TIÊU CHUẨN)`);
   console.log('================================================================\n');

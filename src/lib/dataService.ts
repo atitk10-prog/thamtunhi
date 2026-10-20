@@ -8,6 +8,7 @@ import {
   where,
   setDoc,
   updateDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { getAuthHeaders } from './authSession';
 import { Assignment, Attempt, Lesson, LessonVersion, MistakeInsight } from '../types';
@@ -395,6 +396,51 @@ export const dataService = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Lỗi tạo người dùng mới.');
+    }
+  },
+
+  async adminDeleteUser(userId: string): Promise<void> {
+    if (auth.currentUser) {
+      try {
+        await deleteDoc(doc(db, 'users', userId));
+        return;
+      } catch (err: any) {
+        if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
+          throw err;
+        }
+      }
+    }
+
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi xóa người dùng.');
+    }
+  },
+
+  async adminUpdateUser(userId: string, updates: any): Promise<void> {
+    if (auth.currentUser) {
+      try {
+        await updateDoc(doc(db, 'users', userId), updates);
+        return;
+      } catch (err: any) {
+        if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
+          throw err;
+        }
+      }
+    }
+
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi cập nhật người dùng.');
     }
   },
 };

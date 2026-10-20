@@ -79,9 +79,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const attList = overview.attempts || [];
       const logList: AuditLog[] = overview.auditLogs || [];
 
+      const activeUsers = uList.filter((u: any) => !u.isDeleted && u.status !== 'inactive');
       const filteredUsers = dataOriginFilter === 'all'
-        ? uList
-        : uList.filter((u) => u.dataOrigin === dataOriginFilter);
+        ? activeUsers
+        : activeUsers.filter((u) => u.dataOrigin === dataOriginFilter);
 
       setTeachers(filteredUsers.filter((u) => u.role === 'teacher'));
       setStudents(filteredUsers.filter((u) => u.role === 'student'));
@@ -228,6 +229,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     } catch (err) {
       console.error('Create user error:', err);
       alert('Lỗi tạo tài khoản.');
+    }
+  };
+
+  // Delete User Handler (Admin real CRUD)
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn xóa tài khoản "${userName}"?`)) {
+      return;
+    }
+    try {
+      await dataService.adminDeleteUser(userId);
+      alert(`Đã xóa thành công tài khoản "${userName}".`);
+      fetchSystemData();
+    } catch (err: any) {
+      console.error('Delete user error:', err);
+      alert(err.message || 'Lỗi xóa tài khoản.');
     }
   };
 
@@ -478,6 +494,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <th className="px-6 py-3">Email liên hệ</th>
                       <th className="px-6 py-3">Vai trò</th>
                       <th className="px-6 py-3">Nguồn</th>
+                      <th className="px-6 py-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -492,6 +509,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         </td>
                         <td className="px-6 py-3.5 text-xs">
                           {t.dataOrigin === 'simulation' ? 'Mô phỏng' : 'Thật'}
+                        </td>
+                        <td className="px-6 py-3.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(t.id, t.displayName)}
+                            className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                            title="Xóa tài khoản"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -513,6 +540,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <th className="px-6 py-3">Họ và tên</th>
                       <th className="px-6 py-3">Lớp</th>
                       <th className="px-6 py-3">Nguồn dữ liệu</th>
+                      <th className="px-6 py-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -523,6 +551,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <td className="px-6 py-3 text-xs font-bold">{s.classId}</td>
                         <td className="px-6 py-3 text-xs">
                           {s.dataOrigin === 'simulation' ? 'Mô phỏng (Demo)' : 'Thật'}
+                        </td>
+                        <td className="px-6 py-3.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(s.id, s.displayName)}
+                            className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                            title="Xóa tài khoản"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}

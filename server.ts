@@ -15,6 +15,7 @@ import {
   query,
   where,
   deleteDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
 
@@ -965,6 +966,54 @@ app.post('/api/admin/create-user', requireAuth, requireRole(['admin']), async (r
   } catch (err: any) {
     console.error('Admin create user error:', err);
     return res.status(500).json({ error: 'Lỗi tạo người dùng mới: ' + err.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: 'Thiếu mã người dùng cần xóa.' });
+    }
+    if (id === 'admin-root' || id === req.user?.uid) {
+      return res.status(400).json({ error: 'Không thể xóa tài khoản Quản trị viên đang đăng nhập.' });
+    }
+    try {
+      await deleteDoc(doc(db, 'users', id));
+    } catch (delErr: any) {
+      if (delErr?.code?.includes('permission-denied') || delErr?.message?.includes('PERMISSION_DENIED')) {
+        await updateDoc(doc(db, 'users', id), {
+          status: 'inactive',
+          isDeleted: true,
+          deletedAt: new Date().toISOString(),
+        });
+      } else {
+        throw delErr;
+      }
+    }
+    return res.json({ ok: true, deletedId: id });
+  } catch (err: any) {
+    console.error('Admin delete user error:', err);
+    return res.status(500).json({ error: 'Lỗi xóa người dùng: ' + err.message });
+  }
+});
+
+app.patch('/api/admin/users/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    if (!id || !updates) {
+      return res.status(400).json({ error: 'Thiếu thông tin cập nhật.' });
+    }
+    const { password: _, accessSecret: __, ...safeUpdates } = updates;
+    await updateDoc(doc(db, 'users', id), {
+      ...safeUpdates,
+      updatedAt: new Date().toISOString(),
+    });
+    return res.json({ ok: true, id, updates: safeUpdates });
+  } catch (err: any) {
+    console.error('Admin update user error:', err);
+    return res.status(500).json({ error: 'Lỗi cập nhật người dùng: ' + err.message });
   }
 });
 
