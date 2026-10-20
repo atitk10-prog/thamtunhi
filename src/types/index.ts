@@ -32,6 +32,7 @@ export interface AcademicYear {
   id: string;
   name: string; // e.g. "2024 - 2025"
   isCurrent: boolean;
+  status?: 'active' | 'archived';
   createdAt: string;
   dataOrigin: DataOrigin;
   environmentTag: EnvironmentTag;

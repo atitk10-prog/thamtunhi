@@ -445,11 +445,19 @@ export const dataService = {
     return await res.json();
   },
 
-  async adminCreateUser(newUser: any): Promise<void> {
+  async fetchSystemHealth(): Promise<any> {
+    const res = await fetch('/api/health');
+    if (!res.ok) {
+      throw new Error('Lỗi kiểm tra hệ thống.');
+    }
+    return await res.json();
+  },
+
+  async adminCreateUser(newUser: any): Promise<any> {
     if (auth.currentUser) {
       try {
         await setDoc(doc(db, 'users', newUser.id), newUser);
-        return;
+        return { success: true };
       } catch (err: any) {
         if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
           throw err;
@@ -466,6 +474,7 @@ export const dataService = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Lỗi tạo người dùng mới.');
     }
+    return await res.json();
   },
 
   async adminDeleteUser(userId: string): Promise<void> {
@@ -513,7 +522,7 @@ export const dataService = {
     }
   },
 
-  async adminResetPassword(userId: string, newPassword: string): Promise<void> {
+  async adminResetPassword(userId: string, newPassword?: string): Promise<any> {
     const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/reset-password`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -523,6 +532,7 @@ export const dataService = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Lỗi đặt lại mật khẩu.');
     }
+    return await res.json();
   },
 
   async adminAssignTeacherToClass(classId: string, teacherId: string): Promise<any> {
@@ -551,7 +561,7 @@ export const dataService = {
     return res.json();
   },
 
-  async adminUpdateAcademicYear(yearId: string, updates: { name?: string; isCurrent?: boolean }): Promise<any> {
+  async adminUpdateAcademicYear(yearId: string, updates: { name?: string; isCurrent?: boolean; status?: 'active' | 'archived' }): Promise<any> {
     const res = await fetch(`/api/admin/academic-years/${encodeURIComponent(yearId)}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
@@ -560,6 +570,65 @@ export const dataService = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Lỗi cập nhật năm học.');
+    }
+    return res.json();
+  },
+
+  async adminDeleteAcademicYear(yearId: string): Promise<any> {
+    const res = await fetch(`/api/admin/academic-years/${encodeURIComponent(yearId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi xóa năm học.');
+    }
+    return res.json();
+  },
+
+  async adminChangePassword(currentPassword: string, newPassword: string): Promise<any> {
+    const res = await fetch('/api/admin/change-password', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi đổi mật khẩu.');
+    }
+    const data = await res.json();
+    if (data.token) {
+      localStorage.setItem('auth_token', data.token);
+    }
+    return data;
+  },
+
+  async adminUpdateProfile(displayName: string, email: string): Promise<any> {
+    const res = await fetch('/api/admin/profile', {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ displayName, email }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi cập nhật hồ sơ.');
+    }
+    return res.json();
+  },
+
+  async adminGetAuditLogs(page = 1, limit = 20, action = 'all', search = ''): Promise<any> {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      action,
+      search,
+    });
+    const res = await fetch(`/api/admin/audit-logs?${params.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi tải nhật ký.');
     }
     return res.json();
   },

@@ -18,6 +18,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
+import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
@@ -135,8 +136,12 @@ export interface AuthSession {
   studentCode?: string;
   classId?: string;
   grade?: number;
+  tokenVersion?: number;
   exp: number; // Unix timestamp
 }
+
+// In-memory registry of active token versions for real-time session revocation
+export const userTokenVersions = new Map<string, number>();
 
 export function createAuthToken(payload: Omit<AuthSession, 'exp'>, expiresInDays = 7): string {
   if (!AUTH_SECRET) {
@@ -171,7 +176,7 @@ export interface AuthenticatedRequest extends Request {
   user?: AuthSession;
 }
 
-// Authentication middleware
+// Authentication middleware with revoked session enforcement
 export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -182,6 +187,16 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   if (!session) {
     return res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
   }
+
+  // Session revocation check: if user's password was changed, older tokens are instantly revoked
+  const activeVersion = userTokenVersions.get(session.uid);
+  if (activeVersion !== undefined && (session.tokenVersion || 0) < activeVersion) {
+    return res.status(401).json({
+      error: 'Phiên đăng nhập đã hết hiệu lực do mật khẩu đã được thay đổi. Vui lòng đăng nhập lại.',
+      code: 'TOKEN_REVOKED',
+    });
+  }
+
   req.user = session;
   next();
 }
@@ -339,11 +354,31 @@ app.post('/api/auth/teacher-login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác.' });
     }
 
-    const userDoc = snap.docs[0].data();
-    const expectedPassword = userDoc.password;
+    const userDoc: any = snap.docs[0].data();
+    const expectedHash = userDoc.passwordHash;
+    const legacyPassword = userDoc.password;
 
-    // Strict validation: Reject missing password or mismatch, NO fallback backdoor
-    if (!expectedPassword || cleanPassword !== expectedPassword) {
+    let isPasswordValid = false;
+    if (expectedHash) {
+      isPasswordValid = await bcrypt.compare(cleanPassword, expectedHash);
+    } else if (legacyPassword) {
+      isPasswordValid = (cleanPassword === legacyPassword);
+      // Transparent migration of legacy plaintext password to secure bcrypt hash
+      if (isPasswordValid) {
+        try {
+          const newHash = await bcrypt.hash(cleanPassword, 10);
+          await updateDoc(doc(db, 'users', userDoc.id), {
+            passwordHash: newHash,
+            password: null,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (migErr) {
+          console.error('Password hash migration error:', migErr);
+        }
+      }
+    }
+
+    if (!isPasswordValid) {
       return res.status(401).json({ error: 'Email hoặc mật khẩu không chính xác.' });
     }
 
@@ -353,14 +388,18 @@ app.post('/api/auth/teacher-login', async (req: Request, res: Response) => {
     }
 
     // Mask secrets
-    const { password: _, accessSecret: __, ...safeUser } = userDoc;
+    const { password: _, passwordHash: ___, accessSecret: __, ...safeUser } = userDoc;
 
-    // Generate signed session token
+    const currentTokenVersion = userDoc.tokenVersion || 0;
+    userTokenVersions.set(safeUser.id, currentTokenVersion);
+
+    // Generate signed session token with tokenVersion
     const token = createAuthToken({
       uid: safeUser.id,
       role: safeUser.role,
       displayName: safeUser.displayName,
       email: safeUser.email,
+      tokenVersion: currentTokenVersion,
     });
 
     const customToken = await mintCustomToken(safeUser.id, {
@@ -368,7 +407,13 @@ app.post('/api/auth/teacher-login', async (req: Request, res: Response) => {
       email: safeUser.email,
     });
 
-    return res.json({ ok: true, user: safeUser, token, customToken });
+    return res.json({
+      ok: true,
+      user: safeUser,
+      token,
+      customToken,
+      mustChangePassword: Boolean(userDoc.mustChangePassword),
+    });
   } catch (err: any) {
     console.error('User login server error:', err);
     return res.status(500).json({ error: 'Lỗi xác thực người dùng.' });
@@ -1379,15 +1424,48 @@ app.post(['/api/admin/create-user', '/api/admin/users'], requireAuth, requireRol
     if (!newUser || !newUser.id || !newUser.role) {
       return res.status(400).json({ error: 'Thiếu thông tin người dùng mới.' });
     }
-    const safeNewUser = {
+
+    // Role protection: standard admin create cannot escalate to admin unless done by super admin
+    if (newUser.role === 'admin' && req.user?.uid !== 'admin-demo' && req.user?.uid !== 'admin-root') {
+      return res.status(403).json({ error: 'Chỉ Super Admin mới có quyền tạo thêm Quản trị viên.' });
+    }
+
+    let tempPassword = newUser.password;
+    if (!tempPassword && newUser.role === 'teacher') {
+      tempPassword = `GV_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    }
+
+    let passwordHash: string | null = null;
+    if (tempPassword) {
+      passwordHash = await bcrypt.hash(String(tempPassword), 10);
+    }
+
+    const safeNewUser: any = {
       ...newUser,
+      password: null, // Zero plaintext stored!
+      passwordHash: passwordHash,
+      mustChangePassword: newUser.role === 'teacher' ? true : Boolean(newUser.mustChangePassword),
+      tokenVersion: 1,
       createdAt: new Date().toISOString(),
       dataOrigin: 'real',
       environmentTag: 'production',
     };
+
     await setDoc(doc(db, 'users', newUser.id), safeNewUser);
-    const { password: _, accessSecret: __, ...masked } = safeNewUser;
-    return res.json({ ok: true, user: masked });
+
+    await writeAuditLog({
+      action: 'ADMIN_CREATE_USER',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'users',
+      targetId: newUser.id,
+      targetName: newUser.displayName || newUser.studentCode || newUser.email,
+      details: `Tạo tài khoản mới: ${newUser.displayName || newUser.studentCode} (${newUser.role})`,
+    });
+
+    const { password: _, passwordHash: __, accessSecret: ___, ...masked } = safeNewUser;
+    return res.json({ ok: true, user: masked, temporaryPassword: tempPassword });
   } catch (err: any) {
     console.error('Admin create user error:', err);
     return res.status(500).json({ error: 'Lỗi tạo người dùng mới: ' + err.message });
@@ -1496,7 +1574,13 @@ app.post('/api/admin/users/:id/reset-password', requireAuth, requireRole(['admin
     if (uData.role === 'student') {
       updates.accessSecret = cleanPassword;
     } else {
-      updates.password = cleanPassword;
+      const hash = await bcrypt.hash(cleanPassword, 10);
+      updates.passwordHash = hash;
+      updates.password = null; // Zero plaintext stored!
+      updates.mustChangePassword = true;
+      const nextVersion = (uData.tokenVersion || 0) + 1;
+      updates.tokenVersion = nextVersion;
+      userTokenVersions.set(userId, nextVersion);
     }
     await updateDoc(doc(db, 'users', userId), updates);
 
@@ -1508,13 +1592,173 @@ app.post('/api/admin/users/:id/reset-password', requireAuth, requireRole(['admin
       targetCollection: 'users',
       targetId: userId,
       targetName: uData.displayName || uData.studentCode,
-      details: `Đặt lại mật khẩu cho tài khoản ${uData.displayName || uData.studentCode} (${uData.role})`,
+      details: `Đặt lại mật khẩu cho tài khoản ${uData.displayName || uData.studentCode} (${uData.role}). Đã tạo mật khẩu tạm thời.`,
     });
 
-    return res.json({ ok: true, message: `Đã đặt lại mật khẩu thành công cho ${uData.displayName || uData.studentCode}.` });
+    return res.json({
+      ok: true,
+      message: `Đã đặt lại mật khẩu thành công cho ${uData.displayName || uData.studentCode}.`,
+      temporaryPassword: cleanPassword,
+    });
   } catch (err: any) {
     console.error('Reset password error:', err);
     return res.status(500).json({ error: 'Lỗi đặt lại mật khẩu: ' + err.message });
+  }
+});
+
+// Admin Self Profile
+app.get('/api/admin/profile', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const adminId = req.user!.uid;
+    const uDoc = await getDoc(doc(db, 'users', adminId));
+    if (!uDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy hồ sơ Quản trị viên.' });
+    }
+    const { password: _, passwordHash: __, accessSecret: ___, ...safeProfile } = uDoc.data();
+    return res.json({ ok: true, user: { id: uDoc.id, ...safeProfile } });
+  } catch (err: any) {
+    console.error('Get admin profile error:', err);
+    return res.status(500).json({ error: 'Lỗi tải hồ sơ quản trị viên: ' + err.message });
+  }
+});
+
+app.patch('/api/admin/profile', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const adminId = req.user!.uid;
+    const { displayName, email } = req.body;
+
+    if (displayName === undefined && email === undefined) {
+      return res.status(400).json({ error: 'Vui lòng cung cấp họ tên hoặc email cần cập nhật.' });
+    }
+
+    const updates: any = { updatedAt: new Date().toISOString() };
+
+    if (displayName !== undefined) {
+      if (!displayName || String(displayName).trim().length < 2) {
+        return res.status(400).json({ error: 'Họ và tên phải có tối thiểu 2 ký tự.' });
+      }
+      updates.displayName = String(displayName).trim();
+    }
+
+    if (email !== undefined) {
+      if (!email || !String(email).includes('@')) {
+        return res.status(400).json({ error: 'Email không đúng định dạng.' });
+      }
+      const cleanEmail = String(email).trim().toLowerCase();
+      // Check duplicate email
+      const allUsersSnap = await getDocs(collection(db, 'users'));
+      const conflict = allUsersSnap.docs.find((d) => d.id !== adminId && d.data().email?.toLowerCase() === cleanEmail);
+      if (conflict) {
+        return res.status(400).json({ error: 'Email này đã được sử dụng bởi một tài khoản khác.' });
+      }
+      updates.email = cleanEmail;
+    }
+
+    await updateDoc(doc(db, 'users', adminId), updates);
+
+    const updatedSnap = await getDoc(doc(db, 'users', adminId));
+    const safeUser = updatedSnap.data() || {};
+    delete safeUser.password;
+    delete safeUser.passwordHash;
+    delete safeUser.accessSecret;
+
+    await writeAuditLog({
+      action: 'ADMIN_UPDATE_PROFILE',
+      actorId: adminId,
+      actorName: updates.displayName || req.user?.displayName,
+      actorRole: 'admin',
+      targetCollection: 'users',
+      targetId: adminId,
+      targetName: updates.displayName || req.user?.displayName,
+      details: `Quản trị viên cập nhật hồ sơ: ${Object.keys(updates).join(', ')}`,
+    });
+
+    return res.json({
+      ok: true,
+      message: 'Cập nhật hồ sơ thành công.',
+      user: safeUser,
+    });
+  } catch (err: any) {
+    console.error('Update admin profile error:', err);
+    return res.status(500).json({ error: 'Lỗi cập nhật hồ sơ: ' + err.message });
+  }
+});
+
+// Admin Change Password with Bcrypt, Old Password Validation, and Immediate Session Revocation
+app.post('/api/admin/change-password', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const adminId = req.user!.uid;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Vui lòng cung cấp mật khẩu hiện tại và mật khẩu mới.' });
+    }
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'Mật khẩu mới phải có tối thiểu 8 ký tự.' });
+    }
+
+    const uDoc = await getDoc(doc(db, 'users', adminId));
+    if (!uDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản quản trị viên.' });
+    }
+    const uData: any = uDoc.data();
+
+    // Verify current password against bcrypt hash or legacy plaintext
+    let isCurrentValid = false;
+    if (uData.passwordHash) {
+      isCurrentValid = await bcrypt.compare(String(currentPassword), uData.passwordHash);
+    } else if (uData.password) {
+      isCurrentValid = (String(currentPassword) === uData.password);
+    }
+
+    if (!isCurrentValid) {
+      return res.status(401).json({ error: 'Mật khẩu hiện tại không chính xác.' });
+    }
+
+    // Hash new password using bcrypt (salt rounds = 10)
+    const newHash = await bcrypt.hash(String(newPassword), 10);
+    const nextVersion = (uData.tokenVersion || 0) + 1;
+
+    await updateDoc(doc(db, 'users', adminId), {
+      passwordHash: newHash,
+      password: null, // Wipe plaintext
+      tokenVersion: nextVersion,
+      passwordChangedAt: new Date().toISOString(),
+      mustChangePassword: false,
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Invalidate old sessions immediately in memory
+    userTokenVersions.set(adminId, nextVersion);
+
+    await writeAuditLog({
+      action: 'ADMIN_CHANGE_PASSWORD',
+      actorId: adminId,
+      actorName: uData.displayName || req.user?.displayName,
+      actorRole: 'admin',
+      targetCollection: 'users',
+      targetId: adminId,
+      targetName: uData.displayName || req.user?.displayName,
+      details: 'Quản trị viên đã đổi mật khẩu thành công. Tất cả các phiên đăng nhập cũ đã được thu hồi an toàn.',
+    });
+
+    // Issue refreshed token for the new session
+    const newToken = createAuthToken({
+      uid: adminId,
+      role: 'admin',
+      displayName: uData.displayName,
+      email: uData.email,
+      tokenVersion: nextVersion,
+    });
+
+    return res.json({
+      ok: true,
+      message: 'Đổi mật khẩu thành công. Các phiên đăng nhập cũ đã được thu hồi an toàn.',
+      token: newToken,
+    });
+  } catch (err: any) {
+    console.error('Admin change password error:', err);
+    return res.status(500).json({ error: 'Lỗi đổi mật khẩu: ' + err.message });
   }
 });
 
@@ -1541,6 +1785,7 @@ app.post('/api/admin/academic-years', requireAuth, requireRole(['admin']), async
       id: yearId,
       name: cleanName,
       isCurrent: Boolean(isCurrent),
+      status: 'active',
       createdAt: new Date().toISOString(),
       dataOrigin: 'real',
       environmentTag: 'production',
@@ -1568,19 +1813,27 @@ app.post('/api/admin/academic-years', requireAuth, requireRole(['admin']), async
 app.patch('/api/admin/academic-years/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const yearId = req.params.id;
-    const { name, isCurrent } = req.body;
+    const { name, isCurrent, status } = req.body;
     const yDoc = await getDoc(doc(db, 'academicYears', yearId));
     if (!yDoc.exists()) {
       return res.status(404).json({ error: 'Năm học không tồn tại.' });
     }
+    const currentData: any = yDoc.data();
 
     const updates: any = { updatedAt: new Date().toISOString() };
     if (name && String(name).trim()) {
       updates.name = String(name).trim();
     }
+    if (status && (status === 'active' || status === 'archived')) {
+      updates.status = status;
+      if (status === 'archived') {
+        updates.isCurrent = false; // Archived years cannot be active current
+      }
+    }
     if (isCurrent !== undefined) {
       updates.isCurrent = Boolean(isCurrent);
       if (updates.isCurrent) {
+        updates.status = 'active'; // Current year must be active
         const allYearsSnap = await getDocs(collection(db, 'academicYears'));
         for (const d of allYearsSnap.docs) {
           if (d.id !== yearId && d.data().isCurrent) {
@@ -1599,14 +1852,130 @@ app.patch('/api/admin/academic-years/:id', requireAuth, requireRole(['admin']), 
       actorRole: req.user?.role,
       targetCollection: 'academicYears',
       targetId: yearId,
-      targetName: updates.name || yDoc.data().name,
-      details: `Cập nhật năm học ${updates.name || yDoc.data().name}: ${Object.keys(updates).join(', ')}`,
+      targetName: updates.name || currentData.name,
+      details: `Cập nhật năm học ${updates.name || currentData.name}: ${Object.keys(updates).join(', ')}`,
     });
 
-    return res.json({ ok: true, academicYear: { ...yDoc.data(), ...updates } });
+    return res.json({ ok: true, academicYear: { ...currentData, ...updates } });
   } catch (err: any) {
     console.error('Update academic year error:', err);
     return res.status(500).json({ error: 'Lỗi cập nhật năm học: ' + err.message });
+  }
+});
+
+// Admin Delete Academic Year with Strict Linked-Data Protection
+app.delete('/api/admin/academic-years/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const yearId = req.params.id;
+    const yDoc = await getDoc(doc(db, 'academicYears', yearId));
+    if (!yDoc.exists()) {
+      return res.status(404).json({ error: 'Năm học không tồn tại.' });
+    }
+    const yData: any = yDoc.data();
+
+    if (yData.isCurrent) {
+      return res.status(400).json({
+        error: 'Không thể xóa năm học đang được đặt làm hiện hành. Vui lòng kích hoạt một năm học khác trước khi thao tác.',
+        code: 'CANNOT_DELETE_CURRENT_YEAR',
+      });
+    }
+
+    // Check linked classes
+    const classesSnap = await getDocs(collection(db, 'classes'));
+    const linkedClasses = classesSnap.docs.filter((d) => {
+      const c: any = d.data();
+      return c.academicYearId === yearId || (yData.name && c.academicYearId === yData.name);
+    });
+
+    // Check linked assignments
+    const assignmentsSnap = await getDocs(collection(db, 'assignments'));
+    const linkedAssignments = assignmentsSnap.docs.filter((d) => {
+      const a: any = d.data();
+      return a.academicYearId === yearId;
+    });
+
+    const totalLinked = linkedClasses.length + linkedAssignments.length;
+    if (totalLinked > 0) {
+      return res.status(400).json({
+        error: `Không thể xóa năm học "${yData.name}" vì đang có ${linkedClasses.length} lớp học và dữ liệu học tập liên kết. Vui lòng chuyển trạng thái sang "Lưu trữ" để bảo toàn lịch sử.`,
+        code: 'ACADEMIC_YEAR_HAS_LINKED_DATA',
+        linkedClassesCount: linkedClasses.length,
+        linkedAssignmentsCount: linkedAssignments.length,
+      });
+    }
+
+    await deleteDoc(doc(db, 'academicYears', yearId));
+
+    await writeAuditLog({
+      action: 'DELETE_ACADEMIC_YEAR',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'academicYears',
+      targetId: yearId,
+      targetName: yData.name,
+      details: `Xóa năm học chưa sử dụng: "${yData.name}"`,
+    });
+
+    return res.json({ ok: true, message: `Đã xóa năm học "${yData.name}" thành công.` });
+  } catch (err: any) {
+    console.error('Delete academic year error:', err);
+    return res.status(500).json({ error: 'Lỗi xóa năm học: ' + err.message });
+  }
+});
+
+// Admin Paginated & Filtered Audit Logs Endpoint
+app.get('/api/admin/audit-logs', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const page = parseInt(String(req.query.page || '1'), 10) || 1;
+    const limit = parseInt(String(req.query.limit || '20'), 10) || 20;
+    const actionFilter = req.query.action ? String(req.query.action) : null;
+    const searchQuery = req.query.search ? String(req.query.search).toLowerCase() : null;
+
+    const snap = await getDocs(collection(db, 'auditLogs'));
+    let logs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+
+    // Sort descending by timestamp / createdAt
+    logs.sort((a, b) => {
+      const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
+      const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
+
+    if (actionFilter && actionFilter !== 'all') {
+      logs = logs.filter((l) => l.action === actionFilter);
+    }
+    if (searchQuery) {
+      logs = logs.filter((l) =>
+        (l.actorName && l.actorName.toLowerCase().includes(searchQuery)) ||
+        (l.targetName && l.targetName.toLowerCase().includes(searchQuery)) ||
+        (l.details && l.details.toLowerCase().includes(searchQuery)) ||
+        (l.action && l.action.toLowerCase().includes(searchQuery))
+      );
+    }
+
+    const total = logs.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const startIndex = (page - 1) * limit;
+    const pageItems = logs.slice(startIndex, startIndex + limit);
+
+    return res.json({
+      ok: true,
+      logs: pageItems,
+      items: pageItems,
+      total,
+      page,
+      totalPages,
+      limit,
+      retentionPolicy: {
+        standardRetentionDays: 90,
+        securityLogRetentionDays: 'permanent',
+        approvalRequired: true,
+      },
+    });
+  } catch (err: any) {
+    console.error('Get audit logs error:', err);
+    return res.status(500).json({ error: 'Lỗi tải nhật ký hoạt động: ' + err.message });
   }
 });
 
