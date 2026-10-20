@@ -25,26 +25,29 @@
      NOT_FOUND
      ```
    - Khối `catch` trên client bắt lỗi mạng/404 và hiển thị ra màn hình thông báo thân thiện: `"Lỗi kết nối máy chủ xác thực"`.
-3. **Trong khi đó, trên bản Vercel Preview mới nhất:**  
-   - Deployment ID: `dpl_51ARsatdsfaFRXdsyfs49sNbNbtM`  
-   - URL: `https://thamtunhi-ntwnh40i3-tinhs-projects-2f14d110.vercel.app`  
-   - Kết quả probe thực tế:
+3. **Trong khi đó, trên bản Vercel Preview commit 42933c2 mới nhất:**  
+   - Deployment ID: `dpl_4mpnKwQNVKHik78eTMeUfwGALHAB` (Build duration: 20s, Status: READY)  
+   - Direct Deployment URL: `https://thamtunhi-48ogu1zv7-tinhs-projects-2f14d110.vercel.app`  
+   - Branch Alias URL: `https://thamtunhi-git-fix-antigravity-hardening-tinhs-projects-2f14d110.vercel.app`  
+   - Kết quả probe thực tế trên Preview 42933c2:
      - `/api/health`: **HTTP 200 OK** (Firestore connected, 24 lessons probe thật)
      - `POST /api/auth/student-login`: **HTTP 200 OK** (Học sinh `HS1A01` đăng nhập thành công)
      - `POST /api/auth/teacher-login`: **HTTP 200 OK** (Giáo viên và Admin đăng nhập thành công)
-     - `POST /api/admin/create-user` & `DELETE /api/admin/users/:id`: **HTTP 200 OK** (CRUD Admin thật)
+     - `POST /api/admin/create-user`, `PATCH /api/admin/users/:id` & `DELETE /api/admin/users/:id`: **HTTP 200 OK** (Toàn bộ vòng đời CRUD Admin thật thành công 100%, bảo toàn 24 bài học, 4 lớp học, 24 giao bài, 148 bài nộp)
 
 ---
 
 ## 2. THÔNG SỐ HẠ TẦNG VÀ MÔI TRƯỜNG KHẢO NGHIỆM
 
-- **Vercel Preview Deployment Mới Nhất (Đã xác minh toàn diện):**  
-  `https://thamtunhi-ntwnh40i3-tinhs-projects-2f14d110.vercel.app`  
-  - Deployment ID: `dpl_51ARsatdsfaFRXdsyfs49sNbNbtM`  
-  - Trạng thái: **READY** (Build thành công trong 13s, 0 lỗi TypeScript, 0 lỗi Runtime)  
+- **Vercel Preview Deployment Commit 42933c2 (Đã xác minh toàn diện):**  
+  `https://thamtunhi-48ogu1zv7-tinhs-projects-2f14d110.vercel.app`  
+  - Deployment ID: `dpl_4mpnKwQNVKHik78eTMeUfwGALHAB`  
+  - Git Commit: `42933c2` (feat(admin): add real user CRUD operations with safe archive resilience)  
+  - Branch Alias: `https://thamtunhi-git-fix-antigravity-hardening-tinhs-projects-2f14d110.vercel.app`  
+  - Trạng thái: **READY** (Build thành công trong 20s, 0 lỗi TypeScript, 0 lỗi Runtime)  
 - **Vercel Production Domain (Chính thức):**  
   `https://thamtunhi.vercel.app`  
-  - Trạng thái hiện tại: **Đang trỏ tới deployment cũ `dpl_GDzaeKi2G5P72bVCRKfkvC7fik9D` (chờ lệnh deploy --prod)**  
+  - Trạng thái hiện tại: **Đang trỏ tới deployment cũ `dpl_GDzaeKi2G5P72bVCRKfkvC7fik9D` (commit `352143a`, chờ lệnh phê duyệt deploy --prod)**  
 - **Firebase Project ID:** `indigo-lotus-2nmq3`  
 - **Firestore Named Database:** `ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2`  
 - **Local Dev Host:** `http://localhost:3000` (đã kiểm tra E2E browser thực tế)  
