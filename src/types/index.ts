@@ -1,0 +1,243 @@
+/**
+ * THÁM TỬ TOÁN NHÍ - Data Types & Interfaces
+ * Grade 1-2 Math Diagnostic & Visual Reinforcement Platform
+ */
+
+export type UserRole = 'admin' | 'teacher' | 'student';
+export type DataOrigin = 'simulation' | 'real';
+export type EnvironmentTag = 'demo' | 'production';
+
+export interface UserProfile {
+  id: string; // Auth UID
+  role: UserRole;
+  displayName: string;
+  email?: string;
+  studentCode?: string; // For students: HS1A01, HS2B05
+  accessSecretMasked?: string; // Hint for teacher roster
+  classId?: string;
+  className?: string;
+  grade?: 1 | 2;
+  schoolYearId?: string;
+  createdAt: string;
+  updatedAt?: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export interface AcademicYear {
+  id: string;
+  name: string; // e.g. "2024 - 2025"
+  isCurrent: boolean;
+  createdAt: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export interface Classroom {
+  id: string;
+  name: string; // e.g. "1A", "1B", "2A", "2B"
+  grade: 1 | 2;
+  academicYearId: string;
+  teacherId?: string;
+  teacherName?: string;
+  studentCount: number;
+  createdAt: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export type InteractionType =
+  | 'single_choice'        // Chọn 1 đáp án trắc nghiệm hình ảnh/số
+  | 'number_input'         // Nhập số trực tiếp vào ô trống
+  | 'operator_pick'        // Chọn dấu phép tính (+, -, =) hoặc dấu so sánh (>, <, =)
+  | 'expression_match'     // Nối/ghép cặp phép tính với kết quả
+  | 'ten_frame_bundle'     // Khung 10 ô / que tính tách gộp chục - đơn vị
+  | 'number_line_order';   // Trục số bước nhảy / sắp xếp thứ tự số
+
+export type MathErrorPattern =
+  | 'COUNTING_OFF_BY_ONE'           // Đếm lệch 1 (thiếu hoặc thừa)
+  | 'WRONG_OPERATOR'                // Sai dấu phép tính (+ thay vì - hoặc ngược lại)
+  | 'CROSS_TEN_ERROR'               // Sai bước qua 10 / nhớ sai trong cộng trừ
+  | 'PLACE_VALUE_SWAP'              // Nhầm vị trí hàng chục và hàng đơn vị (vd 23 thành 32)
+  | 'COMPARISON_INVERSION'          // Đảo chiều so sánh (> thay vì <)
+  | 'WORD_PROBLEM_WRONG_OPERATION'  // Chọn sai phép tính trong toán lời văn
+  | 'NUMBER_ORDER_CONFUSION'        // Nhầm thứ tự trước/sau trên trục số
+  | 'GEOMETRY_MISIDENTIFICATION'    // Nhầm lẫn hình phẳng / hình khối
+  | 'MEASUREMENT_UNIT_ERROR'        // Nhầm đơn vị đo độ dài / thời gian
+  | 'GENERAL_CALCULATION_ERROR';    // Lỗi tính toán thông thường
+
+export interface VisualAssetConfig {
+  type: 'counters' | 'ten_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story';
+  count?: number;
+  iconName?: string; // apple, star, candy, fish, pencil, block
+  tens?: number;
+  ones?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  target?: number;
+  storyText?: string;
+  shapeType?: 'circle' | 'square' | 'triangle' | 'rectangle' | 'cylinder' | 'sphere';
+}
+
+export interface Question {
+  id: string;
+  order: number;
+  prompt: string; // Câu hỏi hiển thị cho học sinh (tiếng Việt)
+  interactionType: InteractionType;
+  visualConfig?: VisualAssetConfig;
+  options?: string[]; // Cho single_choice, operator_pick
+  pairs?: { left: string; right: string }[]; // Cho expression_match
+  expectedAnswer: string; // Chuỗi đáp án chuẩn
+  acceptableAnswers?: string[]; // Các dạng đáp án hợp lệ tương đương
+  explanation: string; // Giải thích chi tiết cho giáo viên & học sinh sau làm
+  skillTag: string; // e.g. "Cộng phạm vi 10", "Chục và đơn vị"
+  difficulty: 'easy' | 'medium' | 'hard';
+  ruleHints: {
+    pattern: MathErrorPattern;
+    hintText: string;
+    visualActionGuidance?: string;
+  }[];
+}
+
+export interface Lesson {
+  id: string;
+  title: string;
+  grade: 1 | 2;
+  topic: string;
+  learningStandard: string; // Yêu cầu cần đạt GDPT 2018
+  description: string;
+  durationMinutes: number;
+  totalQuestions: number;
+  status: 'draft' | 'published' | 'archived';
+  currentVersion: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt?: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export interface LessonVersion {
+  id: string;
+  lessonId: string;
+  versionNumber: number;
+  title: string;
+  grade: 1 | 2;
+  topic: string;
+  learningStandard: string;
+  questions: Question[];
+  isPublished: boolean;
+  publishedAt?: string;
+  createdBy: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export interface Assignment {
+  id: string;
+  title: string;
+  lessonId: string;
+  lessonVersionId: string;
+  classId: string;
+  className?: string;
+  grade: 1 | 2;
+  teacherId: string;
+  dueDate: string;
+  status: 'open' | 'closed' | 'archived';
+  idempotencyKey?: string;
+  createdAt: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export interface Attempt {
+  id: string;
+  assignmentId: string;
+  lessonId: string;
+  lessonVersionId: string;
+  lessonTitle: string;
+  studentId: string;
+  studentName?: string;
+  studentCode?: string;
+  classId: string;
+  status: 'in_progress' | 'completed' | 'abandoned';
+  currentQuestionIndex: number;
+  score: number; // Thang 10 hoặc tổng điểm
+  maxScore: number;
+  firstAttemptCorrectCount: number;
+  postHintCorrectCount: number;
+  totalAttemptsMade: number;
+  startedAt: string;
+  completedAt?: string;
+  durationSeconds: number;
+  badgeAwarded?: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export interface AttemptAnswer {
+  id: string;
+  attemptId: string;
+  questionId: string;
+  studentId: string;
+  firstGivenAnswer?: string;
+  finalAnswer: string;
+  isFirstAttemptCorrect: boolean;
+  isFinalCorrect: boolean;
+  attemptsCount: number;
+  detectedErrorPattern?: MathErrorPattern;
+  hintShown?: string;
+  hintReinforcementType?: string;
+  answeredAt: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export interface MistakeInsight {
+  id: string;
+  studentId?: string;
+  studentName?: string;
+  classId: string;
+  className?: string;
+  grade: 1 | 2;
+  topic: string;
+  errorPattern: MathErrorPattern;
+  errorCount: number;
+  suggestedRemediation: string;
+  createdAt: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string;
+  actorId: string;
+  actorRole: UserRole;
+  targetCollection: string;
+  targetId: string;
+  details: string;
+  timestamp: string;
+  dataOrigin: DataOrigin;
+  environmentTag: EnvironmentTag;
+}
+
+export interface SystemHealth {
+  status: 'healthy' | 'degraded';
+  firebaseProjectId: string;
+  databaseId: string;
+  authConnected: boolean;
+  geminiConfigured: boolean;
+  buildVersion: string;
+  environmentTag: EnvironmentTag;
+  demoStats: {
+    teachersCount: number;
+    classesCount: number;
+    studentsCount: number;
+    lessonsCount: number;
+    assignmentsCount: number;
+    attemptsCount: number;
+  };
+  warnings: string[];
+}

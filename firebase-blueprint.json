@@ -1,0 +1,246 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access for Admin, Teacher, or Student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["admin", "teacher", "student"] },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "studentCode": { "type": "string", "maxLength": 30 },
+        "classId": { "type": "string", "maxLength": 128 },
+        "schoolYearId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "role", "displayName", "createdAt", "dataOrigin", "environmentTag"]
+    },
+    "AcademicYear": {
+      "title": "AcademicYear",
+      "description": "Academic school year record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 50 },
+        "isCurrent": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "name", "isCurrent", "createdAt", "dataOrigin", "environmentTag"]
+    },
+    "Class": {
+      "title": "Class",
+      "description": "Classroom group for Grade 1 or 2 students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 50 },
+        "grade": { "type": "integer" },
+        "academicYearId": { "type": "string", "maxLength": 128 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "studentCount": { "type": "integer" },
+        "createdAt": { "type": "string" },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "name", "grade", "academicYearId", "createdAt", "dataOrigin", "environmentTag"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "Math curriculum lesson header for Grade 1 or 2",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 150 },
+        "grade": { "type": "integer" },
+        "topic": { "type": "string", "maxLength": 100 },
+        "learningStandard": { "type": "string", "maxLength": 250 },
+        "description": { "type": "string", "maxLength": 500 },
+        "durationMinutes": { "type": "integer" },
+        "totalQuestions": { "type": "integer" },
+        "status": { "type": "string", "enum": ["draft", "published", "archived"] },
+        "currentVersion": { "type": "integer" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "title", "grade", "topic", "status", "currentVersion", "createdAt", "dataOrigin", "environmentTag"]
+    },
+    "LessonVersion": {
+      "title": "LessonVersion",
+      "description": "Immutable version snapshot of a math lesson containing questions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "lessonId": { "type": "string", "maxLength": 128 },
+        "versionNumber": { "type": "integer" },
+        "title": { "type": "string", "maxLength": 150 },
+        "grade": { "type": "integer" },
+        "topic": { "type": "string", "maxLength": 100 },
+        "learningStandard": { "type": "string", "maxLength": 250 },
+        "questions": { "type": "array" },
+        "isPublished": { "type": "boolean" },
+        "publishedAt": { "type": "string" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "lessonId", "versionNumber", "title", "grade", "topic", "dataOrigin", "environmentTag"]
+    },
+    "Assignment": {
+      "title": "Assignment",
+      "description": "Assignment given to a class with an immutable lesson version",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 150 },
+        "lessonId": { "type": "string", "maxLength": 128 },
+        "lessonVersionId": { "type": "string", "maxLength": 128 },
+        "classId": { "type": "string", "maxLength": 128 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "dueDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "closed", "archived"] },
+        "idempotencyKey": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "lessonId", "lessonVersionId", "classId", "status", "createdAt", "dataOrigin", "environmentTag"]
+    },
+    "Attempt": {
+      "title": "Attempt",
+      "description": "Student attempt on an assigned lesson",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "assignmentId": { "type": "string", "maxLength": 128 },
+        "lessonId": { "type": "string", "maxLength": 128 },
+        "lessonVersionId": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "classId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["in_progress", "completed", "abandoned"] },
+        "currentQuestionIndex": { "type": "integer" },
+        "score": { "type": "integer" },
+        "maxScore": { "type": "integer" },
+        "firstAttemptCorrectCount": { "type": "integer" },
+        "postHintCorrectCount": { "type": "integer" },
+        "totalAttemptsMade": { "type": "integer" },
+        "startedAt": { "type": "string" },
+        "completedAt": { "type": "string" },
+        "durationSeconds": { "type": "integer" },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "assignmentId", "studentId", "status", "startedAt", "dataOrigin", "environmentTag"]
+    },
+    "AttemptAnswer": {
+      "title": "AttemptAnswer",
+      "description": "Answer record for a single question inside an attempt with misconception tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "attemptId": { "type": "string", "maxLength": 128 },
+        "questionId": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "firstGivenAnswer": { "type": "string", "maxLength": 200 },
+        "finalAnswer": { "type": "string", "maxLength": 200 },
+        "isFirstAttemptCorrect": { "type": "boolean" },
+        "isFinalCorrect": { "type": "boolean" },
+        "attemptsCount": { "type": "integer" },
+        "detectedErrorPattern": { "type": "string", "maxLength": 80 },
+        "hintShown": { "type": "string", "maxLength": 400 },
+        "hintReinforcementType": { "type": "string", "maxLength": 80 },
+        "answeredAt": { "type": "string" },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "attemptId", "questionId", "studentId", "isFinalCorrect", "dataOrigin", "environmentTag"]
+    },
+    "MistakeInsight": {
+      "title": "MistakeInsight",
+      "description": "Consolidated math misconception insight aggregated for teachers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "classId": { "type": "string", "maxLength": 128 },
+        "grade": { "type": "integer" },
+        "topic": { "type": "string", "maxLength": 100 },
+        "errorPattern": { "type": "string", "maxLength": 80 },
+        "errorCount": { "type": "integer" },
+        "suggestedRemediation": { "type": "string", "maxLength": 400 },
+        "createdAt": { "type": "string" },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "classId", "errorPattern", "errorCount", "createdAt", "dataOrigin", "environmentTag"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System and administrative action audit record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 80 },
+        "actorId": { "type": "string", "maxLength": 128 },
+        "actorRole": { "type": "string", "maxLength": 30 },
+        "targetCollection": { "type": "string", "maxLength": 80 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 500 },
+        "timestamp": { "type": "string" },
+        "dataOrigin": { "type": "string", "enum": ["simulation", "real"] },
+        "environmentTag": { "type": "string", "enum": ["demo", "production"] }
+      },
+      "required": ["id", "action", "actorId", "timestamp", "dataOrigin", "environmentTag"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles for admins, teachers, and students"
+    },
+    "/academicYears/{yearId}": {
+      "schema": "AcademicYear",
+      "description": "School academic years"
+    },
+    "/classes/{classId}": {
+      "schema": "Class",
+      "description": "Classes for grade 1 and grade 2"
+    },
+    "/lessons/{lessonId}": {
+      "schema": "Lesson",
+      "description": "Curriculum lessons"
+    },
+    "/lessonVersions/{versionId}": {
+      "schema": "LessonVersion",
+      "description": "Immutable version snapshots of lessons"
+    },
+    "/assignments/{assignmentId}": {
+      "schema": "Assignment",
+      "description": "Assigned lessons to classes"
+    },
+    "/attempts/{attemptId}": {
+      "schema": "Attempt",
+      "description": "Student execution attempts"
+    },
+    "/attemptAnswers/{answerId}": {
+      "schema": "AttemptAnswer",
+      "description": "Granular question responses and misconception detections"
+    },
+    "/mistakeInsights/{insightId}": {
+      "schema": "MistakeInsight",
+      "description": "Aggregated error pattern insights"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Security and administrative audit trail"
+    }
+  }
+}

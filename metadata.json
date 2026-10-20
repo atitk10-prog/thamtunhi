@@ -1,0 +1,6 @@
+{
+  "name": "THÁM TỬ TOÁN NHÍ",
+  "description": "Nền tảng học Toán Lớp 1-2 ứng dụng công nghệ phân tích mẫu lỗi và củng cố trực quan - Mỗi lỗi sai, một cơ hội khám phá.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
