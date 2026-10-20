@@ -31,28 +31,42 @@ const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
-// Initialize Firebase Admin SDK if service account provided
-import { initializeApp as initAdminApp, cert as adminCert, App as AdminApp } from 'firebase-admin/app';
-import { getAuth as getAdminAuth } from 'firebase-admin/auth';
-
-let adminApp: AdminApp | null = null;
+// Firebase Service Account Credentials for Custom Token Minting (RS256 JWT)
+// Conforms to Google Identity Toolkit Custom Token Specification (Zero external dependencies)
+let serviceAccount: { client_email: string; private_key: string } | null = null;
 const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT;
 if (saEnv) {
   try {
     const sa = JSON.parse(saEnv);
-    adminApp = initAdminApp({
-      credential: adminCert(sa),
-      projectId: firebaseConfig.projectId,
-    }, 'admin-thamtutoannhi');
+    if (sa.client_email && sa.private_key) {
+      serviceAccount = { client_email: sa.client_email, private_key: sa.private_key };
+    }
   } catch (e) {
-    console.warn('Notice: Firebase Admin service account parse error:', e);
+    console.warn('Notice: Service account parse error:', e);
   }
 }
 
-export async function mintCustomToken(uid: string, claims: Record<string, any>): Promise<string | null> {
-  if (!adminApp) return null;
+export async function mintCustomToken(uid: string, claims: Record<string, any> = {}): Promise<string | null> {
+  if (!serviceAccount) return null;
   try {
-    return await getAdminAuth(adminApp).createCustomToken(uid, claims);
+    const now = Math.floor(Date.now() / 1000);
+    const header = { alg: 'RS256', typ: 'JWT' };
+    const payload = {
+      iss: serviceAccount.client_email,
+      sub: serviceAccount.client_email,
+      aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+      iat: now,
+      exp: now + 3600,
+      uid,
+      claims,
+    };
+    const b64Header = Buffer.from(JSON.stringify(header)).toString('base64url');
+    const b64Payload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const data = `${b64Header}.${b64Payload}`;
+    const signer = crypto.createSign('RSA-SHA256');
+    signer.update(data);
+    const sig = signer.sign(serviceAccount.private_key, 'base64url');
+    return `${data}.${sig}`;
   } catch (e) {
     console.warn('Notice: Custom token generation error:', e);
     return null;
