@@ -3,19 +3,48 @@
 **Thời điểm lập:** 20/10/2026  
 **Đơn vị thực hiện:** Đội ngũ Kỹ sư Trưởng Full-stack, Firebase Security & QA Automation  
 **Nhánh Git:** `fix/antigravity-hardening`  
-**Commits chính:** `abea4d0` (Kiến trúc Dual-Path & Security Proxy), `f63d5cf` (Native RS256 Custom Token Minter)  
+**Commits chính:** `abea4d0`, `f63d5cf`, `42933c2` (CRUD Quản trị & Native Token Minter)  
 
 ---
 
-## 1. THÔNG SỐ HẠ TẦNG VÀ MÔI TRƯỜNG KHẢO NGHIỆM
+## 1. PHÂN TÍCH NGUYÊN NHÂN GỐC LỖI ĐĂNG NHẬP TRÊN PRODUCTION
 
-- **Vercel Preview Deployment Mới Nhất:**  
-  `https://thamtunhi-76rioit7s-tinhs-projects-2f14d110.vercel.app`  
-  - Deployment ID: `dpl_B7DmH4D4wGvQbS5LcWCyFL7hHssD`  
-  - Trạng thái: **READY** (Build thành công trong 18s, 0 lỗi TypeScript, 0 lỗi Runtime)  
+### Hiện tượng thực tế trên `https://thamtunhi.vercel.app`:
+- Người dùng (học sinh, giáo viên, admin) nhập thông tin và nhấn đăng nhập đều nhận thông báo: **"Lỗi kết nối máy chủ xác thực"**.
+
+### Nguyên nhân kỹ thuật chính xác:
+1. **Production đang chạy bản build tĩnh cũ (2 giờ trước):**  
+   - Deployment đang gắn với alias `https://thamtunhi.vercel.app` là `dpl_GDzaeKi2G5P72bVCRKfkvC7fik9D` (tạo lúc 19:14 GMT+07, build trong 8 giây).
+   - Bản build cũ này là **thuần static Vite SPA**, hoàn toàn **chưa có Serverless Function** (`api/index.ts`) và chưa có cấu hình định tuyến trong `vercel.json`.
+2. **Endpoint `/api/*` trả về HTTP 404 NOT FOUND:**  
+   - Khi frontend gửi yêu cầu `POST /api/auth/student-login` hoặc `GET /api/health`, router của Vercel không tìm thấy serverless function và trả về:
+     ```text
+     HTTP/2 404 Not Found
+     content-type: text/plain; charset=utf-8
+     The page could not be found
+     NOT_FOUND
+     ```
+   - Khối `catch` trên client bắt lỗi mạng/404 và hiển thị ra màn hình thông báo thân thiện: `"Lỗi kết nối máy chủ xác thực"`.
+3. **Trong khi đó, trên bản Vercel Preview mới nhất:**  
+   - Deployment ID: `dpl_51ARsatdsfaFRXdsyfs49sNbNbtM`  
+   - URL: `https://thamtunhi-ntwnh40i3-tinhs-projects-2f14d110.vercel.app`  
+   - Kết quả probe thực tế:
+     - `/api/health`: **HTTP 200 OK** (Firestore connected, 24 lessons probe thật)
+     - `POST /api/auth/student-login`: **HTTP 200 OK** (Học sinh `HS1A01` đăng nhập thành công)
+     - `POST /api/auth/teacher-login`: **HTTP 200 OK** (Giáo viên và Admin đăng nhập thành công)
+     - `POST /api/admin/create-user` & `DELETE /api/admin/users/:id`: **HTTP 200 OK** (CRUD Admin thật)
+
+---
+
+## 2. THÔNG SỐ HẠ TẦNG VÀ MÔI TRƯỜNG KHẢO NGHIỆM
+
+- **Vercel Preview Deployment Mới Nhất (Đã xác minh toàn diện):**  
+  `https://thamtunhi-ntwnh40i3-tinhs-projects-2f14d110.vercel.app`  
+  - Deployment ID: `dpl_51ARsatdsfaFRXdsyfs49sNbNbtM`  
+  - Trạng thái: **READY** (Build thành công trong 13s, 0 lỗi TypeScript, 0 lỗi Runtime)  
 - **Vercel Production Domain (Chính thức):**  
   `https://thamtunhi.vercel.app`  
-  - Trạng thái: **ĐƯỢC BẢO LƯU NGUYÊN TRẠNG (404 CŨ)** — *Tuyệt đối chưa promote khi chưa được chủ sở hữu phê duyệt.*  
+  - Trạng thái hiện tại: **Đang trỏ tới deployment cũ `dpl_GDzaeKi2G5P72bVCRKfkvC7fik9D` (chờ lệnh deploy --prod)**  
 - **Firebase Project ID:** `indigo-lotus-2nmq3`  
 - **Firestore Named Database:** `ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2`  
 - **Local Dev Host:** `http://localhost:3000` (đã kiểm tra E2E browser thực tế)  
