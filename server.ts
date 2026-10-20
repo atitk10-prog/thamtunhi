@@ -47,6 +47,42 @@ if (saEnv) {
   }
 }
 
+// Centralized immutable audit log helper
+export async function writeAuditLog(params: {
+  action: string;
+  actorId?: string;
+  actorName?: string;
+  actorRole?: string;
+  targetCollection?: string;
+  targetId?: string;
+  targetName?: string;
+  details?: string;
+  success?: boolean;
+}) {
+  try {
+    const id = `audit-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const logDoc = {
+      id,
+      action: params.action,
+      actorId: params.actorId || 'system',
+      actorName: params.actorName || '',
+      actorRole: params.actorRole || 'admin',
+      performedBy: params.actorId || 'system',
+      targetCollection: params.targetCollection || '',
+      targetId: params.targetId || '',
+      targetName: params.targetName || '',
+      details: params.details || '',
+      success: params.success !== false,
+      timestamp: new Date().toISOString(),
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'auditLogs', id), logDoc);
+  } catch (err) {
+    console.warn('Failed to write audit log:', err);
+  }
+}
+
 export async function mintCustomToken(uid: string, claims: Record<string, any> = {}): Promise<string | null> {
   if (!serviceAccount) return null;
   try {
@@ -556,10 +592,11 @@ app.post('/api/admin/seed-demo', requireAuth, requireRole(['admin']), async (req
     });
   }
 
-  // Safety lock on production: do not execute destructive seed in production without explicit server override
-  if (isProduction && process.env.ALLOW_PROD_SEED !== 'true') {
+  // Strict production protection rule: completely disabled on production
+  if (isProduction) {
     return res.status(403).json({
-      error: 'Khóa an toàn Production: Thao tác Seed bị khóa trên môi trường sản xuất để bảo vệ dữ liệu hiện có.',
+      error: 'Khóa an toàn Production: Thao tác Seed dữ liệu bị vô hiệu hóa hoàn toàn trên môi trường sản xuất để bảo toàn dữ liệu.',
+      code: 'PRODUCTION_ENDPOINT_DISABLED',
     });
   }
 
@@ -616,10 +653,11 @@ app.post('/api/admin/seed-demo', requireAuth, requireRole(['admin']), async (req
 app.post('/api/admin/cleanup-demo', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
   const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 
-  // Strict production protection rule
-  if (isProduction && process.env.ALLOW_PROD_CLEANUP !== 'true') {
+  // Strict production protection rule: completely disabled on production
+  if (isProduction) {
     return res.status(403).json({
-      error: 'Khóa an toàn Production: Thao tác dọn dẹp dữ liệu bị vô hiệu hóa trên môi trường sản xuất.',
+      error: 'Khóa an toàn Production: Thao tác dọn dẹp dữ liệu bị vô hiệu hóa hoàn toàn trên môi trường sản xuất để bảo toàn dữ liệu.',
+      code: 'PRODUCTION_ENDPOINT_DISABLED',
     });
   }
 
@@ -1419,10 +1457,199 @@ app.patch('/api/admin/users/:id', requireAuth, requireRole(['admin']), async (re
       ...safeUpdates,
       updatedAt: new Date().toISOString(),
     });
+
+    const actionLabel = updates.status === 'locked' ? 'LOCK_USER' : updates.status === 'active' ? 'UNLOCK_USER' : 'UPDATE_USER';
+    await writeAuditLog({
+      action: actionLabel,
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'users',
+      targetId: id,
+      targetName: targetData.displayName || targetData.studentCode,
+      details: `${actionLabel === 'LOCK_USER' ? 'Khóa' : actionLabel === 'UNLOCK_USER' ? 'Mở khóa' : 'Cập nhật'} tài khoản ${targetData.displayName || targetData.studentCode}: ${Object.keys(safeUpdates).join(', ')}`,
+    });
+
     return res.json({ ok: true, id, updates: safeUpdates });
   } catch (err: any) {
     console.error('Admin update user error:', err);
     return res.status(500).json({ error: 'Lỗi cập nhật người dùng: ' + err.message });
+  }
+});
+
+// Admin Reset Password / AccessSecret
+app.post('/api/admin/users/:id/reset-password', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.params.id;
+    const { newPassword } = req.body;
+    if (!newPassword || String(newPassword).trim().length < 6) {
+      return res.status(400).json({ error: 'Mật khẩu mới phải có tối thiểu 6 ký tự.' });
+    }
+    const cleanPassword = String(newPassword).trim();
+    const uDoc = await getDoc(doc(db, 'users', userId));
+    if (!uDoc.exists()) {
+      return res.status(404).json({ error: 'Tài khoản người dùng không tồn tại.' });
+    }
+    const uData: any = uDoc.data();
+    const updates: any = { updatedAt: new Date().toISOString() };
+    if (uData.role === 'student') {
+      updates.accessSecret = cleanPassword;
+    } else {
+      updates.password = cleanPassword;
+    }
+    await updateDoc(doc(db, 'users', userId), updates);
+
+    await writeAuditLog({
+      action: 'RESET_PASSWORD',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'users',
+      targetId: userId,
+      targetName: uData.displayName || uData.studentCode,
+      details: `Đặt lại mật khẩu cho tài khoản ${uData.displayName || uData.studentCode} (${uData.role})`,
+    });
+
+    return res.json({ ok: true, message: `Đã đặt lại mật khẩu thành công cho ${uData.displayName || uData.studentCode}.` });
+  } catch (err: any) {
+    console.error('Reset password error:', err);
+    return res.status(500).json({ error: 'Lỗi đặt lại mật khẩu: ' + err.message });
+  }
+});
+
+// Admin Academic Years CRUD
+app.post('/api/admin/academic-years', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name, isCurrent } = req.body;
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: 'Vui lòng nhập tên năm học (ví dụ: Năm học 2026 - 2027).' });
+    }
+    const cleanName = String(name).trim();
+    const yearId = `year-${cleanName.replace(/[^0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || Date.now()}`;
+
+    if (isCurrent) {
+      const allYearsSnap = await getDocs(collection(db, 'academicYears'));
+      for (const d of allYearsSnap.docs) {
+        if (d.data().isCurrent) {
+          await updateDoc(d.ref, { isCurrent: false });
+        }
+      }
+    }
+
+    const yearDoc = {
+      id: yearId,
+      name: cleanName,
+      isCurrent: Boolean(isCurrent),
+      createdAt: new Date().toISOString(),
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+    await setDoc(doc(db, 'academicYears', yearId), yearDoc);
+
+    await writeAuditLog({
+      action: 'CREATE_ACADEMIC_YEAR',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'academicYears',
+      targetId: yearId,
+      targetName: cleanName,
+      details: `Tạo mới năm học ${cleanName}`,
+    });
+
+    return res.json({ ok: true, academicYear: yearDoc });
+  } catch (err: any) {
+    console.error('Create academic year error:', err);
+    return res.status(500).json({ error: 'Lỗi tạo năm học: ' + err.message });
+  }
+});
+
+app.patch('/api/admin/academic-years/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const yearId = req.params.id;
+    const { name, isCurrent } = req.body;
+    const yDoc = await getDoc(doc(db, 'academicYears', yearId));
+    if (!yDoc.exists()) {
+      return res.status(404).json({ error: 'Năm học không tồn tại.' });
+    }
+
+    const updates: any = { updatedAt: new Date().toISOString() };
+    if (name && String(name).trim()) {
+      updates.name = String(name).trim();
+    }
+    if (isCurrent !== undefined) {
+      updates.isCurrent = Boolean(isCurrent);
+      if (updates.isCurrent) {
+        const allYearsSnap = await getDocs(collection(db, 'academicYears'));
+        for (const d of allYearsSnap.docs) {
+          if (d.id !== yearId && d.data().isCurrent) {
+            await updateDoc(d.ref, { isCurrent: false });
+          }
+        }
+      }
+    }
+
+    await updateDoc(doc(db, 'academicYears', yearId), updates);
+
+    await writeAuditLog({
+      action: 'UPDATE_ACADEMIC_YEAR',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'academicYears',
+      targetId: yearId,
+      targetName: updates.name || yDoc.data().name,
+      details: `Cập nhật năm học ${updates.name || yDoc.data().name}: ${Object.keys(updates).join(', ')}`,
+    });
+
+    return res.json({ ok: true, academicYear: { ...yDoc.data(), ...updates } });
+  } catch (err: any) {
+    console.error('Update academic year error:', err);
+    return res.status(500).json({ error: 'Lỗi cập nhật năm học: ' + err.message });
+  }
+});
+
+// Admin Safe Data Export
+app.get('/api/admin/export', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const [uSnap, cSnap, ySnap, lSnap, aSnap] = await Promise.all([
+      getDocs(collection(db, 'users')),
+      getDocs(collection(db, 'classes')),
+      getDocs(collection(db, 'academicYears')),
+      getDocs(collection(db, 'lessons')),
+      getDocs(collection(db, 'assignments')),
+    ]);
+
+    const safeUsers = uSnap.docs.map((d) => {
+      const { password: _, accessSecret: __, ...safe } = d.data();
+      return { id: d.id, ...safe };
+    });
+
+    await writeAuditLog({
+      action: 'EXPORT_SYSTEM_DATA',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'all',
+      targetId: 'backup-export',
+      details: 'Xuất dữ liệu hệ thống an toàn (đã lọc PII mật khẩu).',
+    });
+
+    return res.json({
+      ok: true,
+      exportedAt: new Date().toISOString(),
+      exportedBy: req.user?.displayName,
+      data: {
+        users: safeUsers,
+        classes: cSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+        academicYears: ySnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+        lessons: lSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+        assignments: aSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+      },
+    });
+  } catch (err: any) {
+    console.error('Export data error:', err);
+    return res.status(500).json({ error: 'Lỗi xuất dữ liệu: ' + err.message });
   }
 });
 

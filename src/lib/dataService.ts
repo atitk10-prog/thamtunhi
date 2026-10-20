@@ -512,4 +512,66 @@ export const dataService = {
       throw new Error(err.error || 'Lỗi cập nhật người dùng.');
     }
   },
+
+  async adminResetPassword(userId: string, newPassword: string): Promise<void> {
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/reset-password`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ newPassword }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi đặt lại mật khẩu.');
+    }
+  },
+
+  async adminAssignTeacherToClass(classId: string, teacherId: string): Promise<any> {
+    const res = await fetch(`/api/admin/classes/${encodeURIComponent(classId)}/teacher`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ teacherId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi phân công giáo viên.');
+    }
+    return res.json();
+  },
+
+  async adminCreateAcademicYear(name: string, isCurrent = false): Promise<any> {
+    const res = await fetch('/api/admin/academic-years', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ name, isCurrent }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi tạo năm học.');
+    }
+    return res.json();
+  },
+
+  async adminUpdateAcademicYear(yearId: string, updates: { name?: string; isCurrent?: boolean }): Promise<any> {
+    const res = await fetch(`/api/admin/academic-years/${encodeURIComponent(yearId)}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi cập nhật năm học.');
+    }
+    return res.json();
+  },
+
+  async adminExportData(): Promise<any> {
+    const res = await fetch('/api/admin/export', {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi xuất dữ liệu.');
+    }
+    return res.json();
+  },
 };

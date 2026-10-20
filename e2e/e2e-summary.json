@@ -26,7 +26,7 @@
       "e2e/screenshots/e2e01-03-teacher-dashboard.png",
       "e2e/screenshots/e2e01-04-admin-dashboard.png"
     ],
-    "durationMs": 4178
+    "durationMs": 5377
   },
   {
     "id": "E2E-02",
@@ -35,7 +35,7 @@
     "assertions": [
       "Admin đối chiếu đúng 4 lớp học (1A, 1B, 2A, 2B)",
       "Admin đối chiếu đúng 48 học sinh chính khóa trong 4 lớp học chuẩn từ Cloud Firestore (12 HS/lớp)",
-      "Admin tạo mới tài khoản QA thành công (ID: user-qa-e2e-1792528693675, Mã: HSQA3675)",
+      "Admin tạo mới tài khoản QA thành công (ID: user-qa-e2e-1792532939262, Mã: HSQA9262)",
       "Admin cập nhật thông tin và chuyển lớp tài khoản QA thành công",
       "Admin khóa tài khoản QA thành công (status: locked)",
       "Xác minh thực tế: Tài khoản bị khóa bị chặn đăng nhập (HTTP 403 - Tài khoản bị tạm khóa)",
@@ -51,7 +51,7 @@
     "screenshots": [
       "e2e/screenshots/e2e02-01-admin-overview.png"
     ],
-    "durationMs": 4789
+    "durationMs": 4705
   },
   {
     "id": "E2E-03",
@@ -71,7 +71,7 @@
       "e2e/screenshots/e2e03-02-class1a-roster.png",
       "e2e/screenshots/e2e03-03-assign-modal.png"
     ],
-    "durationMs": 2943
+    "durationMs": 2884
   },
   {
     "id": "E2E-04",
@@ -89,7 +89,7 @@
       "e2e/screenshots/e2e04-01-editor-all-8-questions.png",
       "e2e/screenshots/e2e04-02-editor-lesson2-distinct.png"
     ],
-    "durationMs": 3627
+    "durationMs": 4049
   },
   {
     "id": "E2E-05",
@@ -106,7 +106,7 @@
       "e2e/screenshots/e2e05-01-mission-header.png",
       "e2e/screenshots/e2e05-02-mission-resumed-f5.png"
     ],
-    "durationMs": 3541
+    "durationMs": 3100
   },
   {
     "id": "E2E-06",
@@ -115,13 +115,13 @@
     "assertions": [
       "CHỐNG GIAN LẬN: Server đối soát đáp án thực tế và tự động hủy nhận định sai từ client (isCorrect: false)",
       "API Thống kê giáo viên tải dữ liệu phân tích thành công (HTTP 200)",
-      "Tổng số lượt làm bài phân tích: 108",
+      "Tổng số lượt làm bài phân tích: 125",
       "Bảo toàn 144 lượt mô phỏng lịch sử trong Firestore, không tự ý gán nhãn giả mạo",
       "Bộ lọc thống kê mặc định ưu tiên dữ liệu thật (dataOrigin: real)"
     ],
     "errors": [],
     "screenshots": [],
-    "durationMs": 991
+    "durationMs": 982
   },
   {
     "id": "E2E-07",

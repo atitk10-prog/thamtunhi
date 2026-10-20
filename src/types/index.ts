@@ -225,15 +225,33 @@ export interface MistakeInsight {
 export interface AuditLog {
   id: string;
   action: string;
-  actorId: string;
-  actorRole: UserRole;
-  targetCollection: string;
-  targetId: string;
-  details: string;
+  actorId?: string;
+  actorName?: string;
+  actorRole?: UserRole | string;
+  performedBy?: string;
+  targetCollection?: string;
+  targetId?: string;
+  targetName?: string;
+  targetUserId?: string;
+  classId?: string;
+  teacherId?: string;
+  details?: string;
+  success?: boolean;
   timestamp: string;
-  dataOrigin: DataOrigin;
-  environmentTag: EnvironmentTag;
+  dataOrigin?: DataOrigin;
+  environmentTag?: EnvironmentTag;
 }
+
+export type AdminTab =
+  | 'overview'
+  | 'users'
+  | 'classes'
+  | 'academic_years'
+  | 'curriculum'
+  | 'analytics'
+  | 'data_backup'
+  | 'audit_logs'
+  | 'settings';
 
 export interface SystemHealth {
   status: 'healthy' | 'degraded';
