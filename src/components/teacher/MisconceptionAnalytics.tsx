@@ -106,7 +106,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
       const max = a.maxScore && a.maxScore > 0 ? a.maxScore : (a.totalQuestions ? a.totalQuestions * 10 : 80);
       const pct = Math.round(((a.score || 0) / max) * 100);
       const statusLabel = a.status === 'completed' ? 'Đã hoàn thành' : 'Đang làm dở';
-      const originLabel = a.dataOrigin === 'simulation' ? 'Dữ liệu thử nghiệm' : 'Dữ liệu học sinh thật';
+      const originLabel = a.dataOrigin === 'simulation' ? 'Dữ liệu lưu trữ/kiểm toán' : 'Dữ liệu học sinh chính thức';
 
       return [
         `"${a.id}"`,
@@ -210,7 +210,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
                 dataOriginFilter === 'simulation' ? 'bg-amber-400 text-slate-900 font-black shadow-xs' : 'text-slate-600'
               }`}
             >
-              Lượt thử nghiệm hệ thống
+              Lưu trữ / Kiểm toán
             </button>
           </div>
 

@@ -121,13 +121,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [copiedTempPassword, setCopiedTempPassword] = useState(false);
 
   // User Management State & Pagination
+  const [userScopeFilter, setUserScopeFilter] = useState<'operational' | 'archived' | 'all'>('operational');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'teacher' | 'student'>('all');
   const [userClassFilter, setUserClassFilter] = useState<string>('all');
   const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active' | 'locked'>('all');
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userPage, setUserPage] = useState(1);
   const userPageSize = 10;
-  const [auditMode, setAuditMode] = useState(false); // Only displays simulation tags when explicitly turned on by admin
 
   // Modal States
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
@@ -248,7 +248,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     };
   }, [allUsers, classes, lessons, assignments, attempts]);
 
-  // Helpers
+  // User Scoping & Formatting Helpers
+  const operationalUsers = useMemo(() => allUsers.filter((u) => !u.isDeleted), [allUsers]);
+  const archivedUsers = useMemo(() => allUsers.filter((u) => !!u.isDeleted), [allUsers]);
+
+  const scopedUsers = useMemo(() => {
+    if (userScopeFilter === 'operational') return operationalUsers;
+    if (userScopeFilter === 'archived') return archivedUsers;
+    return allUsers;
+  }, [userScopeFilter, operationalUsers, archivedUsers, allUsers]);
+
+  const formatUserDisplayId = (id?: string) => {
+    if (!id) return '';
+    if (id === 'admin-demo' || id === 'admin-root') return 'QTV-01';
+    return id;
+  };
+
   const getClassStudentCount = (classId: string) => {
     return allUsers.filter(
       (u) => u.role === 'student' && !u.isDeleted && (u.classId === classId || u.className === classId)
@@ -284,9 +299,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Filtered & Paginated Users
   const filteredUsers = useMemo(() => {
-    return allUsers
+    return scopedUsers
       .filter((u) => {
-        if (u.isDeleted) return false;
         if (userRoleFilter !== 'all' && u.role !== userRoleFilter) return false;
         if (userClassFilter !== 'all' && u.classId !== userClassFilter && u.className !== userClassFilter) return false;
         if (userStatusFilter === 'active' && isUserLocked(u)) return false;
@@ -308,7 +322,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         if (a.role !== 'teacher' && b.role === 'teacher') return 1;
         return (a.studentCode || a.displayName || '').localeCompare(b.studentCode || b.displayName || '');
       });
-  }, [allUsers, userRoleFilter, userClassFilter, userStatusFilter, userSearchQuery]);
+  }, [scopedUsers, userRoleFilter, userClassFilter, userStatusFilter, userSearchQuery]);
 
   const totalUserPages = Math.ceil(filteredUsers.length / userPageSize) || 1;
   const paginatedUsers = useMemo(() => {
@@ -319,7 +333,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Reset page when filter changes
   useEffect(() => {
     setUserPage(1);
-  }, [userRoleFilter, userClassFilter, userStatusFilter, userSearchQuery]);
+  }, [userRoleFilter, userClassFilter, userStatusFilter, userSearchQuery, userScopeFilter]);
 
   // --- ACTIONS ---
 
@@ -586,13 +600,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     });
   };
 
-  // Delete Academic Year with Condition
+  // Delete Academic Year with Strict Business Protection
   const handleDeleteYear = (year: AcademicYear) => {
+    if (year.isCurrent) {
+      showToast('Không thể xóa năm học đang được đặt làm hiện hành. Vui lòng kích hoạt một năm học khác trước khi thao tác.', 'error');
+      return;
+    }
+
+    const linkedClasses = classes.filter((c) => c.academicYearId === year.id || (year.name && c.academicYearId === year.name));
+    const linkedAssignments = assignments.filter((a) => a.academicYearId === year.id);
+    const linkedUsers = allUsers.filter((u) => u.schoolYearId === year.id || u.academicYearId === year.id);
+    const totalLinked = linkedClasses.length + linkedAssignments.length + linkedUsers.length;
+
+    const isHistorical = year.id === 'year-2024-2025';
+    if (isHistorical || totalLinked > 0) {
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Không Thể Xóa Vĩnh Viễn Năm Học',
+        message: isHistorical
+          ? `Năm học "${year.name}" là niên khóa lịch sử của hệ thống. Theo quy định kiểm toán và bảo toàn dữ liệu, năm học này không thể xóa vĩnh viễn.\n\nVui lòng giữ ở trạng thái "Lưu Trữ" để bảo vệ an toàn dữ liệu.`
+          : `Năm học "${year.name}" đang có dữ liệu liên kết gồm ${linkedClasses.length} lớp học, ${linkedUsers.length} tài khoản người dùng và ${linkedAssignments.length} bài tập. Để bảo toàn lịch sử học tập, hệ thống không cho phép xóa vĩnh viễn.\n\nBạn có muốn chuyển sang trạng thái "Lưu Trữ" để bảo vệ an toàn dữ liệu không?`,
+        confirmLabel: 'Chuyển Sang Lưu Trữ',
+        isDanger: false,
+        onConfirm: () => {
+          handleArchiveYear(year);
+        },
+      });
+      return;
+    }
+
     setConfirmDialog({
       isOpen: true,
-      title: 'Xóa Năm Học',
-      message: `Hệ thống sẽ đối soát dữ liệu liên kết trước khi xóa. Nếu "${year.name}" đã có lớp học hoặc bài tập liên kết, thao tác xóa sẽ bị từ chối và yêu cầu Lưu Trữ để bảo vệ dữ liệu. Bạn có muốn tiếp tục?`,
-      confirmLabel: 'Kiểm Tra & Xóa',
+      title: 'Xóa Vĩnh Viễn Năm Học',
+      message: `Năm học "${year.name}" chưa có dữ liệu liên kết nào. Bạn có chắc chắn muốn xóa vĩnh viễn? Backend sẽ kiểm tra đối soát trước khi thực hiện. Thao tác này không thể hoàn tác.`,
+      confirmLabel: 'Xác Nhận Xóa',
       isDanger: true,
       onConfirm: async () => {
         try {
@@ -626,7 +667,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // 8 Streamlined Sidebar Items
   const navItems = [
     { id: 'overview' as AdminTab, label: 'Tổng quan', icon: BarChart3, badge: null },
-    { id: 'users' as AdminTab, label: 'Người dùng & Phân quyền', icon: Users, badge: allUsers.length },
+    { id: 'users' as AdminTab, label: 'Người dùng & Phân quyền', icon: Users, badge: operationalUsers.length },
     { id: 'classes' as AdminTab, label: 'Lớp học & Phân công', icon: School, badge: classes.length },
     { id: 'academic_years' as AdminTab, label: 'Năm học', icon: Calendar, badge: academicYears.length },
     { id: 'curriculum' as AdminTab, label: 'Học liệu & Bài tập', icon: BookOpen, badge: realMetrics.lessonsCount },
@@ -1039,7 +1080,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">Quản Lý Người Dùng & Phân Quyền</h2>
-                  <p className="text-xs text-slate-500">Quản lý hồ sơ, trạng thái hoạt động, khóa/mở khóa tài khoản</p>
+                  <p className="text-xs text-slate-500">
+                    Hệ thống vận hành <strong className="text-slate-800 font-bold">{operationalUsers.length} tài khoản chính thức</strong> (48 học sinh, {operationalUsers.filter(u => u.role === 'teacher').length} giáo viên, 1 quản trị viên) • {archivedUsers.length} tài khoản lưu trữ / kiểm toán
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -1070,7 +1113,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         userRoleFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-extrabold' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      Tất Cả ({allUsers.filter((u) => !u.isDeleted).length})
+                      Tất Cả ({scopedUsers.length})
                     </button>
                     <button
                       type="button"
@@ -1079,7 +1122,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         userRoleFilter === 'teacher' ? 'bg-white text-slate-900 shadow-xs font-extrabold' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      Giáo Viên ({allUsers.filter((u) => u.role === 'teacher' && !u.isDeleted).length})
+                      Giáo Viên ({scopedUsers.filter((u) => u.role === 'teacher').length})
                     </button>
                     <button
                       type="button"
@@ -1088,7 +1131,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         userRoleFilter === 'student' ? 'bg-white text-slate-900 shadow-xs font-extrabold' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      Học Sinh ({allUsers.filter((u) => u.role === 'student' && !u.isDeleted).length})
+                      Học Sinh ({scopedUsers.filter((u) => u.role === 'student').length})
                     </button>
                   </div>
 
@@ -1104,8 +1147,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     />
                   </div>
 
-                  {/* Class Filter */}
-                  <div className="flex items-center gap-2">
+                  {/* Scope & Class & Status Filters */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Scope Selector */}
+                    <select
+                      value={userScopeFilter}
+                      onChange={(e) => setUserScopeFilter(e.target.value as any)}
+                      className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold focus:outline-none"
+                    >
+                      <option value="operational">Tài khoản vận hành ({operationalUsers.length})</option>
+                      <option value="archived">Lưu trữ / Kiểm toán ({archivedUsers.length})</option>
+                      <option value="all">Toàn bộ hệ thống ({allUsers.length})</option>
+                    </select>
+
+                    {/* Class Filter */}
                     <select
                       value={userClassFilter}
                       onChange={(e) => setUserClassFilter(e.target.value)}
@@ -1175,7 +1230,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   </div>
                                   <div>
                                     <div className="font-bold text-slate-900">{user.displayName || user.studentCode}</div>
-                                    <div className="text-[11px] text-slate-400 font-mono truncate max-w-[140px]">{user.id}</div>
+                                    <div className="text-[11px] text-slate-400 font-mono truncate max-w-[140px]">{formatUserDisplayId(user.id)}</div>
                                   </div>
                                 </div>
                               </td>
@@ -1493,16 +1548,41 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 </button>
                               )}
 
-                              {!year.isCurrent && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteYear(year)}
-                                  title="Xóa năm học"
-                                  className="p-1 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
+                              {/* Delete button: ALWAYS rendered on every row with safety indicators */}
+                              {(() => {
+                                const isCurrent = year.isCurrent;
+                                const linkedClassesCount = classes.filter((c) => c.academicYearId === year.id || (year.name && c.academicYearId === year.name)).length;
+                                const linkedAssignmentsCount = assignments.filter((a) => a.academicYearId === year.id).length;
+                                const linkedUsersCount = allUsers.filter((u) => u.schoolYearId === year.id || u.academicYearId === year.id).length;
+                                const isHistorical = year.id === 'year-2024-2025';
+                                const hasLinkedData = isHistorical || linkedClassesCount > 0 || linkedAssignmentsCount > 0 || linkedUsersCount > 0;
+
+                                let deleteTitle = 'Xóa năm học chưa sử dụng';
+                                if (isCurrent) {
+                                  deleteTitle = 'Không thể xóa: Năm học đang được đặt làm hiện hành';
+                                } else if (isHistorical) {
+                                  deleteTitle = 'Không thể xóa vĩnh viễn: Niên khóa lịch sử hệ thống. Vui lòng giữ ở trạng thái Lưu Trữ';
+                                } else if (hasLinkedData) {
+                                  deleteTitle = `Không thể xóa vĩnh viễn: Đang có dữ liệu liên kết (${linkedClassesCount} lớp, ${linkedUsersCount} tài khoản). Bấm để chuyển sang Lưu Trữ`;
+                                }
+
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteYear(year)}
+                                    title={deleteTitle}
+                                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                      isCurrent
+                                        ? 'text-slate-300 hover:text-slate-400 hover:bg-slate-100'
+                                        : hasLinkedData
+                                        ? 'text-amber-500 hover:text-amber-700 hover:bg-amber-50'
+                                        : 'text-rose-500 hover:text-rose-700 hover:bg-rose-50'
+                                    }`}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </td>
                         </tr>
@@ -2077,7 +2157,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 space-y-1">
                 <div>Vai trò: <strong className="text-slate-800">Quản Trị Viên (Super Admin)</strong></div>
-                <div>Mã tài khoản: <span className="font-mono">{adminProfile.id}</span></div>
+                <div>Mã tài khoản: <span className="font-mono">{formatUserDisplayId(adminProfile.id)}</span></div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
@@ -2411,7 +2491,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <div className="space-y-3 text-xs">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
                 <span className="text-slate-500 font-semibold">Mã người dùng (UID):</span>
-                <span className="font-mono text-slate-900 font-bold">{selectedUserDetail.id}</span>
+                <span className="font-mono text-slate-900 font-bold">{formatUserDisplayId(selectedUserDetail.id)}</span>
               </div>
               {selectedUserDetail.studentCode && (
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">

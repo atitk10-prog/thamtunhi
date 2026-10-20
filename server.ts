@@ -579,7 +579,7 @@ app.post('/api/teacher/summarize-insights', requireAuth, requireRole(['teacher',
   try {
     const prompt = `
 Bạn là chuyên gia thẩm định giáo dục tiểu học GDPT 2018 môn Toán.
-Dưới đây là dữ liệu tổng hợp ẩn danh kết quả học tập (${dataOrigin === 'simulation' ? 'Dữ liệu mô phỏng thử nghiệm' : 'Dữ liệu học tập thực tế'}):
+Dưới đây là dữ liệu tổng hợp ẩn danh kết quả học tập (${dataOrigin === 'simulation' ? 'Dữ liệu lưu trữ/kiểm toán' : 'Dữ liệu học tập thực tế'}):
 - Tổng lượt làm bài: ${totalAttempts || 0}
 - Điểm trung bình: ${avgScore || 0}%
 - Tỷ lệ tiến bộ sau khi xem manh mối gợi ý: ${hintRecoveryRate || 0}%
@@ -1873,6 +1873,13 @@ app.delete('/api/admin/academic-years/:id', requireAuth, requireRole(['admin']),
     }
     const yData: any = yDoc.data();
 
+    if (yearId === 'year-2024-2025') {
+      return res.status(400).json({
+        error: `Không thể xóa năm học lịch sử "${yData.name}". Bản ghi niên khóa lịch sử được bảo lưu vĩnh viễn trong hệ thống theo quy định kiểm toán. Vui lòng giữ ở trạng thái "Lưu trữ".`,
+        code: 'ACADEMIC_YEAR_HAS_LINKED_DATA',
+      });
+    }
+
     if (yData.isCurrent) {
       return res.status(400).json({
         error: 'Không thể xóa năm học đang được đặt làm hiện hành. Vui lòng kích hoạt một năm học khác trước khi thao tác.',
@@ -1894,13 +1901,21 @@ app.delete('/api/admin/academic-years/:id', requireAuth, requireRole(['admin']),
       return a.academicYearId === yearId;
     });
 
-    const totalLinked = linkedClasses.length + linkedAssignments.length;
+    // Check linked users (students / archived students)
+    const usersSnap = await getDocs(collection(db, 'users'));
+    const linkedUsers = usersSnap.docs.filter((d) => {
+      const u: any = d.data();
+      return u.schoolYearId === yearId || u.academicYearId === yearId;
+    });
+
+    const totalLinked = linkedClasses.length + linkedAssignments.length + linkedUsers.length;
     if (totalLinked > 0) {
       return res.status(400).json({
-        error: `Không thể xóa năm học "${yData.name}" vì đang có ${linkedClasses.length} lớp học và dữ liệu học tập liên kết. Vui lòng chuyển trạng thái sang "Lưu trữ" để bảo toàn lịch sử.`,
+        error: `Không thể xóa năm học "${yData.name}" vì đang có ${linkedClasses.length} lớp học, ${linkedUsers.length} tài khoản người dùng và dữ liệu học tập liên kết. Vui lòng chuyển trạng thái sang "Lưu trữ" để bảo toàn lịch sử.`,
         code: 'ACADEMIC_YEAR_HAS_LINKED_DATA',
         linkedClassesCount: linkedClasses.length,
         linkedAssignmentsCount: linkedAssignments.length,
+        linkedUsersCount: linkedUsers.length,
       });
     }
 

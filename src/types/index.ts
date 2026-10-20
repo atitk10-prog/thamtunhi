@@ -18,6 +18,7 @@ export interface UserProfile {
   className?: string;
   grade?: 1 | 2;
   schoolYearId?: string;
+  academicYearId?: string;
   status?: UserAccountStatus;
   isDeleted?: boolean;
   createdAt: string;
@@ -157,6 +158,7 @@ export interface Assignment {
   teacherId: string;
   dueDate: string;
   status: 'open' | 'closed' | 'archived';
+  academicYearId?: string;
   idempotencyKey?: string;
   createdAt: string;
   dataOrigin: DataOrigin;

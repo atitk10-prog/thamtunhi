@@ -59,7 +59,7 @@ async function runAdminPortalAudit() {
     }
     console.log('✓ Đủ 8 phân hệ tinh gọn trong sidebar desktop chuyên nghiệp');
 
-    // Verify Top-Right Profile Menu Dropdown
+    // Verify Top-Right Profile Menu Dropdown & Profile Modal
     const profileBtn = desktopPage.locator('header button:has-text("Thầy Tổng Phụ Trách")');
     if (await profileBtn.isVisible()) {
       await profileBtn.click();
@@ -67,8 +67,15 @@ async function runAdminPortalAudit() {
       const ssProfileDropdown = path.join(screenshotsDir, 'admin-00-desktop-profile-dropdown.png');
       await desktopPage.screenshot({ path: ssProfileDropdown, fullPage: false });
       console.log(`✓ Menu tài khoản Admin hiển thị chuẩn: ${ssProfileDropdown}`);
-      // Close dropdown by clicking header
-      await desktopPage.click('header');
+
+      // Open and verify Profile Modal
+      await desktopPage.click('button:has-text("Hồ sơ của tôi")');
+      await desktopPage.waitForSelector('text=Hồ Sơ Của Tôi', { timeout: 3000 });
+      const ssProfileModal = path.join(screenshotsDir, 'admin-00-desktop-profile-modal.png');
+      await desktopPage.screenshot({ path: ssProfileModal, fullPage: false });
+      console.log(`✓ Modal Hồ sơ Admin hiển thị chuẩn (QTV-01): ${ssProfileModal}`);
+      await desktopPage.click('button:has-text("Hủy")');
+      await desktopPage.waitForTimeout(500);
     }
 
     // Test Tab 2: Người dùng & Phân quyền

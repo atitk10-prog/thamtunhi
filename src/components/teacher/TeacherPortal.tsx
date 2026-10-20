@@ -161,7 +161,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
             status: 'open',
             createdAt: new Date().toISOString(),
             dataOrigin: 'simulation',
-            environmentTag: 'demo',
+            environmentTag: 'production',
           }}
           lessonVersion={previewLessonVersion}
           currentUser={{

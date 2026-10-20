@@ -217,6 +217,16 @@ async function runCloseoutTests() {
     assert.strictEqual(unarchiveRes.status, 200, 'Khôi phục năm học hoạt động thành công');
     pass('Khôi phục trạng thái hoạt động của năm học thành công (status: active)');
 
+    // Re-archive year-2024-2025 to maintain standardized historical archived state
+    await fetch(`${BASE_URL}/api/admin/academic-years/${encodeURIComponent(y2425.id)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ status: 'archived', isCurrent: false }),
+    });
+
     // 3.5 Create completely unused test year
     const createYearRes = await fetch(`${BASE_URL}/api/admin/academic-years`, {
       method: 'POST',
