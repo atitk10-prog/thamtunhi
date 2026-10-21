@@ -35,7 +35,8 @@ import {
   Copy,
   Check,
   Archive,
-  ArrowRight
+  ArrowRight,
+  Edit3
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import {
@@ -145,6 +146,37 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [assigningClass, setAssigningClass] = useState<Classroom | null>(null);
   const [selectedTeacherForClass, setSelectedTeacherForClass] = useState('');
   const [selectedClassDetail, setSelectedClassDetail] = useState<Classroom | null>(null);
+
+  // User Edit & Delete States (A2)
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editStudentCode, setEditStudentCode] = useState('');
+  const [editClassId, setEditClassId] = useState('');
+  const [editStatus, setEditStatus] = useState<UserAccountStatus>('active');
+
+  const [deleteTargetUser, setDeleteTargetUser] = useState<UserProfile | null>(null);
+  const [userLinkedData, setUserLinkedData] = useState<any | null>(null);
+  const [loadingLinkedData, setLoadingLinkedData] = useState(false);
+  const [userDeleteStep, setUserDeleteStep] = useState<1 | 2>(1);
+
+  // Class Management States (A3)
+  const [isCreateClassOpen, setIsCreateClassOpen] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassGrade, setNewClassGrade] = useState(1);
+  const [newClassYearId, setNewClassYearId] = useState('year-2026-2027');
+  const [newClassTeacherId, setNewClassTeacherId] = useState('');
+  const [newClassStatus, setNewClassStatus] = useState('active');
+
+  const [editingClass, setEditingClass] = useState<Classroom | null>(null);
+  const [editClassName, setEditClassName] = useState('');
+  const [editClassGrade, setEditClassGrade] = useState(1);
+  const [editClassYearId, setEditClassYearId] = useState('year-2026-2027');
+  const [editClassTeacherId, setEditClassTeacherId] = useState('');
+  const [editClassStatus, setEditClassStatus] = useState('active');
+
+  const [deleteTargetClass, setDeleteTargetClass] = useState<Classroom | null>(null);
+  const [classDeleteConfirmStep, setClassDeleteConfirmStep] = useState<1 | 2>(1);
 
   const [isCreateYearOpen, setIsCreateYearOpen] = useState(false);
   const [newYearName, setNewYearName] = useState('');
@@ -527,6 +559,180 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     } catch (err: any) {
       showToast(err.message || 'Lỗi phân công giáo viên.', 'error');
     }
+  };
+
+  // --- USER EDIT & DELETE HANDLERS (A2) ---
+  const handleOpenEditUser = (user: UserProfile) => {
+    setEditingUser(user);
+    setEditDisplayName(user.displayName || (user as any).name || '');
+    setEditEmail(user.email || '');
+    setEditStudentCode(user.studentCode || '');
+    setEditClassId(user.classId || (classes[0] ? classes[0].id : 'class-1a'));
+    setEditStatus(isUserLocked(user) ? 'locked' : 'active');
+  };
+
+  const handleSaveEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    try {
+      const updates: any = {
+        displayName: editDisplayName.trim(),
+        status: editStatus,
+      };
+      if (editingUser.role === 'teacher') {
+        if (!editEmail.trim() || !editEmail.includes('@')) {
+          showToast('Email không đúng định dạng.', 'error');
+          return;
+        }
+        updates.email = editEmail.trim().toLowerCase();
+      } else if (editingUser.role === 'student') {
+        updates.studentCode = editStudentCode.trim();
+        updates.classId = editClassId;
+      }
+      await dataService.adminUpdateUser(editingUser.id, updates);
+      showToast(`Đã cập nhật thông tin tài khoản "${editDisplayName}" thành công.`, 'success');
+      setEditingUser(null);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Lỗi cập nhật người dùng.', 'error');
+    }
+  };
+
+  const handleOpenDeleteUser = async (user: UserProfile) => {
+    if (user.id === 'admin-root' || user.id === currentUser.id) {
+      showToast('Không thể xóa tài khoản Quản trị viên đang đăng nhập.', 'error');
+      return;
+    }
+    setDeleteTargetUser(user);
+    setUserDeleteStep(1);
+    setLoadingLinkedData(true);
+    setUserLinkedData(null);
+    try {
+      const data = await dataService.adminGetUserLinkedData(user.id);
+      setUserLinkedData(data);
+    } catch (err: any) {
+      console.warn('Could not load linked data, fallback to zero:', err);
+      setUserLinkedData({ totalLinked: 0, canHardDelete: true, assignedClasses: [] });
+    } finally {
+      setLoadingLinkedData(false);
+    }
+  };
+
+  const handleConfirmDeleteUser = async (archiveOnly: boolean) => {
+    if (!deleteTargetUser) return;
+    try {
+      const res = await dataService.adminDeleteUser(deleteTargetUser.id, archiveOnly);
+      const actionName = res.action === 'archived' ? 'lưu trữ' : 'xóa vĩnh viễn';
+      showToast(`Đã ${actionName} tài khoản ${deleteTargetUser.displayName || deleteTargetUser.studentCode} thành công.`, 'success');
+      setDeleteTargetUser(null);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Lỗi thực hiện thao tác xóa/lưu trữ.', 'error');
+    }
+  };
+
+  // --- CLASS CRUD & UNASSIGN HANDLERS (A3) ---
+  const handleOpenCreateClass = () => {
+    setNewClassName('');
+    setNewClassGrade(1);
+    const activeYear = academicYears.find((y) => y.isCurrent) || academicYears[0];
+    setNewClassYearId(activeYear ? activeYear.id : 'year-2026-2027');
+    setNewClassTeacherId('');
+    setNewClassStatus('active');
+    setIsCreateClassOpen(true);
+  };
+
+  const handleCreateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClassName.trim()) {
+      showToast('Vui lòng nhập tên lớp học (ví dụ: 1C, 2A).', 'error');
+      return;
+    }
+    try {
+      await dataService.adminCreateClass({
+        name: newClassName.trim(),
+        grade: newClassGrade,
+        academicYearId: newClassYearId,
+        teacherId: newClassTeacherId || null,
+        status: newClassStatus,
+      });
+      showToast(`Đã tạo thành công Lớp ${newClassName.trim()}.`, 'success');
+      setIsCreateClassOpen(false);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Lỗi tạo lớp học.', 'error');
+    }
+  };
+
+  const handleOpenEditClass = (cls: Classroom) => {
+    setEditingClass(cls);
+    setEditClassName(cls.name || '');
+    setEditClassGrade(cls.grade || (cls.name.startsWith('1') ? 1 : 2));
+    setEditClassYearId(cls.academicYearId || 'year-2026-2027');
+    setEditClassTeacherId(cls.teacherId || '');
+    setEditClassStatus(cls.status || 'active');
+  };
+
+  const handleSaveEditClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClass) return;
+    if (!editClassName.trim()) {
+      showToast('Vui lòng nhập tên lớp học.', 'error');
+      return;
+    }
+    try {
+      await dataService.adminUpdateClass(editingClass.id, {
+        name: editClassName.trim(),
+        grade: editClassGrade,
+        academicYearId: editClassYearId,
+        teacherId: editClassTeacherId || null,
+        status: editClassStatus,
+      });
+      showToast(`Đã cập nhật thông tin Lớp ${editClassName.trim()} thành công.`, 'success');
+      setEditingClass(null);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Lỗi cập nhật lớp học.', 'error');
+    }
+  };
+
+  const handleOpenDeleteClass = (cls: Classroom) => {
+    setDeleteTargetClass(cls);
+    setClassDeleteConfirmStep(1);
+  };
+
+  const handleConfirmDeleteClass = async (archiveOnly: boolean) => {
+    if (!deleteTargetClass) return;
+    try {
+      const res = await dataService.adminDeleteClass(deleteTargetClass.id, archiveOnly);
+      const actionName = res.action === 'archived' ? 'lưu trữ' : 'xóa vĩnh viễn';
+      showToast(`Đã ${actionName} Lớp ${deleteTargetClass.name} thành công.`, 'success');
+      setDeleteTargetClass(null);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Lỗi thực hiện thao tác xóa/lưu trữ lớp.', 'error');
+    }
+  };
+
+  const handleUnassignTeacher = (cls: Classroom) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Hủy phân công giáo viên',
+      message: `Bạn có chắc chắn muốn hủy phân công giáo viên phụ trách của Lớp ${cls.name}? Lớp sẽ tạm thời ở trạng thái chưa có giáo viên phụ trách.`,
+      confirmLabel: 'Hủy phân công',
+      cancelLabel: 'Giữ nguyên',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await dataService.adminUnassignTeacherFromClass(cls.id);
+          showToast(`Đã hủy phân công giáo viên cho Lớp ${cls.name}.`, 'success');
+          setConfirmDialog(null);
+          loadData();
+        } catch (err: any) {
+          showToast(err.message || 'Lỗi hủy phân công giáo viên.', 'error');
+        }
+      },
+    });
   };
 
   // Academic Year Create
@@ -1282,10 +1488,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setSelectedUserDetail(user)}
-                                    title="Xem hồ sơ"
+                                    title="Xem chi tiết"
                                     className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
                                   >
                                     <Eye className="w-4 h-4" />
+                                  </button>
+
+                                  {/* Edit User */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditUser(user)}
+                                    title="Sửa thông tin"
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
                                   </button>
 
                                   {/* Reset Password */}
@@ -1311,6 +1527,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                     }`}
                                   >
                                     {locked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                                  </button>
+
+                                  {/* Delete / Archive */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenDeleteUser(user)}
+                                    title={user.isDeleted ? 'Đã lưu trữ' : 'Xóa hoặc lưu trữ tài khoản'}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
                               </td>
@@ -1358,11 +1584,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           {/* ======================================================== */}
           {activeTab === 'classes' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">Quản Lý Lớp Học & Phân Công Giáo Viên</h2>
-                  <p className="text-xs text-slate-500">Đối soát sĩ số học sinh và giáo viên phụ trách 4 lớp học chuẩn</p>
+                  <p className="text-xs text-slate-500">Đối soát sĩ số học sinh thực tế và giáo viên phụ trách niên khóa 2026 - 2027</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleOpenCreateClass}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-black shadow-sm transition-all cursor-pointer w-fit"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Thêm Lớp Học</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1384,14 +1618,34 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <div>
                             <div className="text-lg font-black text-slate-900">Lớp {cls.name}</div>
                             <div className="text-xs text-slate-500 font-semibold">
-                              Khối {cls.grade || (cls.name.startsWith('1') ? 1 : 2)} • Năm học 2026 - 2027
+                              Khối {cls.grade || (cls.name.startsWith('1') ? 1 : 2)} • {academicYears.find((y) => y.id === cls.academicYearId)?.name || 'Năm học 2026 - 2027'}
                             </div>
                           </div>
                         </div>
 
-                        <span className="px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 font-black text-xs">
-                          {studentCount} Học sinh
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 font-black text-xs mr-1">
+                            {studentCount} Học sinh
+                          </span>
+                          {/* Edit class */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditClass(cls)}
+                            title="Sửa thông tin lớp"
+                            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          {/* Delete/Archive class */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDeleteClass(cls)}
+                            title="Xóa hoặc lưu trữ lớp"
+                            className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Teacher Status */}
@@ -1411,21 +1665,33 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           )}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAssigningClass(cls);
-                            setSelectedTeacherForClass(cls.teacherId || '');
-                          }}
-                          className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold transition-colors cursor-pointer"
-                        >
-                          Phân công
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAssigningClass(cls);
+                              setSelectedTeacherForClass(cls.teacherId || '');
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            {hasTeacher ? 'Đổi GV' : 'Phân công'}
+                          </button>
+                          {hasTeacher && (
+                            <button
+                              type="button"
+                              onClick={() => handleUnassignTeacher(cls)}
+                              title="Hủy phân công giáo viên"
+                              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            >
+                              <UserX className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {/* View roster link */}
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                        <span className="text-xs text-slate-500 font-medium">Sĩ số thực tế từ tài khoản liên kết</span>
+                        <span className="text-xs text-slate-500 font-medium">Sĩ số thực tế từ tài khoản đang hoạt động</span>
                         <button
                           type="button"
                           onClick={() => setSelectedClassDetail(cls)}
@@ -2764,6 +3030,610 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: EDIT USER (A2)                                    */}
+      {/* ======================================================== */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-black text-slate-900">Sửa Thông Tin Tài Khoản</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditUser} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Họ và tên</label>
+                <input
+                  type="text"
+                  required
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-400 focus:bg-white"
+                />
+              </div>
+
+              {editingUser.role === 'teacher' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Email giáo viên</label>
+                  <input
+                    type="email"
+                    required
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-400 focus:bg-white"
+                  />
+                </div>
+              ) : editingUser.role === 'student' ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Mã học sinh</label>
+                    <input
+                      type="text"
+                      required
+                      value={editStudentCode}
+                      onChange={(e) => setEditStudentCode(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-bold text-amber-600 focus:outline-none focus:border-amber-400 focus:bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Lớp học</label>
+                    <select
+                      value={editClassId}
+                      onChange={(e) => setEditClassId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none"
+                    >
+                      {classes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          Lớp {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              ) : null}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Trạng thái hoạt động</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as UserAccountStatus)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none"
+                >
+                  <option value="active">Đang hoạt động</option>
+                  <option value="locked">Đã khóa</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-black transition-colors cursor-pointer"
+                >
+                  Lưu Thay Đổi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: DELETE / ARCHIVE USER (A2)                        */}
+      {/* ======================================================== */}
+      {deleteTargetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-rose-600">
+                <Trash2 className="w-5 h-5" />
+                <h3 className="text-base font-black text-slate-900">Xóa / Lưu Trữ Tài Khoản</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteTargetUser(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-semibold">Tài khoản:</span>
+                <span className="font-bold text-slate-900">{deleteTargetUser.displayName || deleteTargetUser.studentCode}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-semibold">Vai trò:</span>
+                <span className="font-extrabold uppercase text-amber-600">{deleteTargetUser.role}</span>
+              </div>
+              {deleteTargetUser.studentCode && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-semibold">Mã học sinh:</span>
+                  <span className="font-mono font-bold text-slate-900">{deleteTargetUser.studentCode}</span>
+                </div>
+              )}
+              {deleteTargetUser.email && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-semibold">Email:</span>
+                  <span className="font-mono text-slate-900">{deleteTargetUser.email}</span>
+                </div>
+              )}
+            </div>
+
+            {loadingLinkedData ? (
+              <div className="py-6 flex flex-col items-center justify-center gap-2 text-xs text-slate-500">
+                <RefreshCw className="w-5 h-5 animate-spin text-amber-500" />
+                <span>Đang kiểm tra dữ liệu liên kết trên hệ thống...</span>
+              </div>
+            ) : userLinkedData?.assignedClasses && userLinkedData.assignedClasses.length > 0 ? (
+              /* Case 1: Teacher assigned to active classes */
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-rose-700">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>Không thể xóa hoặc lưu trữ giáo viên đang phụ trách lớp!</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    Giáo viên này hiện đang phụ trách <strong>{userLinkedData.assignedClasses.length} lớp học</strong>: {userLinkedData.assignedClasses.map((c: any) => `Lớp ${c.name}`).join(', ')}.
+                  </p>
+                  <p className="text-[11px] text-rose-700 font-medium">
+                    Theo quy tắc nghiệp vụ, bạn cần hủy phân công hoặc chuyển giao lớp học trước khi lưu trữ hoặc xóa tài khoản.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetUser(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteTargetUser(null);
+                      setActiveTab('classes');
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Đi Đến Quản Lý Lớp Học
+                  </button>
+                </div>
+              </div>
+            ) : userLinkedData && userLinkedData.totalLinked > 0 ? (
+              /* Case 2: User has linked history -> Archive */
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-amber-800">
+                    <Archive className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>Tài khoản có dữ liệu lịch sử ({userLinkedData.totalLinked} bản ghi)</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    Tài khoản đã có {deleteTargetUser.role === 'teacher' ? `${userLinkedData.assignmentsCount} bài giao và ${userLinkedData.lessonsCreated} bài giảng` : `${userLinkedData.attemptsCount} lượt làm bài thi`}.
+                  </p>
+                  <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+                    Để bảo toàn 100% dữ liệu lịch sử học tập và kết quả chấm điểm, tài khoản sẽ được <strong>CHUYỂN SANG LƯU TRỮ</strong> (ngừng đăng nhập vĩnh viễn, ẩn khỏi danh sách đang hoạt động nhưng bảo toàn số liệu).
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetUser(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmDeleteUser(true)}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition-colors cursor-pointer flex items-center gap-2"
+                  >
+                    <Archive className="w-4 h-4" />
+                    <span>Xác Nhận Lưu Trữ</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Case 3: User is unlinked -> 2-step permanent deletion */
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-sky-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-sky-800">
+                    <Info className="w-4 h-4 shrink-0" />
+                    <span>Tài khoản chưa có dữ liệu phát sinh</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    Tài khoản chưa có lượt làm bài, bài giao hoặc liên kết lớp học. Bạn có thể xóa vĩnh viễn tài khoản này khỏi cơ sở dữ liệu.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetUser(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  {userDeleteStep === 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setUserDeleteStep(2)}
+                      className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-colors cursor-pointer flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Xóa Vĩnh Viễn</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmDeleteUser(false)}
+                      className="px-4 py-2.5 rounded-xl bg-red-700 hover:bg-red-800 text-white text-xs font-black transition-colors cursor-pointer flex items-center gap-2 animate-pulse"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Tôi Chắc Chắn, Xóa Ngay!</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CREATE CLASS (A3)                                 */}
+      {/* ======================================================== */}
+      {isCreateClassOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <School className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-black text-slate-900">Thêm Lớp Học Mới</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateClassOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateClass} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Tên lớp học</label>
+                <input
+                  type="text"
+                  required
+                  value={newClassName}
+                  onChange={(e) => setNewClassName(e.target.value)}
+                  placeholder="Ví dụ: 1C, 2A, 2C..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-400 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Khối</label>
+                <select
+                  value={newClassGrade}
+                  onChange={(e) => setNewClassGrade(Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none"
+                >
+                  <option value={1}>Khối 1</option>
+                  <option value={2}>Khối 2</option>
+                  <option value={3}>Khối 3</option>
+                  <option value={4}>Khối 4</option>
+                  <option value={5}>Khối 5</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Niên khóa</label>
+                <select
+                  value={newClassYearId}
+                  onChange={(e) => setNewClassYearId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none"
+                >
+                  {academicYears.map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.name} {y.isCurrent ? '(Hiện hành)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Giáo viên phụ trách</label>
+                <select
+                  value={newClassTeacherId}
+                  onChange={(e) => setNewClassTeacherId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none"
+                >
+                  <option value="">-- Chưa phân công --</option>
+                  {allUsers
+                    .filter((u) => u.role === 'teacher' && !u.isDeleted)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.displayName} ({t.email})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateClassOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-black transition-colors cursor-pointer"
+                >
+                  Tạo Lớp Học
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: EDIT CLASS (A3)                                   */}
+      {/* ======================================================== */}
+      {editingClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-black text-slate-900">Sửa Lớp {editingClass.name}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingClass(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditClass} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Tên lớp học</label>
+                <input
+                  type="text"
+                  required
+                  value={editClassName}
+                  onChange={(e) => setEditClassName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-400 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Khối</label>
+                <select
+                  value={editClassGrade}
+                  onChange={(e) => setEditClassGrade(Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none"
+                >
+                  <option value={1}>Khối 1</option>
+                  <option value={2}>Khối 2</option>
+                  <option value={3}>Khối 3</option>
+                  <option value={4}>Khối 4</option>
+                  <option value={5}>Khối 5</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Niên khóa</label>
+                <select
+                  value={editClassYearId}
+                  onChange={(e) => setEditClassYearId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none"
+                >
+                  {academicYears.map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.name} {y.isCurrent ? '(Hiện hành)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Giáo viên phụ trách</label>
+                <select
+                  value={editClassTeacherId}
+                  onChange={(e) => setEditClassTeacherId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none"
+                >
+                  <option value="">-- Chưa phân công --</option>
+                  {allUsers
+                    .filter((u) => u.role === 'teacher' && !u.isDeleted)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.displayName} ({t.email})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Trạng thái lớp</label>
+                <select
+                  value={editClassStatus}
+                  onChange={(e) => setEditClassStatus(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none"
+                >
+                  <option value="active">Đang hoạt động</option>
+                  <option value="archived">Lưu trữ</option>
+                </select>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
+                Mã định danh kỹ thuật <code>{editingClass.id}</code> được giữ nguyên để bảo toàn liên kết dữ liệu học sinh.
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingClass(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-black transition-colors cursor-pointer"
+                >
+                  Lưu Cập Nhật
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: DELETE / ARCHIVE CLASS (A3)                       */}
+      {/* ======================================================== */}
+      {deleteTargetClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-rose-600">
+                <Trash2 className="w-5 h-5" />
+                <h3 className="text-base font-black text-slate-900">Xóa / Lưu Trữ Lớp Học</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteTargetClass(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-semibold">Tên lớp:</span>
+                <span className="font-bold text-slate-900">Lớp {deleteTargetClass.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-semibold">Sĩ số học sinh:</span>
+                <span className="font-bold text-amber-600">{getClassStudentCount(deleteTargetClass.id)} học sinh</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-semibold">Bài tập đã giao:</span>
+                <span className="font-bold text-slate-900">
+                  {assignments.filter((a) => a.classId === deleteTargetClass.id).length} bài tập
+                </span>
+              </div>
+            </div>
+
+            {getClassStudentCount(deleteTargetClass.id) > 0 || assignments.filter((a) => a.classId === deleteTargetClass.id).length > 0 ? (
+              /* Class has linked data -> Cannot hard delete, offer archive */
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-amber-800">
+                    <Archive className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>Lớp học có học sinh và bài tập liên kết</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    Lớp đang có <strong>{getClassStudentCount(deleteTargetClass.id)} học sinh</strong> và <strong>{assignments.filter((a) => a.classId === deleteTargetClass.id).length} bài tập</strong>. Để bảo vệ dữ liệu học tập của học sinh, hệ thống không cho phép xóa cứng lớp học này.
+                  </p>
+                  <p className="text-[11px] text-amber-800 font-medium">
+                    Bạn có thể <strong>Chuyển sang Lưu Trữ</strong> để lớp không còn xuất hiện trong danh sách lớp đang mở nhưng toàn bộ học sinh và bài tập vẫn được bảo toàn nguyên vẹn.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetClass(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmDeleteClass(true)}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition-colors cursor-pointer flex items-center gap-2"
+                  >
+                    <Archive className="w-4 h-4" />
+                    <span>Chuyển Sang Lưu Trữ</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Class is empty -> Can hard delete after 2-step confirmation */
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-sky-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-sky-800">
+                    <Info className="w-4 h-4 shrink-0" />
+                    <span>Lớp học trống</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    Lớp chưa có học sinh và chưa có bài tập nào. Bạn có thể xóa vĩnh viễn lớp này.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetClass(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  {classDeleteConfirmStep === 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setClassDeleteConfirmStep(2)}
+                      className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-colors cursor-pointer flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Xóa Vĩnh Viễn Lớp</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmDeleteClass(false)}
+                      className="px-4 py-2.5 rounded-xl bg-red-700 hover:bg-red-800 text-white text-xs font-black transition-colors cursor-pointer flex items-center gap-2 animate-pulse"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Xác Nhận Xóa Ngay!</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

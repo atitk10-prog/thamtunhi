@@ -477,40 +477,31 @@ export const dataService = {
     return await res.json();
   },
 
-  async adminDeleteUser(userId: string): Promise<void> {
-    if (auth.currentUser) {
-      try {
-        await deleteDoc(doc(db, 'users', userId));
-        return;
-      } catch (err: any) {
-        if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
-          throw err;
-        }
-      }
-    }
-
-    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
-      method: 'DELETE',
+  async adminGetUserLinkedData(userId: string): Promise<any> {
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/linked-data`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Lỗi xóa người dùng.');
+      throw new Error(err.error || 'Lỗi kiểm tra dữ liệu liên kết của tài khoản.');
     }
+    return await res.json();
+  },
+
+  async adminDeleteUser(userId: string, archiveOnly = false): Promise<any> {
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ archive: archiveOnly }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi xóa tài khoản người dùng.');
+    }
+    return await res.json();
   },
 
   async adminUpdateUser(userId: string, updates: Partial<UserProfile>): Promise<void> {
-    if (auth.currentUser) {
-      try {
-        await updateDoc(doc(db, 'users', userId), updates);
-        return;
-      } catch (err: any) {
-        if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
-          throw err;
-        }
-      }
-    }
-
     const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
@@ -535,7 +526,52 @@ export const dataService = {
     return await res.json();
   },
 
-  async adminAssignTeacherToClass(classId: string, teacherId: string): Promise<any> {
+  async adminCreateClass(classData: {
+    name: string;
+    grade?: number;
+    academicYearId?: string;
+    teacherId?: string | null;
+    status?: string;
+  }): Promise<any> {
+    const res = await fetch('/api/admin/classes', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(classData),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi tạo lớp học mới.');
+    }
+    return await res.json();
+  },
+
+  async adminUpdateClass(classId: string, updates: any): Promise<any> {
+    const res = await fetch(`/api/admin/classes/${encodeURIComponent(classId)}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi cập nhật lớp học.');
+    }
+    return await res.json();
+  },
+
+  async adminDeleteClass(classId: string, archiveOnly = false): Promise<any> {
+    const res = await fetch(`/api/admin/classes/${encodeURIComponent(classId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ archive: archiveOnly }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi xóa lớp học.');
+    }
+    return await res.json();
+  },
+
+  async adminAssignTeacherToClass(classId: string, teacherId: string | null): Promise<any> {
     const res = await fetch(`/api/admin/classes/${encodeURIComponent(classId)}/teacher`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
@@ -546,6 +582,10 @@ export const dataService = {
       throw new Error(err.error || 'Lỗi phân công giáo viên.');
     }
     return res.json();
+  },
+
+  async adminUnassignTeacherFromClass(classId: string): Promise<any> {
+    return this.adminAssignTeacherToClass(classId, null);
   },
 
   async adminCreateAcademicYear(name: string, isCurrent = false): Promise<any> {

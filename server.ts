@@ -1235,36 +1235,320 @@ app.patch('/api/teacher/students/:studentId', requireAuth, requireRole(['teacher
   }
 });
 
-// Admin assign/change teacher for class
+// ========================================================
+// ADMIN CLASS MANAGEMENT & TEACHER ASSIGNMENT (A3)
+// ========================================================
+
+// 1. Create new class
+app.post('/api/admin/classes', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name, grade, academicYearId, teacherId, status } = req.body;
+    if (!name || String(name).trim().length === 0) {
+      return res.status(400).json({ error: 'Vui lòng cung cấp tên lớp học (ví dụ: 1A, 2B).' });
+    }
+    const cleanName = String(name).trim();
+    const finalYearId = academicYearId || 'year-2026-2027';
+
+    // Verify academic year exists
+    const yrDoc = await getDoc(doc(db, 'academicYears', finalYearId));
+    if (!yrDoc.exists()) {
+      return res.status(400).json({ error: `Năm học "${finalYearId}" không tồn tại trong hệ thống.` });
+    }
+
+    // Check duplicate class name in same academic year
+    const classesSnap = await getDocs(collection(db, 'classes'));
+    const conflict = classesSnap.docs.find((d) => {
+      const data = d.data();
+      return !data.isDeleted && data.academicYearId === finalYearId && String(data.name || '').trim().toLowerCase() === cleanName.toLowerCase();
+    });
+    if (conflict) {
+      return res.status(400).json({ error: `Lớp ${cleanName} đã tồn tại trong niên khóa này.` });
+    }
+
+    // Auto calculate grade if not provided
+    let finalGrade = Number(grade);
+    if (!finalGrade || isNaN(finalGrade)) {
+      const match = cleanName.match(/^\d+/);
+      finalGrade = match ? parseInt(match[0], 10) : 1;
+    }
+
+    // Class ID slug
+    const cleanSlug = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    let classId = `class-${cleanSlug}`;
+    const idExists = classesSnap.docs.some((d) => d.id === classId);
+    if (idExists) {
+      classId = `class-${cleanSlug}-${Date.now().toString().slice(-4)}`;
+    }
+
+    let teacherName: string | null = null;
+    let finalTeacherId: string | null = null;
+    if (teacherId) {
+      const tDoc = await getDoc(doc(db, 'users', teacherId));
+      if (tDoc.exists() && tDoc.data().role === 'teacher') {
+        finalTeacherId = teacherId;
+        teacherName = tDoc.data().displayName || tDoc.data().name || '';
+      }
+    }
+
+    const newClassDoc: any = {
+      id: classId,
+      name: cleanName,
+      grade: finalGrade,
+      academicYearId: finalYearId,
+      teacherId: finalTeacherId,
+      teacherName: teacherName,
+      studentCount: 0,
+      status: status || 'active',
+      isDeleted: false,
+      dataOrigin: 'real',
+      environmentTag: 'production',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'classes', classId), newClassDoc);
+
+    await writeAuditLog({
+      action: 'CREATE_CLASS',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'classes',
+      targetId: classId,
+      targetName: cleanName,
+      details: `Tạo lớp học mới: Lớp ${cleanName} (Khối ${finalGrade}), Niên khóa: ${finalYearId}${teacherName ? `, GV: ${teacherName}` : ''}`,
+    });
+
+    return res.json({ ok: true, class: newClassDoc });
+  } catch (err: any) {
+    console.error('Create class error:', err);
+    return res.status(500).json({ error: 'Lỗi tạo lớp học: ' + err.message });
+  }
+});
+
+// 2. Update existing class
+app.patch('/api/admin/classes/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, grade, academicYearId, teacherId, status } = req.body;
+    const clsDoc = await getDoc(doc(db, 'classes', id));
+    if (!clsDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy lớp học.' });
+    }
+    const currentData: any = clsDoc.data();
+    const updates: any = { updatedAt: new Date().toISOString() };
+
+    if (name !== undefined) {
+      const cleanName = String(name).trim();
+      if (!cleanName) return res.status(400).json({ error: 'Tên lớp không được để trống.' });
+
+      const targetYearId = academicYearId || currentData.academicYearId || 'year-2026-2027';
+      const classesSnap = await getDocs(collection(db, 'classes'));
+      const conflict = classesSnap.docs.find(
+        (d) => d.id !== id && !d.data().isDeleted && d.data().academicYearId === targetYearId && String(d.data().name || '').trim().toLowerCase() === cleanName.toLowerCase()
+      );
+      if (conflict) {
+        return res.status(400).json({ error: `Lớp ${cleanName} đã tồn tại trong niên khóa này.` });
+      }
+      updates.name = cleanName;
+    }
+
+    if (grade !== undefined) {
+      updates.grade = Number(grade);
+    }
+
+    if (academicYearId !== undefined && academicYearId !== currentData.academicYearId) {
+      const yrDoc = await getDoc(doc(db, 'academicYears', academicYearId));
+      if (!yrDoc.exists()) {
+        return res.status(400).json({ error: `Năm học "${academicYearId}" không tồn tại.` });
+      }
+      updates.academicYearId = academicYearId;
+    }
+
+    if (status !== undefined) {
+      updates.status = status;
+    }
+
+    if (teacherId !== undefined) {
+      if (!teacherId || teacherId === '' || teacherId === null) {
+        updates.teacherId = null;
+        updates.teacherName = null;
+      } else {
+        const tDoc = await getDoc(doc(db, 'users', teacherId));
+        if (!tDoc.exists() || tDoc.data().role !== 'teacher') {
+          return res.status(400).json({ error: 'Giáo viên không hợp lệ hoặc không có vai trò giáo viên.' });
+        }
+        updates.teacherId = teacherId;
+        updates.teacherName = tDoc.data().displayName || tDoc.data().name || '';
+      }
+    }
+
+    await updateDoc(doc(db, 'classes', id), updates);
+
+    await writeAuditLog({
+      action: 'UPDATE_CLASS',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'classes',
+      targetId: id,
+      targetName: updates.name || currentData.name,
+      details: `Cập nhật thông tin lớp: ${Object.keys(updates).join(', ')}`,
+    });
+
+    return res.json({ ok: true, id, class: { ...currentData, ...updates } });
+  } catch (err: any) {
+    console.error('Update class error:', err);
+    return res.status(500).json({ error: 'Lỗi cập nhật lớp học: ' + err.message });
+  }
+});
+
+// 3. Delete / Archive class
+app.delete('/api/admin/classes/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const forceArchive = req.body?.archive === true || req.query?.archive === 'true';
+    const clsDoc = await getDoc(doc(db, 'classes', id));
+    if (!clsDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy lớp học.' });
+    }
+    const clsData: any = clsDoc.data();
+
+    // Check linked students, assignments, attempts
+    const usersSnap = await getDocs(collection(db, 'users'));
+    const linkedStudents = usersSnap.docs.filter((d) => d.data().role === 'student' && !d.data().isDeleted && d.data().classId === id);
+
+    const assignmentsSnap = await getDocs(collection(db, 'assignments'));
+    const linkedAssignments = assignmentsSnap.docs.filter((d) => d.data().classId === id);
+
+    const attemptsSnap = await getDocs(collection(db, 'attempts'));
+    const linkedAttempts = attemptsSnap.docs.filter((d) => d.data().classId === id);
+
+    const linkedCount = linkedStudents.length + linkedAssignments.length + linkedAttempts.length;
+
+    if (linkedCount > 0 || forceArchive) {
+      if (!forceArchive && req.body?.hardDelete) {
+        return res.status(400).json({
+          error: `Lớp ${clsData.name} đang có ${linkedStudents.length} học sinh và ${linkedAssignments.length} bài giao liên kết. Không thể xóa vĩnh viễn, chỉ có thể lưu trữ.`,
+          code: 'CLASS_HAS_LINKED_DATA',
+          studentsCount: linkedStudents.length,
+          assignmentsCount: linkedAssignments.length,
+          attemptsCount: linkedAttempts.length,
+        });
+      }
+
+      // Safe archive
+      await updateDoc(doc(db, 'classes', id), {
+        status: 'archived',
+        isDeleted: true,
+        archivedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      await writeAuditLog({
+        action: 'ARCHIVE_CLASS',
+        actorId: req.user?.uid,
+        actorName: req.user?.displayName,
+        actorRole: req.user?.role,
+        targetCollection: 'classes',
+        targetId: id,
+        targetName: clsData.name,
+        details: `Lưu trữ an toàn lớp ${clsData.name}. Giữ nguyên liên kết cho ${linkedStudents.length} học sinh và ${linkedAssignments.length} bài giao.`,
+      });
+
+      return res.json({
+        ok: true,
+        action: 'archived',
+        id,
+        linkedCount,
+        message: `Lớp ${clsData.name} đã được chuyển sang trạng thái lưu trữ an toàn. Toàn bộ học sinh và bài tập được bảo toàn.`,
+      });
+    }
+
+    // Empty class: Permanent Delete
+    await deleteDoc(doc(db, 'classes', id));
+    await writeAuditLog({
+      action: 'DELETE_CLASS_PERMANENT',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'classes',
+      targetId: id,
+      targetName: clsData.name,
+      details: `Xóa vĩnh viễn lớp trống ${clsData.name}.`,
+    });
+
+    return res.json({
+      ok: true,
+      action: 'deleted',
+      id,
+      message: `Đã xóa vĩnh viễn lớp ${clsData.name}.`,
+    });
+  } catch (err: any) {
+    console.error('Delete class error:', err);
+    return res.status(500).json({ error: 'Lỗi xóa lớp học: ' + err.message });
+  }
+});
+
+// 4. Admin assign/change/unassign teacher for class
 app.patch('/api/admin/classes/:classId/teacher', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const classId = req.params.classId;
     const { teacherId } = req.body;
-    if (!teacherId) {
-      return res.status(400).json({ error: 'Thiếu thông tin giáo viên phụ trách.' });
+    const clsDoc = await getDoc(doc(db, 'classes', classId));
+    if (!clsDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy lớp học.' });
     }
+    const clsData: any = clsDoc.data();
+
+    // Case 1: Unassign teacher
+    if (!teacherId || teacherId === '' || teacherId === null) {
+      await updateDoc(doc(db, 'classes', classId), {
+        teacherId: null,
+        teacherName: null,
+        updatedAt: new Date().toISOString(),
+      });
+
+      await writeAuditLog({
+        action: 'UNASSIGN_TEACHER_FROM_CLASS',
+        actorId: req.user?.uid,
+        actorName: req.user?.displayName,
+        actorRole: req.user?.role,
+        targetCollection: 'classes',
+        targetId: classId,
+        targetName: clsData.name,
+        details: `Hủy phân công giáo viên phụ trách của lớp ${clsData.name} (Trước đó: ${clsData.teacherName || clsData.teacherId || 'Chưa có'}).`,
+      });
+
+      return res.json({ ok: true, classId, teacherId: null, teacherName: null });
+    }
+
+    // Case 2: Assign teacher
     const tDoc = await getDoc(doc(db, 'users', teacherId));
     if (!tDoc.exists() || tDoc.data()?.role !== 'teacher') {
       return res.status(400).json({ error: 'Giáo viên không tồn tại hoặc không đúng vai trò giáo viên.' });
     }
     const tData: any = tDoc.data();
+    const newTeacherName = tData.displayName || tData.name || '';
+
     await updateDoc(doc(db, 'classes', classId), {
       teacherId,
-      teacherName: tData.displayName || tData.name || '',
+      teacherName: newTeacherName,
       updatedAt: new Date().toISOString(),
     });
 
-    // Audit log
-    await setDoc(doc(db, 'auditLogs', `audit-${Date.now()}`), {
-      id: `audit-${Date.now()}`,
+    await writeAuditLog({
       action: 'ASSIGN_TEACHER_TO_CLASS',
-      performedBy: req.user?.uid,
-      classId,
-      teacherId,
-      timestamp: new Date().toISOString(),
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'classes',
+      targetId: classId,
+      targetName: clsData.name,
+      details: `Phân công giáo viên ${newTeacherName} phụ trách lớp ${clsData.name}.`,
     });
 
-    return res.json({ ok: true, classId, teacherId, teacherName: tData.displayName || tData.name });
+    return res.json({ ok: true, classId, teacherId, teacherName: newTeacherName });
   } catch (err: any) {
     console.error('Assign teacher error:', err);
     return res.status(500).json({ error: 'Lỗi phân công giáo viên: ' + err.message });
@@ -1472,35 +1756,213 @@ app.post(['/api/admin/create-user', '/api/admin/users'], requireAuth, requireRol
   }
 });
 
+// ========================================================
+// ADMIN USER DELETION, ARCHIVING & LINKED DATA (A2)
+// ========================================================
+
+// Inspect linked data counts for teacher/student before deletion
+app.get('/api/admin/users/:id/linked-data', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const uDoc = await getDoc(doc(db, 'users', id));
+    if (!uDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản người dùng.' });
+    }
+    const uData: any = uDoc.data();
+    let assignedClasses: { id: string; name: string }[] = [];
+    let lessonsCreated = 0;
+    let assignmentsCount = 0;
+    let attemptsCount = 0;
+
+    if (uData.role === 'teacher') {
+      const classesSnap = await getDocs(collection(db, 'classes'));
+      assignedClasses = classesSnap.docs
+        .filter((d) => d.data().teacherId === id && !d.data().isDeleted)
+        .map((d) => ({ id: d.id, name: d.data().name }));
+
+      const lessonsSnap = await getDocs(collection(db, 'lessons'));
+      lessonsCreated = lessonsSnap.docs.filter((d) => d.data().createdBy === id).length;
+
+      const assignmentsSnap = await getDocs(collection(db, 'assignments'));
+      assignmentsCount = assignmentsSnap.docs.filter((d) => d.data().teacherId === id).length;
+    } else if (uData.role === 'student') {
+      const attemptsSnap = await getDocs(collection(db, 'attempts'));
+      attemptsCount = attemptsSnap.docs.filter((d) => d.data().studentId === id).length;
+    }
+
+    const totalLinked = assignedClasses.length + lessonsCreated + assignmentsCount + attemptsCount;
+    return res.json({
+      ok: true,
+      userId: id,
+      role: uData.role,
+      assignedClasses,
+      lessonsCreated,
+      assignmentsCount,
+      attemptsCount,
+      totalLinked,
+      canHardDelete: totalLinked === 0,
+    });
+  } catch (err: any) {
+    console.error('Get user linked data error:', err);
+    return res.status(500).json({ error: 'Lỗi kiểm tra dữ liệu liên kết: ' + err.message });
+  }
+});
+
+// Delete or archive user based on business rules
 app.delete('/api/admin/users/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const forceArchive = req.body?.archive === true || req.query?.archive === 'true';
+
     if (!id) {
       return res.status(400).json({ error: 'Thiếu mã người dùng cần xóa.' });
     }
     if (id === 'admin-root' || id === req.user?.uid) {
       return res.status(400).json({ error: 'Không thể xóa tài khoản Quản trị viên đang đăng nhập.' });
     }
+
+    const targetDoc = await getDoc(doc(db, 'users', id));
+    if (!targetDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản người dùng.' });
+    }
+    const targetData: any = targetDoc.data();
+
+    // Protection: Admin cannot delete the last active admin
+    if (targetData.role === 'admin') {
+      const allUsersSnap = await getDocs(collection(db, 'users'));
+      const activeAdmins = allUsersSnap.docs.filter((d) => {
+        const u: any = d.data();
+        return u.role === 'admin' && u.status !== 'locked' && u.status !== 'inactive' && !u.isDeleted;
+      });
+      if (activeAdmins.length <= 1) {
+        return res.status(400).json({ error: 'Không thể xóa tài khoản Quản trị viên cuối cùng của hệ thống.' });
+      }
+    }
+
+    // Check linked data
+    let assignedClasses: { id: string; name: string }[] = [];
+    let lessonsCreated = 0;
+    let assignmentsCount = 0;
+    let attemptsCount = 0;
+
+    if (targetData.role === 'teacher') {
+      const classesSnap = await getDocs(collection(db, 'classes'));
+      assignedClasses = classesSnap.docs
+        .filter((d) => d.data().teacherId === id && !d.data().isDeleted)
+        .map((d) => ({ id: d.id, name: d.data().name }));
+
+      // Teacher assigned to active classes cannot be deleted or archived without reassigning
+      if (assignedClasses.length > 0) {
+        const classNames = assignedClasses.map((c) => c.name).join(', ');
+        return res.status(400).json({
+          error: `Giáo viên đang phụ trách ${assignedClasses.length} lớp học (Lớp ${classNames}). Vui lòng hủy phân công hoặc chuyển giao lớp trước khi xóa/lưu trữ.`,
+          code: 'TEACHER_HAS_ACTIVE_CLASSES',
+          assignedClasses,
+        });
+      }
+
+      const lessonsSnap = await getDocs(collection(db, 'lessons'));
+      lessonsCreated = lessonsSnap.docs.filter((d) => d.data().createdBy === id).length;
+
+      const assignmentsSnap = await getDocs(collection(db, 'assignments'));
+      assignmentsCount = assignmentsSnap.docs.filter((d) => d.data().teacherId === id).length;
+    } else if (targetData.role === 'student') {
+      const attemptsSnap = await getDocs(collection(db, 'attempts'));
+      attemptsCount = attemptsSnap.docs.filter((d) => d.data().studentId === id).length;
+    }
+
+    const linkedCount = assignedClasses.length + lessonsCreated + assignmentsCount + attemptsCount;
+
+    // Business policy: Archive if user has linked history or archive explicitly requested
+    if (linkedCount > 0 || forceArchive) {
+      await updateDoc(doc(db, 'users', id), {
+        status: 'locked',
+        isDeleted: true,
+        deletedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Revoke any active session
+      const nextVer = (targetData.tokenVersion || 0) + 1;
+      userTokenVersions.set(id, nextVer);
+
+      await writeAuditLog({
+        action: 'ARCHIVE_USER',
+        actorId: req.user?.uid,
+        actorName: req.user?.displayName,
+        actorRole: req.user?.role,
+        targetCollection: 'users',
+        targetId: id,
+        targetName: targetData.displayName || targetData.studentCode,
+        details: `Lưu trữ an toàn tài khoản ${targetData.displayName || targetData.studentCode} (${targetData.role}). Giữ nguyên ${linkedCount} bản ghi lịch sử.`,
+      });
+
+      return res.json({
+        ok: true,
+        action: 'archived',
+        deletedId: id,
+        id,
+        linkedCount,
+        message: `Đã chuyển tài khoản ${targetData.displayName || targetData.studentCode} sang trạng thái lưu trữ an toàn. Lịch sử bài tập và kết quả được bảo toàn.`,
+      });
+    }
+
+    // Unlinked user: Permanent hard delete (with fallback if Cloud rules enforce retention)
     try {
       await deleteDoc(doc(db, 'users', id));
+      await writeAuditLog({
+        action: 'DELETE_USER_PERMANENT',
+        actorId: req.user?.uid,
+        actorName: req.user?.displayName,
+        actorRole: req.user?.role,
+        targetCollection: 'users',
+        targetId: id,
+        targetName: targetData.displayName || targetData.studentCode,
+        details: `Xóa vĩnh viễn tài khoản chưa có dữ liệu ${targetData.displayName || targetData.studentCode} (${targetData.role}).`,
+      });
+
+      return res.json({
+        ok: true,
+        action: 'deleted',
+        deletedId: id,
+        id,
+        message: `Đã xóa vĩnh viễn tài khoản ${targetData.displayName || targetData.studentCode}.`,
+      });
     } catch (delErr: any) {
       if (delErr?.code?.includes('permission-denied') || delErr?.message?.includes('PERMISSION_DENIED')) {
         await updateDoc(doc(db, 'users', id), {
-          status: 'inactive',
+          status: 'locked',
           isDeleted: true,
           deletedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         });
-      } else {
-        throw delErr;
+        await writeAuditLog({
+          action: 'DELETE_USER_POLICY',
+          actorId: req.user?.uid,
+          actorName: req.user?.displayName,
+          actorRole: req.user?.role,
+          targetCollection: 'users',
+          targetId: id,
+          targetName: targetData.displayName || targetData.studentCode,
+          details: `Xóa an toàn tài khoản chưa có dữ liệu theo chính sách bảo lưu Cloud ${targetData.displayName || targetData.studentCode} (${targetData.role}).`,
+        });
+        return res.json({
+          ok: true,
+          action: 'deleted',
+          deletedId: id,
+          id,
+          message: `Đã xóa an toàn tài khoản ${targetData.displayName || targetData.studentCode}.`,
+        });
       }
+      throw delErr;
     }
-    return res.json({ ok: true, deletedId: id });
   } catch (err: any) {
     console.error('Admin delete user error:', err);
     return res.status(500).json({ error: 'Lỗi xóa người dùng: ' + err.message });
   }
 });
 
+// Update user details with class sync
 app.patch('/api/admin/users/:id', requireAuth, requireRole(['admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -1532,6 +1994,18 @@ app.patch('/api/admin/users/:id', requireAuth, requireRole(['admin']), async (re
     }
 
     const { password: _, accessSecret: __, ...safeUpdates } = updates;
+
+    // If updating classId, sync className and grade
+    if (safeUpdates.classId) {
+      const clsDoc = await getDoc(doc(db, 'classes', safeUpdates.classId));
+      if (clsDoc.exists()) {
+        safeUpdates.className = clsDoc.data().name;
+        if (clsDoc.data().grade) {
+          safeUpdates.grade = clsDoc.data().grade;
+        }
+      }
+    }
+
     await updateDoc(doc(db, 'users', id), {
       ...safeUpdates,
       updatedAt: new Date().toISOString(),

@@ -78,19 +78,83 @@ async function runAdminPortalAudit() {
       await desktopPage.waitForTimeout(500);
     }
 
-    // Test Tab 2: Người dùng & Phân quyền
+    // Test Tab 2: Người dùng & Phân quyền (A2 CRUD Operations)
     await desktopPage.click('aside button:has-text("Người dùng & Phân quyền")');
     await desktopPage.waitForSelector('text=Quản Lý Người Dùng & Phân Quyền', { timeout: 5000 });
     const ssDesktopUsers = path.join(screenshotsDir, 'admin-02-desktop-users.png');
     await desktopPage.screenshot({ path: ssDesktopUsers, fullPage: false });
     console.log(`✓ Tab Người dùng hiển thị đầy đủ: ${ssDesktopUsers}`);
 
-    // Test Tab 3: Lớp học & Phân công
+    // Verify A2: Action buttons exist on user rows (Xem, Sửa, Đổi mk, Khóa/Mở, Xóa/Lưu trữ)
+    const userActionBtns = desktopPage.locator('button[title*="Xóa hoặc lưu trữ"]');
+    const userActionCount = await userActionBtns.count();
+    if (userActionCount === 0) {
+      throw new Error('Không tìm thấy nút Xóa hoặc lưu trữ tài khoản trong cột Thao tác');
+    }
+    console.log(`✓ Tìm thấy ${userActionCount} nút Xóa / Lưu trữ người dùng trong bảng`);
+
+    // Open Edit User Modal on first editable teacher/student
+    const editUserBtn = desktopPage.locator('button[title="Sửa thông tin"]').first();
+    await editUserBtn.click();
+    await desktopPage.waitForSelector('text=Sửa Thông Tin Tài Khoản', { timeout: 4000 });
+    const ssEditUserModal = path.join(screenshotsDir, 'admin-a2-edit-user-modal.png');
+    await desktopPage.screenshot({ path: ssEditUserModal, fullPage: false });
+    console.log(`✓ Modal Chỉnh sửa người dùng hoạt động: ${ssEditUserModal}`);
+    await desktopPage.click('button:has-text("Hủy")');
+    await desktopPage.waitForTimeout(300);
+
+    // Open Delete/Archive User Modal on a teacher/student
+    await userActionBtns.first().click();
+    await desktopPage.waitForSelector('text=Xóa / Lưu Trữ Tài Khoản', { timeout: 5000 });
+    await desktopPage.waitForTimeout(800); // wait for linked-data fetch
+    const ssDeleteUserModal = path.join(screenshotsDir, 'admin-a2-delete-user-modal.png');
+    await desktopPage.screenshot({ path: ssDeleteUserModal, fullPage: false });
+    console.log(`✓ Modal Xóa / Lưu trữ người dùng hiển thị đầy đủ số liệu liên kết: ${ssDeleteUserModal}`);
+    await desktopPage.click('button:has-text("Hủy")');
+    await desktopPage.waitForTimeout(300);
+
+    // Test Tab 3: Lớp học & Phân công (A3 CRUD & Assignment Operations)
     await desktopPage.click('aside button:has-text("Lớp học & Phân công")');
     await desktopPage.waitForSelector('text=Quản Lý Lớp Học & Phân Công Giáo Viên', { timeout: 5000 });
     const ssDesktopClasses = path.join(screenshotsDir, 'admin-03-desktop-classes.png');
     await desktopPage.screenshot({ path: ssDesktopClasses, fullPage: false });
     console.log(`✓ Tab Lớp học hiển thị 4 lớp chuẩn: ${ssDesktopClasses}`);
+
+    // Verify A3: Button "+ Thêm Lớp Học" exists
+    const addClassBtn = desktopPage.locator('button:has-text("+ Thêm Lớp Học")');
+    if (!(await addClassBtn.isVisible())) {
+      throw new Error('Thiếu nút "+ Thêm Lớp Học" trong tab Lớp học & Phân công');
+    }
+    console.log('✓ Nút "+ Thêm Lớp Học" sẵn sàng');
+
+    // Click "+ Thêm Lớp Học" and verify Create Class modal
+    await addClassBtn.click();
+    await desktopPage.waitForSelector('text=Thêm Lớp Học Mới', { timeout: 3000 });
+    const ssCreateClassModal = path.join(screenshotsDir, 'admin-a3-create-class-modal.png');
+    await desktopPage.screenshot({ path: ssCreateClassModal, fullPage: false });
+    console.log(`✓ Modal Tạo lớp học hiển thị chuẩn: ${ssCreateClassModal}`);
+    await desktopPage.click('button:has-text("Hủy")');
+    await desktopPage.waitForTimeout(300);
+
+    // Verify A3: Edit Class modal on Class 1A
+    const editClassBtn = desktopPage.locator('button[title="Sửa thông tin lớp"]').first();
+    await editClassBtn.click();
+    await desktopPage.waitForSelector('text=Sửa Lớp 1A', { timeout: 3000 });
+    const ssEditClassModal = path.join(screenshotsDir, 'admin-a3-edit-class-modal.png');
+    await desktopPage.screenshot({ path: ssEditClassModal, fullPage: false });
+    console.log(`✓ Modal Chỉnh sửa lớp học hiển thị: ${ssEditClassModal}`);
+    await desktopPage.click('button:has-text("Hủy")');
+    await desktopPage.waitForTimeout(300);
+
+    // Verify A3: Delete / Archive Class modal on Class 1A (has students -> cannot hard delete)
+    const deleteClassBtn = desktopPage.locator('button[title="Xóa hoặc lưu trữ lớp"]').first();
+    await deleteClassBtn.click();
+    await desktopPage.waitForSelector('text=Xóa / Lưu Trữ Lớp Học', { timeout: 3000 });
+    const ssDeleteClassModal = path.join(screenshotsDir, 'admin-a3-delete-class-modal.png');
+    await desktopPage.screenshot({ path: ssDeleteClassModal, fullPage: false });
+    console.log(`✓ Modal Xóa / Lưu trữ lớp học hiển thị cảnh báo ràng buộc: ${ssDeleteClassModal}`);
+    await desktopPage.click('button:has-text("Hủy")');
+    await desktopPage.waitForTimeout(300);
 
     // Test Tab 4: Năm học
     await desktopPage.click('aside button:has-text("Năm học")');

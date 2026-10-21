@@ -47,6 +47,8 @@ export interface Classroom {
   teacherId?: string;
   teacherName?: string;
   studentCount: number;
+  status?: 'active' | 'archived';
+  isDeleted?: boolean;
   createdAt: string;
   dataOrigin: DataOrigin;
   environmentTag: EnvironmentTag;
