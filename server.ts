@@ -499,10 +499,10 @@ async function generateGeminiContent(promptText: string): Promise<string> {
     process.env.GEMINI_MODEL,
     'gemini-2.0-flash',
     'gemini-1.5-flash',
-    'gemini-2.5-flash',
+    'gemini-1.5-pro',
   ].filter(Boolean) as string[];
 
-  let lastErr: any = null;
+  const modelErrors: string[] = [];
   for (const model of candidateModels) {
     try {
       const response = await genAI.models.generateContent({
@@ -516,11 +516,12 @@ async function generateGeminiContent(promptText: string): Promise<string> {
         return response.text;
       }
     } catch (err: any) {
-      lastErr = err;
-      console.warn(`Gemini model ${model} attempt failed:`, err?.message || err);
+      const msg = err?.message || String(err);
+      console.warn(`Gemini model ${model} attempt failed:`, msg);
+      modelErrors.push(`[${model}] ${msg}`);
     }
   }
-  throw lastErr || new Error('Không thể kết nối đến các mô hình AI.');
+  throw new Error(`Tất cả mô hình AI đều thất bại: ${modelErrors.join(' | ')}`);
 }
 
 // 5. Teacher AI Draft Generation (Protected: teacher or admin role required)
