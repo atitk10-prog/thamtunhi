@@ -2,7 +2,7 @@
 
 **Dự án:** THÁM TỬ TOÁN NHÍ (Lớp 1–2 Chương trình GDPT 2018)  
 **Repository:** `atitk10-prog/thamtunhi` | **Nhánh:** `main`  
-**Commit mới nhất:** `c5cf6f6` (đã đồng bộ với GitHub `origin/main`)  
+**Commit mới nhất:** `e3cc90f` (đã đồng bộ với GitHub `origin/main`)  
 **Production URL:** [https://thamtunhi.vercel.app](https://thamtunhi.vercel.app/)  
 **Thời điểm nghiệm thu:** 21/10/2026  
 **Trạng thái nghiệm thu G2:** **PASS 100% (HOÀN TẤT VÀ ĐẠT TOÀN DIỆN MỤC TIÊU G2)**  
