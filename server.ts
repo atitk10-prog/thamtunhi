@@ -511,13 +511,13 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
 async function generateGeminiContent(promptText: string): Promise<string> {
   if (!genAI) throw new Error('Mô hình AI chưa được cấu hình.');
   
-  // Prioritize gemini-3.8-flash per official Google recommendation
+  // Prioritize verified models from Google AI Studio list
   const candidateModels: string[] = [
     process.env.GEMINI_MODEL,
-    'gemini-3.8-flash',
-    'gemini-flash-latest',
     'gemini-2.5-flash-lite',
-    'gemini-pro-latest',
+    'gemini-flash-lite-latest',
+    'gemini-2.5-flash',
+    'gemini-flash-latest',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
   ].filter(Boolean) as string[];
@@ -525,13 +525,20 @@ async function generateGeminiContent(promptText: string): Promise<string> {
   const modelErrors: string[] = [];
   for (const model of candidateModels) {
     try {
-      const response = await genAI.models.generateContent({
+      // 20s timeout per model attempt to prevent Vercel gateway 504
+      const callPromise = genAI.models.generateContent({
         model,
         contents: promptText,
         config: {
           responseMimeType: 'application/json',
         },
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout 20s exceeded for ${model}`)), 20000)
+      );
+
+      const response = await Promise.race([callPromise, timeoutPromise]);
       if (response && response.text) {
         return response.text;
       }
@@ -543,8 +550,6 @@ async function generateGeminiContent(promptText: string): Promise<string> {
         .replace(/key=[^&\s]+/g, 'key=***');
       console.warn(`Gemini model ${model} attempt failed:`, safeMsg);
       modelErrors.push(`[${model}] ${safeMsg}`);
-      // Brief pause to allow transient spikes to clear
-      await new Promise(r => setTimeout(r, 400));
     }
   }
 
