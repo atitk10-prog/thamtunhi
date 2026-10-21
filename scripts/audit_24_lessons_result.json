@@ -1,0 +1,615 @@
+{
+  "totalLessons": 24,
+  "totalQuestions": 192,
+  "totalVisuals": 27,
+  "rows": [
+    {
+      "lessonId": "lesson-g1-01",
+      "order": 1,
+      "title": "Các số từ 1 đến 5: Đếm và Nhận biết",
+      "grade": 1,
+      "currentVersion": 2,
+      "currentVersionId": "version-lesson-g1-01-v2",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle",
+        "number_line_order"
+      ],
+      "visualTypes": [
+        "counters",
+        "comparison",
+        "ten_frame",
+        "word_story"
+      ],
+      "sampleAnswers": [
+        "4",
+        "3",
+        ">",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-02",
+      "order": 2,
+      "title": "Các số từ 6 đến 10 và Tách - Gộp số",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-02-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle",
+        "number_line_order"
+      ],
+      "visualTypes": [
+        "counters",
+        "ten_frame",
+        "number_line",
+        "word_story"
+      ],
+      "sampleAnswers": [
+        "7",
+        "7",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-03",
+      "order": 3,
+      "title": "Phép cộng trong phạm vi 10",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-03-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle"
+      ],
+      "visualTypes": [
+        "word_story",
+        "ten_frame",
+        "number_line"
+      ],
+      "sampleAnswers": [
+        "7",
+        "5 + 3 = 8",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-04",
+      "order": 4,
+      "title": "Phép trừ trong phạm vi 10",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-04-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle"
+      ],
+      "visualTypes": [
+        "ten_frame",
+        "number_line"
+      ],
+      "sampleAnswers": [
+        "5",
+        "5",
+        "=",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-05",
+      "order": 5,
+      "title": "Hình vuông, Hình tròn, Hình tam giác, Hình chữ nhật",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-05-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "expression_match",
+        "number_input"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "Hình tam giác",
+        "Đúng",
+        "Hình vuông",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-06",
+      "order": 6,
+      "title": "Các số trong phạm vi 20 và Số Mười (1 chục)",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-06-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle",
+        "number_line_order"
+      ],
+      "visualTypes": [
+        "bundles"
+      ],
+      "sampleAnswers": [
+        "1 chục",
+        "14",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-07",
+      "order": 7,
+      "title": "Phép cộng không nhớ trong phạm vi 20",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-07-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle"
+      ],
+      "visualTypes": [
+        "bundles",
+        "number_line"
+      ],
+      "sampleAnswers": [
+        "15",
+        "19",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-08",
+      "order": 8,
+      "title": "Phép trừ không nhớ trong phạm vi 20",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-08-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle"
+      ],
+      "visualTypes": [
+        "bundles",
+        "number_line"
+      ],
+      "sampleAnswers": [
+        "13",
+        "10",
+        "=",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-09",
+      "order": 9,
+      "title": "Đo độ dài và Xăng-ti-mét (cm)",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-09-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "cm",
+        "8",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-10",
+      "order": 10,
+      "title": "Các số tròn chục từ 10 đến 90",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-10-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle",
+        "number_line_order"
+      ],
+      "visualTypes": [
+        "bundles"
+      ],
+      "sampleAnswers": [
+        "50",
+        "50",
+        "=",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-11",
+      "order": 11,
+      "title": "Các số có hai chữ số đến 100",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-11-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle",
+        "number_line_order"
+      ],
+      "visualTypes": [
+        "bundles"
+      ],
+      "sampleAnswers": [
+        "47",
+        "8",
+        ">",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g1-12",
+      "order": 12,
+      "title": "Đồng hồ và Xem giờ đúng",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-12-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "Số 12",
+        "7",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-01",
+      "order": 13,
+      "title": "Phép cộng có nhớ trong phạm vi 20 (Qua 10)",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-01-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle"
+      ],
+      "visualTypes": [
+        "ten_frame",
+        "number_line"
+      ],
+      "sampleAnswers": [
+        "14",
+        "14",
+        "=",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-02",
+      "order": 14,
+      "title": "Phép trừ có nhớ trong phạm vi 20 (Trừ qua 10)",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-02-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle"
+      ],
+      "visualTypes": [
+        "ten_frame",
+        "number_line"
+      ],
+      "sampleAnswers": [
+        "8",
+        "7",
+        "=",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-03",
+      "order": 15,
+      "title": "Đề-xi-mét (dm) và Đo độ dài",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-03-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "10",
+        "dm",
+        ">",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-04",
+      "order": 16,
+      "title": "Phép cộng có nhớ trong phạm vi 100",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-04-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle"
+      ],
+      "visualTypes": [
+        "bundles"
+      ],
+      "sampleAnswers": [
+        "63",
+        "53",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-05",
+      "order": 17,
+      "title": "Phép trừ có nhớ trong phạm vi 100",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-05-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match",
+        "ten_frame_bundle"
+      ],
+      "visualTypes": [
+        "bundles"
+      ],
+      "sampleAnswers": [
+        "24",
+        "36",
+        "=",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-06",
+      "order": 18,
+      "title": "Khối trụ và Khối cầu",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-06-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "operator_pick",
+        "expression_match",
+        "number_input"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "Khối cầu",
+        "Khối trụ",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-07",
+      "order": 19,
+      "title": "Làm quen với Phép nhân và Dấu nhân (×)",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-07-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "2 × 4",
+        "10",
+        "=",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-08",
+      "order": 20,
+      "title": "Bảng nhân 2 và Bảng nhân 5",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-08-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "16",
+        "35",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-09",
+      "order": 21,
+      "title": "Làm quen với Phép chia và Bảng chia 2, chia 5",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-09-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "operator_pick",
+        "expression_match"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "5",
+        "8",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-10",
+      "order": 22,
+      "title": "Các số trong phạm vi 1000 và Hàng trăm",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-10-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match",
+        "number_line_order"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "352",
+        "0",
+        "<",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-11",
+      "order": 23,
+      "title": "Đo lường: Ki-lô-gam (kg) và Lít (l)",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-11-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input",
+        "operator_pick",
+        "expression_match"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "kg",
+        "l",
+        "43",
+        "<"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-12",
+      "order": 24,
+      "title": "Xem lịch, Ngày - Tháng và Xem đồng hồ",
+      "grade": 2,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g2-12-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "number_input",
+        "single_choice",
+        "expression_match"
+      ],
+      "visualTypes": [],
+      "sampleAnswers": [
+        "7",
+        "30 phút (giờ rưỡi)",
+        "15",
+        "MATCHED_ALL"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    }
+  ]
+}
