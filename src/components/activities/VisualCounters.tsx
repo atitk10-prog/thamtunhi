@@ -75,7 +75,10 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
           {/* Left Group */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide">
-              {config.leftLabel ? config.leftLabel.replace(/\d+\s*(ngôi sao|vật thể|quả|bông|chú)?/gi, '').trim() || config.leftLabel : 'Nhóm A'}
+              {(() => {
+                const cleaned = (config.leftLabel || '').replace(/\d+/g, '').replace(/(ngôi sao|vật thể|quả|bông|chú)/gi, '').trim();
+                return cleaned || 'Nhóm A';
+              })()}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
               {Array.from({ length: left }).map((_, i) => renderIcon(i, 'left'))}
@@ -90,7 +93,10 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
           {/* Right Group */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide">
-              {config.rightLabel ? config.rightLabel.replace(/\d+\s*(ngôi sao|vật thể|quả|bông|chú)?/gi, '').trim() || config.rightLabel : 'Nhóm B'}
+              {(() => {
+                const cleaned = (config.rightLabel || '').replace(/\d+/g, '').replace(/(ngôi sao|vật thể|quả|bông|chú)/gi, '').trim();
+                return cleaned || 'Nhóm B';
+              })()}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
               {Array.from({ length: right }).map((_, i) => renderIcon(i, 'right'))}
