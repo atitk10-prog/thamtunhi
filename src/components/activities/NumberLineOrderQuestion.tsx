@@ -16,7 +16,28 @@ export const NumberLineOrderQuestion: React.FC<NumberLineOrderQuestionProps> = (
   disabled = false,
 }) => {
   const isOrdering = (question.options || []).length > 2 && question.expectedAnswer.includes(',');
-  const availableTiles = question.options || ['1', '2', '3', '4'];
+
+  // Scramble available tiles so they are NEVER presented in the sorted answer order
+  const availableTiles = React.useMemo(() => {
+    const raw = question.options || ['1', '2', '3', '4'];
+    const expected = (question.expectedAnswer || '').split(',').map((s) => s.trim());
+
+    // Make a copy and scramble deterministically
+    const scrambled = [...raw];
+    if (scrambled.length > 1) {
+      // Rotate or reverse if currently sorted
+      if (scrambled.join(',') === expected.join(',')) {
+        // Swap elements so it is not in expected order
+        const last = scrambled.pop()!;
+        scrambled.unshift(last);
+      }
+      // Second check: if still matches, reverse
+      if (scrambled.join(',') === expected.join(',')) {
+        scrambled.reverse();
+      }
+    }
+    return scrambled;
+  }, [question.options, question.expectedAnswer]);
 
   const [selectedSequence, setSelectedSequence] = useState<string[]>(
     answer ? answer.split(',').filter(Boolean) : []

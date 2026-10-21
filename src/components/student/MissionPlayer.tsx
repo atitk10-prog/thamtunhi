@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Volume2, VolumeX, ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 import { Assignment, LessonVersion, Question, UserProfile, Attempt } from '../../types';
 import { dataService } from '../../lib/dataService';
 import { evaluateAnswer } from '../../lib/mathEngine';
+import { playCorrectSound, playIncorrectSound, playCompletedSound, isSoundEnabled, setSoundEnabled } from '../../lib/soundEffects';
 import { SingleChoiceQuestion } from '../activities/SingleChoiceQuestion';
 import { NumberInputQuestion } from '../activities/NumberInputQuestion';
 import { OperatorPickQuestion } from '../activities/OperatorPickQuestion';
@@ -28,6 +29,9 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 }) => {
   const questions: Question[] = lessonVersion.questions || [];
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Sound preference state
+  const [soundActive, setSoundActive] = useState<boolean>(() => isSoundEnabled());
 
   // User input states for different question types
   const [singleChoiceAnswer, setSingleChoiceAnswer] = useState('');
@@ -165,23 +169,6 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
     }
   }, [attemptId, currentIndex, score, firstTryCount, postHintCount, startTime, isCompleted, cacheKey]);
 
-  // Read prompt aloud using SpeechSynthesis if Vietnamese voice is available
-  const handleSpeak = (text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'vi-VN';
-      utterance.rate = 0.9; // Slightly slower for kids
-      // Check for Vietnamese voice
-      const voices = window.speechSynthesis.getVoices();
-      const viVoice = voices.find((v) => v.lang.startsWith('vi'));
-      if (viVoice) {
-        utterance.voice = viVoice;
-      }
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
   // Get current answer string based on interaction type
   const getCurrentAnswer = (): string => {
     if (!currentQuestion) return '';
@@ -260,10 +247,12 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
       // Move to next or complete
       if (currentIndex + 1 < questions.length) {
+        playCorrectSound();
         setCurrentIndex((prev) => prev + 1);
         resetQuestionInputs();
       } else {
         // Complete mission!
+        playCompletedSound();
         const totalDuration = Math.round((Date.now() - startTime) / 1000);
         setDurationSeconds(totalDuration);
         setIsCompleted(true);
@@ -287,7 +276,8 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         }
       }
     } else {
-      // Incorrect -> Show diagnostic hint
+      // Incorrect -> Play subtle sound and show diagnostic hint
+      playIncorrectSound();
       setHasFailedFirstTry(true);
 
       // Save mistake insight to attemptAnswers and mistakeInsights
@@ -462,11 +452,29 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
         <button
           type="button"
-          onClick={() => handleSpeak(currentQuestion.prompt)}
-          className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs sm:text-sm font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
-          title="Nghe giọng đọc tiếng Việt"
+          onClick={() => {
+            const next = !soundActive;
+            setSoundActive(next);
+            setSoundEnabled(next);
+          }}
+          className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 cursor-pointer transition-colors border shadow-xs ${
+            soundActive
+              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-500 border-slate-300'
+          }`}
+          title={soundActive ? 'Âm thanh: Đang Bật (Chạm để Tắt)' : 'Âm thanh: Đang Tắt (Chạm để Bật)'}
         >
-          <Volume2 className="w-4 h-4 text-amber-700" /> Nghe đọc câu hỏi
+          {soundActive ? (
+            <>
+              <Volume2 className="w-4 h-4 text-emerald-600" />
+              <span>Âm thanh: Bật</span>
+            </>
+          ) : (
+            <>
+              <VolumeX className="w-4 h-4 text-slate-400" />
+              <span>Âm thanh: Tắt</span>
+            </>
+          )}
         </button>
       </div>
 

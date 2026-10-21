@@ -75,7 +75,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
           {/* Left Group */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide">
-              {config.leftLabel || `Nhóm A: ${left}`}
+              {config.leftLabel ? config.leftLabel.replace(/\d+\s*(ngôi sao|vật thể|quả|bông|chú)?/gi, '').trim() || config.leftLabel : 'Nhóm A'}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
               {Array.from({ length: left }).map((_, i) => renderIcon(i, 'left'))}
@@ -90,7 +90,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
           {/* Right Group */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide">
-              {config.rightLabel || `Nhóm B: ${right}`}
+              {config.rightLabel ? config.rightLabel.replace(/\d+\s*(ngôi sao|vật thể|quả|bông|chú)?/gi, '').trim() || config.rightLabel : 'Nhóm B'}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
               {Array.from({ length: right }).map((_, i) => renderIcon(i, 'right'))}
@@ -106,7 +106,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
     return (
       <div className="my-5 p-5 bg-sky-50/80 rounded-2xl border-2 border-sky-100">
         <div className="text-xs uppercase tracking-wider font-extrabold text-sky-600 mb-3 text-center">
-          Quan sát mô hình đếm ({config.count} vật thể)
+          Quan sát mô hình đếm
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {Array.from({ length: config.count }).map((_, i) => renderIcon(i))}

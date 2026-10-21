@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, RotateCcw } from 'lucide-react';
+import { Link2, RotateCcw } from 'lucide-react';
 import { Question } from '../../types';
 
 interface ExpressionMatchQuestionProps {
@@ -65,14 +65,14 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
   return (
     <div className="w-full flex flex-col items-center">
       <div className="text-xs sm:text-sm font-extrabold text-sky-700 bg-sky-50 px-4 py-2 rounded-xl mb-4 border border-sky-200">
-        👉 Bước 1: Chạm chọn thẻ cột Trái &rarr; Bước 2: Chạm chọn thẻ cột Phải tương ứng
+        👉 Bước 1: Chạm chọn thẻ cột Trái &rarr; Bước 2: Chạm chọn thẻ cột Phải để nối cặp
       </div>
 
       <div className="w-full max-w-xl grid grid-cols-2 gap-4 sm:gap-8 my-2">
         {/* Left Column */}
         <div className="flex flex-col gap-3">
           <div className="text-xs font-black uppercase tracking-wider text-slate-500 text-center">
-            Cột A
+            Cột Trái
           </div>
           {leftItems.map((left, idx) => {
             const isSelected = selectedLeft === left;
@@ -88,16 +88,16 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
                   isSelected
                     ? 'bg-amber-400 border-amber-600 text-slate-900 ring-4 ring-amber-200 scale-102'
                     : pairedWith
-                    ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-extrabold'
+                    ? 'bg-sky-50 border-sky-400 text-sky-900 font-extrabold'
                     : 'bg-white border-slate-200 hover:border-sky-400 hover:bg-sky-50 text-slate-800'
                 }`}
               >
                 <div className="flex items-center justify-between w-full">
-                  <span>{left}</span>
-                  {pairedWith && <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" />}
+                  <span className="leading-snug">{left}</span>
+                  {pairedWith && <Link2 className="w-4 h-4 text-sky-600 flex-shrink-0 ml-1" />}
                 </div>
                 {pairedWith && (
-                  <span className="text-xs font-bold text-emerald-700 mt-1 inline-flex items-center gap-1">
+                  <span className="text-xs font-bold text-sky-700 mt-1 inline-flex items-center gap-1">
                     ➔ {pairedWith}
                   </span>
                 )}
@@ -109,7 +109,7 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
         {/* Right Column */}
         <div className="flex flex-col gap-3">
           <div className="text-xs font-black uppercase tracking-wider text-slate-500 text-center">
-            Cột B
+            Cột Phải
           </div>
           {rightItems.map((right, idx) => {
             const isPaired = Object.values(matchedPairs).includes(right);
@@ -124,12 +124,12 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
                   selectedLeft
                     ? 'bg-white border-sky-300 hover:border-sky-500 hover:bg-sky-100/70 cursor-pointer active:scale-95 ring-2 ring-sky-200 animate-pulse'
                     : isPaired
-                    ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-extrabold cursor-default'
+                    ? 'bg-sky-50 border-sky-400 text-sky-900 font-extrabold cursor-default'
                     : 'bg-slate-50 border-slate-200 text-slate-700 cursor-default opacity-80'
                 }`}
               >
-                <span>{right}</span>
-                {isPaired && <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" />}
+                <span className="leading-snug">{right}</span>
+                {isPaired && <span className="text-[11px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full flex-shrink-0">Đã nối</span>}
               </button>
             );
           })}

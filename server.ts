@@ -509,12 +509,18 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
 });
 
 async function generateGeminiContent(promptText: string): Promise<string> {
-  if (!genAI) throw new Error('Mô hình AI chưa được khởi tạo.');
-  const candidateModels = [
+  if (!genAI) throw new Error('Mô hình AI chưa được cấu hình.');
+  
+  // Prioritize gemini-3.8-flash per Google instructions, followed by flash-latest, then discovered models
+  const candidateModels: string[] = [
     process.env.GEMINI_MODEL,
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-pro-latest',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
-    'gemini-1.5-pro',
   ].filter(Boolean) as string[];
 
   try {
@@ -545,12 +551,17 @@ async function generateGeminiContent(promptText: string): Promise<string> {
         return response.text;
       }
     } catch (err: any) {
-      const msg = err?.message || String(err);
-      console.warn(`Gemini model ${model} attempt failed:`, msg);
-      modelErrors.push(`[${model}] ${msg}`);
+      const rawMsg = err?.message || String(err);
+      // Strict security: scrub API keys or query params from log messages
+      const safeMsg = rawMsg
+        .replace(/AIza[0-9A-Za-z-_]{35}/g, '***')
+        .replace(/key=[^&\s]+/g, 'key=***');
+      console.warn(`Gemini model ${model} attempt failed:`, safeMsg);
+      modelErrors.push(`[${model}] ${safeMsg}`);
     }
   }
-  throw new Error(`Tất cả mô hình AI đều thất bại: ${modelErrors.join(' | ')}`);
+
+  throw new Error('Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.');
 }
 
 // 5. Teacher AI Draft Generation (Protected: teacher or admin role required)
@@ -609,11 +620,39 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
 `;
 
     const text = await generateGeminiContent(prompt);
-    const parsed = JSON.parse(text || '{}');
+
+    // Sanitize JSON text in case of markdown code fences
+    let cleanJsonText = (text || '').trim();
+    if (cleanJsonText.startsWith('```json')) {
+      cleanJsonText = cleanJsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanJsonText.startsWith('```')) {
+      cleanJsonText = cleanJsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    const parsed = JSON.parse(cleanJsonText || '{}');
+
+    // Mathematical integrity validation for AI questions
+    if (Array.isArray(parsed.questions)) {
+      parsed.questions.forEach((q: any, idx: number) => {
+        q.id = q.id || `q-ai-${idx + 1}`;
+        q.order = idx + 1;
+        q.difficulty = q.difficulty || difficulty;
+        q.skillTag = q.skillTag || cleanTopic;
+        if (q.interactionType === 'single_choice') {
+          if (!Array.isArray(q.options) || q.options.length < 2) {
+            q.options = [q.expectedAnswer, '3', '4', '5'];
+          }
+          if (!q.options.includes(q.expectedAnswer)) {
+            q.options[0] = q.expectedAnswer;
+          }
+        }
+      });
+    }
+
     return res.json(parsed);
   } catch (err: any) {
-    console.error('Gemini draft generation error:', err);
-    return res.status(500).json({ error: 'Lỗi khi gọi mô hình AI: ' + (err.message || String(err)) });
+    console.error('Gemini draft generation error (sanitized):', err?.message ? err.message.replace(/AIza[0-9A-Za-z-_]{35}/g, '***') : err);
+    return res.status(500).json({ error: 'Không thể tạo bài nháp từ AI lúc này. Thầy/Cô có thể biên soạn câu hỏi thủ công hoặc thử lại sau.' });
   }
 });
 
@@ -646,11 +685,19 @@ Trả về định dạng JSON:
 `;
 
     const text = await generateGeminiContent(prompt);
-    const parsed = JSON.parse(text || '{}');
+
+    let cleanJsonText = (text || '').trim();
+    if (cleanJsonText.startsWith('```json')) {
+      cleanJsonText = cleanJsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanJsonText.startsWith('```')) {
+      cleanJsonText = cleanJsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    const parsed = JSON.parse(cleanJsonText || '{}');
     return res.json(parsed);
   } catch (err: any) {
-    console.error('AI summary error:', err);
-    return res.status(500).json({ error: 'Lỗi tạo tóm tắt AI: ' + (err.message || String(err)) });
+    console.error('AI summary error (sanitized):', err?.message ? err.message.replace(/AIza[0-9A-Za-z-_]{35}/g, '***') : err);
+    return res.status(500).json({ error: 'Không thể tạo bản tóm tắt AI lúc này. Thầy/Cô vui lòng thử lại sau.' });
   }
 });
 

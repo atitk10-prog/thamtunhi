@@ -22,6 +22,13 @@ export const TenFrameBundleQuestion: React.FC<TenFrameBundleQuestionProps> = ({
 
   const options = question.options || ['10', '15', '20'];
 
+  const isBlueDot = visual?.dotColor === 'blue' || question.prompt.toLowerCase().includes('chấm xanh') || question.prompt.toLowerCase().includes('màu xanh');
+  const isFiveFrame = question.prompt.toLowerCase().includes('khung 5 ô') || visual?.gridSize === 5;
+  const gridCellCount = isFiveFrame ? 5 : 10;
+  const dotClass = isBlueDot
+    ? 'bg-gradient-to-br from-sky-400 to-blue-600 border border-blue-700 text-white'
+    : 'bg-gradient-to-br from-rose-400 to-rose-600 border border-rose-700 text-white';
+
   return (
     <div className="w-full flex flex-col items-center">
       {/* Visual Model Canvas */}
@@ -29,7 +36,7 @@ export const TenFrameBundleQuestion: React.FC<TenFrameBundleQuestionProps> = ({
         {isBundle && tens > 0 ? (
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-sky-700 text-center mb-3">
-              Mô hình Que tính: {tens} Bó Chục &amp; {ones} Que Lẻ
+              Mô hình Bó Que tính &amp; Que Lẻ
             </div>
             <div className="flex flex-wrap items-center justify-center gap-6 p-4 bg-white/80 rounded-2xl border-2 border-sky-100">
               {/* Tens Bundles */}
@@ -57,11 +64,11 @@ export const TenFrameBundleQuestion: React.FC<TenFrameBundleQuestionProps> = ({
                     <div
                       key={`one-${i}`}
                       className="w-2.5 h-14 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 border border-emerald-700 shadow-sm"
-                      title="1 que tính rời"
+                      title="Que tính rời"
                     />
                   ))}
                   <div className="w-full text-center text-[11px] font-bold text-emerald-800">
-                    {ones} que rời
+                    Que rời
                   </div>
                 </div>
               )}
@@ -70,19 +77,19 @@ export const TenFrameBundleQuestion: React.FC<TenFrameBundleQuestionProps> = ({
         ) : (
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-sky-700 text-center mb-3">
-              Khung 10 Ô (Ten-Frame) Trực Quan
+              {isFiveFrame ? 'Khung 5 Ô Trực Quan' : 'Khung 10 Ô (Ten-Frame) Trực Quan'}
             </div>
-            {/* Ten frame grid: 2 rows of 5 cells */}
+            {/* Ten/Five frame grid */}
             <div className="max-w-[280px] mx-auto grid grid-cols-5 gap-2 p-3 bg-white rounded-2xl border-3 border-sky-300 shadow-inner">
-              {Array.from({ length: 10 }).map((_, i) => {
-                const isFilled = i < Math.min(count, 10);
+              {Array.from({ length: gridCellCount }).map((_, i) => {
+                const isFilled = i < Math.min(count, gridCellCount);
                 return (
                   <div
                     key={i}
                     className="w-11 h-11 rounded-xl border-2 border-slate-200 bg-slate-50 flex items-center justify-center"
                   >
                     {isFilled && (
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 border border-rose-700 shadow-sm flex items-center justify-center text-white text-xs font-bold animate-in zoom-in-50">
+                      <div className={`w-8 h-8 rounded-full ${dotClass} shadow-sm flex items-center justify-center text-xs font-bold animate-in zoom-in-50`}>
                         ●
                       </div>
                     )}
@@ -91,7 +98,7 @@ export const TenFrameBundleQuestion: React.FC<TenFrameBundleQuestionProps> = ({
               })}
             </div>
 
-            {count > 10 && (
+            {count > 10 && !isFiveFrame && (
               <div className="mt-3">
                 <div className="text-[11px] font-bold text-slate-500 text-center mb-1">Khung thứ hai:</div>
                 <div className="max-w-[280px] mx-auto grid grid-cols-5 gap-2 p-3 bg-white rounded-2xl border-3 border-sky-300 shadow-inner">
@@ -103,7 +110,7 @@ export const TenFrameBundleQuestion: React.FC<TenFrameBundleQuestionProps> = ({
                         className="w-11 h-11 rounded-xl border-2 border-slate-200 bg-slate-50 flex items-center justify-center"
                       >
                         {isFilled && (
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 border border-sky-700 shadow-sm flex items-center justify-center text-white text-xs font-bold animate-in zoom-in-50">
+                          <div className={`w-8 h-8 rounded-full ${dotClass} shadow-sm flex items-center justify-center text-xs font-bold animate-in zoom-in-50`}>
                             ●
                           </div>
                         )}

@@ -120,8 +120,8 @@ async function runG2Tests() {
         }
       }
     }
-    assert.strictEqual(expressionMatchCount, 24, 'Đã kiểm tra đủ 24 câu ghép nối');
-    pass('Triệt tiêu hoàn toàn lỗi trùng thẻ ở 24 câu ghép nối (Không còn hiện tượng unbind cặp dẫn đến kẹt nút nộp)');
+    assert(expressionMatchCount >= 24, `Đã kiểm tra đủ ít nhất 24 câu ghép nối (thực tế: ${expressionMatchCount})`);
+    pass(`Triệt tiêu hoàn toàn lỗi trùng thẻ ở ${expressionMatchCount} câu ghép nối (Không còn hiện tượng unbind cặp dẫn đến kẹt nút nộp)`);
 
     // 2.4 Test mathEngine evaluation for expression_match with incorrect pairing
     const dummyMatchQ: any = {

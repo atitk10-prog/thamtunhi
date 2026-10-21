@@ -90,6 +90,8 @@ export interface VisualAssetConfig {
   target?: number;
   storyText?: string;
   shapeType?: 'circle' | 'square' | 'triangle' | 'rectangle' | 'cylinder' | 'sphere';
+  dotColor?: 'red' | 'blue' | 'green' | string;
+  gridSize?: number;
 }
 
 export interface Question {
