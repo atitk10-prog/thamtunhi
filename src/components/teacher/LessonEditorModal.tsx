@@ -16,9 +16,19 @@ import {
   CheckCircle2,
   AlertTriangle,
   Play,
+  Image as ImageIcon,
+  Crop,
+  CheckSquare,
+  Square,
+  Sliders,
+  Sparkles,
+  FolderOpen,
+  Info,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
-import { Lesson, LessonVersion, Question, InteractionType, MathErrorPattern, VisualAssetConfig } from '../../types';
+import { Lesson, LessonVersion, Question, InteractionType, MathErrorPattern, VisualAssetConfig, MediaItem } from '../../types';
+import { VisualCounters } from '../activities/VisualCounters';
+import { MediaLibraryModal } from './MediaLibraryModal';
 
 interface LessonEditorModalProps {
   isOpen: boolean;
@@ -67,6 +77,16 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
   // Delete confirmation modal state
   const [deleteConfirmIdx, setDeleteConfirmIdx] = useState<number | null>(null);
+
+  // Media Library target question index for illustration assignment
+  const [mediaLibraryTargetQIdx, setMediaLibraryTargetQIdx] = useState<number | null>(null);
+
+  // Live student preview toggles per question
+  const [previewOpenIdxs, setPreviewOpenIdxs] = useState<Record<number, boolean>>({});
+
+  const togglePreview = (qIdx: number) => {
+    setPreviewOpenIdxs((prev) => ({ ...prev, [qIdx]: !(prev[qIdx] ?? true) }));
+  };
 
   // Synchronize state whenever modal opens or lesson/lessonVersion changes
   useEffect(() => {
@@ -234,11 +254,31 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     setQuestions(updated);
   };
 
-  // Visual Config helpers
+  // Visual Config helpers with strict capacity & grid consistency enforcement (P0)
   const handleUpdateVisual = (qIdx: number, updates: Partial<VisualAssetConfig>) => {
     const updated = [...questions];
     const currentV = updated[qIdx].visualConfig || { type: 'counters' };
-    updated[qIdx].visualConfig = { ...currentV, ...updates };
+    const merged: VisualAssetConfig = { ...currentV, ...updates };
+
+    // Enforce 5-frame capacity (max 5 dots) and 10-frame capacity (max 10 dots)
+    if (merged.type === 'five_frame' || merged.gridSize === 5) {
+      merged.gridSize = 5;
+      if (merged.count !== undefined && merged.count > 5) {
+        merged.count = 5;
+      }
+      merged.tens = 0;
+      merged.ones = merged.count;
+    } else if (merged.type === 'ten_frame') {
+      const gSize = merged.gridSize === 5 ? 5 : 10;
+      merged.gridSize = gSize;
+      if (merged.count !== undefined && merged.count > gSize) {
+        merged.count = gSize;
+      }
+      merged.tens = 0;
+      merged.ones = merged.count;
+    }
+
+    updated[qIdx].visualConfig = merged;
     setQuestions(updated);
   };
 
@@ -771,175 +811,582 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                       </div>
                     )}
 
-                    {/* 5. Editor Form: ten_frame_bundle */}
-                    {q.interactionType === 'ten_frame_bundle' && (
-                      <div className="p-3 bg-teal-50/70 rounded-xl border border-teal-200 space-y-2">
-                        <div className="text-xs font-black text-teal-800 uppercase tracking-wider">
-                          Cấu hình mô hình Khung 10 ô / Que tính:
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600">Kiểu mô hình</label>
-                            <select
-                              value={q.visualConfig?.type === 'bundles' ? 'bundles' : 'ten_frame'}
-                              onChange={(e) => handleUpdateVisual(idx, { type: e.target.value as any })}
-                              className="w-full h-8 px-2 rounded-lg border border-teal-200 bg-white text-xs font-bold"
-                            >
-                              <option value="ten_frame">Khung 10 ô (Ten-Frame)</option>
-                              <option value="bundles">Bó que tính chục - đơn vị</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600">Số bó chục (tens)</label>
-                            <input
-                              type="number"
-                              value={q.visualConfig?.tens ?? 0}
-                              onChange={(e) => handleUpdateVisual(idx, { tens: Number(e.target.value) })}
-                              className="w-full h-8 px-2 rounded-lg border border-teal-200 bg-white text-xs font-bold"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600">Số que lẻ (ones)</label>
-                            <input
-                              type="number"
-                              value={q.visualConfig?.ones ?? 0}
-                              onChange={(e) => handleUpdateVisual(idx, { ones: Number(e.target.value) })}
-                              className="w-full h-8 px-2 rounded-lg border border-teal-200 bg-white text-xs font-bold"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600">Tổng chấm / que (count)</label>
-                            <input
-                              type="number"
-                              value={q.visualConfig?.count ?? 10}
-                              onChange={(e) => handleUpdateVisual(idx, { count: Number(e.target.value) })}
-                              className="w-full h-8 px-2 rounded-lg border border-teal-200 bg-white text-xs font-bold"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 6. Editor Form: number_line_order */}
+                    {/* 5. Editor Form: number_line_order options */}
                     {q.interactionType === 'number_line_order' && (
                       <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-200 space-y-2">
                         <div className="text-xs font-black text-purple-800 uppercase tracking-wider">
-                          Cấu hình Trục số & Thứ tự số:
+                          Các thẻ số cần sắp xếp theo thứ tự:
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600">Mốc nhỏ nhất (min)</label>
-                            <input
-                              type="number"
-                              value={q.visualConfig?.min ?? 0}
-                              onChange={(e) => handleUpdateVisual(idx, { min: Number(e.target.value), type: 'number_line' })}
-                              className="w-full h-8 px-2 rounded-lg border border-purple-200 bg-white text-xs font-bold"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600">Mốc lớn nhất (max)</label>
-                            <input
-                              type="number"
-                              value={q.visualConfig?.max ?? 10}
-                              onChange={(e) => handleUpdateVisual(idx, { max: Number(e.target.value), type: 'number_line' })}
-                              className="w-full h-8 px-2 rounded-lg border border-purple-200 bg-white text-xs font-bold"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600">Số đích / mốc nhảy</label>
-                            <input
-                              type="number"
-                              value={q.visualConfig?.target ?? 0}
-                              onChange={(e) => handleUpdateVisual(idx, { target: Number(e.target.value), type: 'number_line' })}
-                              className="w-full h-8 px-2 rounded-lg border border-purple-200 bg-white text-xs font-bold"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600">Các thẻ xếp thứ tự</label>
-                            <input
-                              type="text"
-                              value={(q.options || []).join(', ')}
-                              onChange={(e) => {
-                                const list = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
-                                handleUpdateQuestion(idx, 'options', list);
-                              }}
-                              placeholder="Ví dụ: 6, 10, 8, 7"
-                              className="w-full h-8 px-2 rounded-lg border border-purple-200 bg-white text-xs font-bold"
-                            />
-                          </div>
-                        </div>
+                        <input
+                          type="text"
+                          value={(q.options || []).join(', ')}
+                          onChange={(e) => {
+                            const list = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
+                            handleUpdateQuestion(idx, 'options', list);
+                          }}
+                          placeholder="Ví dụ: 6, 10, 8, 7"
+                          className="w-full h-8 px-2.5 rounded-lg border border-purple-200 bg-white text-xs font-bold"
+                        />
                       </div>
                     )}
 
-                    {/* Visual Config & Diagnostic Rule Hint */}
+                    {/* 6. DEDICATED QUESTION ILLUSTRATION SECTION (P0) */}
+                    {(() => {
+                      const vc = q.visualConfig;
+                      const hasImage = vc?.type === 'image' || Boolean(vc?.imageUrl);
+                      const hasAuto = vc && vc.type !== 'none' && !hasImage;
+                      const currentMode: 'auto' | 'image' | 'none' = hasImage ? 'image' : (hasAuto ? 'auto' : 'none');
+
+                      // Pedagogical check
+                      const numericAnswer = parseInt(q.expectedAnswer.trim(), 10);
+                      const countWarning =
+                        !isNaN(numericAnswer) &&
+                        hasAuto &&
+                        vc.count !== undefined &&
+                        (vc.type === 'counters' || vc.type === 'ten_frame' || vc.type === 'five_frame') &&
+                        numericAnswer !== vc.count;
+
+                      const isFrame = vc?.type === 'ten_frame' || vc?.type === 'five_frame';
+                      const isFive = vc?.type === 'five_frame' || vc?.gridSize === 5;
+
+                      const frameConflictWarning =
+                        isFrame &&
+                        ((isFive && q.prompt.toLowerCase().includes('khung 10 ô')) ||
+                          (!isFive && q.prompt.toLowerCase().includes('khung 5 ô')));
+
+                      const captionLeaksAnswer =
+                        hasImage &&
+                        vc?.caption &&
+                        q.expectedAnswer.trim() &&
+                        vc.caption.toLowerCase().includes(q.expectedAnswer.trim().toLowerCase());
+
+                      const isLivePreviewOpen = previewOpenIdxs[idx] ?? true;
+
+                      return (
+                        <div className="p-4 bg-gradient-to-br from-slate-50 via-sky-50/30 to-indigo-50/20 rounded-2xl border-2 border-sky-200 shadow-xs space-y-3">
+                          {/* Section Header with 3-Mode Selector */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-sky-100">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center shadow-xs">
+                                <Eye className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                  Hình Minh Họa Câu Hỏi
+                                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-sky-100 text-sky-700 font-bold lowercase">
+                                    {currentMode === 'auto' ? 'Mô hình tự động' : currentMode === 'image' ? 'Ảnh thư viện' : 'Không có hình'}
+                                  </span>
+                                </h5>
+                                <p className="text-[11px] text-slate-500 font-medium">
+                                  Giáo viên chủ động chọn mô hình hoặc tải ảnh trực quan
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* 3 Mode Pills */}
+                            <div className="flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-bold self-start sm:self-auto">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateVisual(idx, {
+                                    type: q.interactionType === 'ten_frame_bundle' ? 'ten_frame' : 'counters',
+                                    count: vc?.count ?? 4,
+                                    iconName: vc?.iconName || 'apple',
+                                    gridSize: q.interactionType === 'ten_frame_bundle' ? (q.prompt.toLowerCase().includes('khung 5 ô') ? 5 : 10) : undefined,
+                                    imageUrl: undefined,
+                                    imageId: undefined,
+                                  });
+                                }}
+                                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                  currentMode === 'auto'
+                                    ? 'bg-white text-sky-700 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                🎨 Mô hình tự động
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!vc?.imageUrl) {
+                                    setMediaLibraryTargetQIdx(idx);
+                                  } else {
+                                    handleUpdateVisual(idx, { type: 'image' });
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                  currentMode === 'image'
+                                    ? 'bg-white text-sky-700 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                🖼️ Thư viện ảnh
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateQuestion(idx, 'visualConfig', undefined);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                  currentMode === 'none'
+                                    ? 'bg-white text-slate-800 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                🚫 Không dùng hình
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* MODE 1: AUTO MODEL CONFIG */}
+                          {currentMode === 'auto' && (
+                            <div className="space-y-3 animate-in fade-in">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Kiểu mô hình</label>
+                                  <select
+                                    value={
+                                      isFrame
+                                        ? (isFive ? 'five_frame' : 'ten_frame')
+                                        : (vc?.type || 'counters')
+                                    }
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (val === 'five_frame') {
+                                        handleUpdateVisual(idx, { type: 'ten_frame', gridSize: 5, count: Math.min(vc?.count || 5, 5), dotColor: vc?.dotColor || 'blue' });
+                                      } else if (val === 'ten_frame') {
+                                        handleUpdateVisual(idx, { type: 'ten_frame', gridSize: 10, count: vc?.count || 10, dotColor: vc?.dotColor || 'blue' });
+                                      } else {
+                                        handleUpdateVisual(idx, { type: val as any, gridSize: undefined });
+                                      }
+                                    }}
+                                    className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                  >
+                                    <option value="counters">🍎 Đếm đồ vật đơn</option>
+                                    <option value="five_frame">⏹️ Khung 5 ô (Five-Frame)</option>
+                                    <option value="ten_frame">🔟 Khung 10 ô (Ten-Frame)</option>
+                                    <option value="bundles">🥢 Bó que tính chục - đơn vị</option>
+                                    <option value="comparison">⚖️ So sánh 2 nhóm</option>
+                                    <option value="number_line">📏 Trục số</option>
+                                    <option value="shapes">📐 Hình học</option>
+                                    <option value="word_story">📖 Bài toán lời văn</option>
+                                  </select>
+                                </div>
+
+                                {/* Dynamic sub-controls based on model type */}
+                                {vc?.type === 'counters' && (
+                                  <>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Loại vật thể</label>
+                                      <select
+                                        value={vc.iconName || 'apple'}
+                                        onChange={(e) => handleUpdateVisual(idx, { iconName: e.target.value })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      >
+                                        <option value="apple">🍎 Quả táo (apple)</option>
+                                        <option value="star">⭐ Ngôi sao (star)</option>
+                                        <option value="candy">🍬 Kẹo ngọt (candy)</option>
+                                        <option value="fish">🐟 Chú cá (fish)</option>
+                                        <option value="pencil">✏️ Bút chì (pencil)</option>
+                                        <option value="block">🧱 Khối vuông (block)</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Số lượng đếm</label>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={20}
+                                        value={vc.count ?? 4}
+                                        onChange={(e) => handleUpdateVisual(idx, { count: Math.max(1, Number(e.target.value)) })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      />
+                                    </div>
+                                  </>
+                                )}
+
+                                {isFrame && (
+                                  <>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Số ô của khung</label>
+                                      <select
+                                        value={isFive ? '5' : '10'}
+                                        onChange={(e) => {
+                                          const gSize = Number(e.target.value);
+                                          handleUpdateVisual(idx, {
+                                            type: 'ten_frame',
+                                            gridSize: gSize,
+                                            count: Math.min(vc?.count || gSize, gSize),
+                                          });
+                                        }}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      >
+                                        <option value="5">Khung 5 ô (sức chứa 5)</option>
+                                        <option value="10">Khung 10 ô (sức chứa 10)</option>
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                        Số chấm tròn (Tối đa {isFive ? 5 : 10})
+                                      </label>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={isFive ? 5 : 10}
+                                        value={vc?.count ?? (isFive ? 5 : 10)}
+                                        onChange={(e) => {
+                                          const maxLimit = isFive ? 5 : 10;
+                                          const rawVal = Number(e.target.value);
+                                          const clamped = Math.min(Math.max(0, rawVal), maxLimit);
+                                          handleUpdateVisual(idx, { count: clamped, tens: 0, ones: clamped });
+                                        }}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Màu sắc chấm</label>
+                                      <select
+                                        value={vc?.dotColor || 'blue'}
+                                        onChange={(e) => handleUpdateVisual(idx, { dotColor: e.target.value })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      >
+                                        <option value="blue">🔵 Màu xanh dương (blue)</option>
+                                        <option value="red">🔴 Màu đỏ (red)</option>
+                                        <option value="green">🟢 Màu xanh lá (green)</option>
+                                        <option value="amber">🟡 Màu vàng cam (amber)</option>
+                                      </select>
+                                    </div>
+                                  </>
+                                )}
+
+                                {vc?.type === 'bundles' && (
+                                  <>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Số bó chục (tens)</label>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={9}
+                                        value={vc.tens ?? 0}
+                                        onChange={(e) => handleUpdateVisual(idx, { tens: Number(e.target.value) })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Số que lẻ (ones)</label>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={9}
+                                        value={vc.ones ?? 0}
+                                        onChange={(e) => handleUpdateVisual(idx, { ones: Number(e.target.value) })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      />
+                                    </div>
+                                  </>
+                                )}
+
+                                {vc?.type === 'comparison' && (
+                                  <>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Nhóm Trái (Số lượng)</label>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        value={vc.leftCount ?? 4}
+                                        onChange={(e) => handleUpdateVisual(idx, { leftCount: Number(e.target.value) })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Nhóm Phải (Số lượng)</label>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        value={vc.rightCount ?? 2}
+                                        onChange={(e) => handleUpdateVisual(idx, { rightCount: Number(e.target.value) })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      />
+                                    </div>
+                                  </>
+                                )}
+
+                                {vc?.type === 'shapes' && (
+                                  <div>
+                                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Loại hình học</label>
+                                    <select
+                                      value={vc.shapeType || 'circle'}
+                                      onChange={(e) => handleUpdateVisual(idx, { shapeType: e.target.value as any })}
+                                      className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                    >
+                                      <option value="circle">⚪ Hình tròn</option>
+                                      <option value="square">🟦 Hình vuông</option>
+                                      <option value="triangle">🔺 Hình tam giác</option>
+                                      <option value="rectangle">▬ Hình chữ nhật</option>
+                                      <option value="cylinder">🛢️ Khối trụ</option>
+                                      <option value="sphere">🔮 Khối cầu</option>
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+
+                              {vc?.type === 'word_story' && (
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Tình huống bài toán lời văn</label>
+                                  <input
+                                    type="text"
+                                    value={vc.storyText || ''}
+                                    onChange={(e) => handleUpdateVisual(idx, { storyText: e.target.value })}
+                                    placeholder="Ví dụ: Có 5 quả táo, mẹ cho thêm 2 quả nữa..."
+                                    className="w-full h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* MODE 2: LIBRARY IMAGE CONFIG */}
+                          {currentMode === 'image' && (
+                            <div className="space-y-3 animate-in fade-in">
+                              {vc?.imageUrl ? (
+                                <div className="p-3 bg-white rounded-xl border border-sky-200 shadow-xs space-y-3">
+                                  {/* Thumbnail & Image Meta */}
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-14 h-14 rounded-lg bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center p-1">
+                                        <img src={vc.imageUrl} alt="" className="max-w-full max-h-full object-contain" />
+                                      </div>
+                                      <div>
+                                        <div className="text-xs font-black text-slate-800">
+                                          {vc.imageAlt || 'Hình ảnh từ thư viện'}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-2 mt-0.5">
+                                          <span>Tỷ lệ: {vc.imageAspectRatio || 'Gốc'}</span>
+                                          <span>•</span>
+                                          <span>Cỡ: {vc.imageScale || 'Vừa'}</span>
+                                          <span>•</span>
+                                          <span>Fit: {vc.imageFit || 'contain'}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setMediaLibraryTargetQIdx(idx)}
+                                        className="px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold cursor-pointer transition-colors"
+                                      >
+                                        Đổi hình khác
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateQuestion(idx, 'visualConfig', undefined)}
+                                        className="px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-bold cursor-pointer transition-colors"
+                                      >
+                                        Gỡ hình
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Image Styling Controls: Scale, AspectRatio, Fit, Align */}
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-600">Kích thước hiển thị</label>
+                                      <select
+                                        value={vc.imageScale || 'medium'}
+                                        onChange={(e) => handleUpdateVisual(idx, { imageScale: e.target.value as any })}
+                                        className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs font-bold bg-white"
+                                      >
+                                        <option value="small">Nhỏ (~180px)</option>
+                                        <option value="medium">Vừa (~280px)</option>
+                                        <option value="large">Lớn (~380px)</option>
+                                        <option value="full">100% Khung</option>
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-600">Tỷ lệ khung hình / Cắt</label>
+                                      <select
+                                        value={vc.imageAspectRatio || 'original'}
+                                        onChange={(e) => handleUpdateVisual(idx, { imageAspectRatio: e.target.value as any })}
+                                        className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs font-bold bg-white"
+                                      >
+                                        <option value="original">Tỷ lệ gốc</option>
+                                        <option value="1:1">1:1 (Vuông)</option>
+                                        <option value="4:3">4:3 (Tiêu chuẩn)</option>
+                                        <option value="16:9">16:9 (Ngang)</option>
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-600">Kiểu vừa khung (Fit)</label>
+                                      <select
+                                        value={vc.imageFit || 'contain'}
+                                        onChange={(e) => handleUpdateVisual(idx, { imageFit: e.target.value as any })}
+                                        className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs font-bold bg-white"
+                                      >
+                                        <option value="contain">Vừa trọn (Contain - không méo)</option>
+                                        <option value="cover">Cắt lấp đầy (Cover)</option>
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-600">Căn lề hiển thị</label>
+                                      <select
+                                        value={vc.imageAlign || 'center'}
+                                        onChange={(e) => handleUpdateVisual(idx, { imageAlign: e.target.value as any })}
+                                        className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs font-bold bg-white"
+                                      >
+                                        <option value="center">Căn giữa</option>
+                                        <option value="left">Căn trái</option>
+                                        <option value="right">Căn phải</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  {/* Caption and Teacher Verification */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-600">
+                                        Chú thích hình ảnh (Hiển thị dưới ảnh - Không ghi đáp án)
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={vc.caption || ''}
+                                        onChange={(e) => handleUpdateVisual(idx, { caption: e.target.value })}
+                                        placeholder="Ví dụ: Hình minh họa quả cam đếm số..."
+                                        className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs font-medium"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center gap-2 pt-4">
+                                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                                        <input
+                                          type="checkbox"
+                                          checked={Boolean(vc.isTeacherVerified)}
+                                          onChange={(e) => handleUpdateVisual(idx, { isTeacherVerified: e.target.checked })}
+                                          className="w-4 h-4 rounded-md text-sky-600 focus:ring-sky-500 border-slate-300 cursor-pointer"
+                                        />
+                                        <span>Giáo viên đã xem trước &amp; xác nhận hình phù hợp</span>
+                                      </label>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="p-6 bg-white rounded-2xl border-2 border-dashed border-sky-300 text-center flex flex-col items-center justify-center gap-2">
+                                  <ImageIcon className="w-8 h-8 text-sky-500" />
+                                  <div>
+                                    <p className="text-xs font-black text-slate-700">Chưa có hình ảnh nào được chọn</p>
+                                    <p className="text-[11px] text-slate-400">Chọn hình từ Thư viện dùng chung hoặc tải ảnh mới (&lt; 1MB)</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setMediaLibraryTargetQIdx(idx)}
+                                    className="mt-1 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-transform active:scale-95"
+                                  >
+                                    <FolderOpen className="w-4 h-4" /> Mở Thư viện hình ảnh
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* MODE 3: NO VISUAL */}
+                          {currentMode === 'none' && (
+                            <div className="p-3 bg-slate-100/70 rounded-xl border border-slate-200 text-slate-500 text-xs font-medium flex items-center justify-between">
+                              <span>Câu hỏi này hiện không có hình minh họa (chỉ dùng chữ và phép tính).</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateVisual(idx, { type: 'counters', count: 4, iconName: 'apple' });
+                                }}
+                                className="px-3 py-1 rounded-lg bg-white border border-slate-300 hover:bg-sky-50 hover:text-sky-700 text-slate-700 text-xs font-bold cursor-pointer"
+                              >
+                                + Thêm hình
+                              </button>
+                            </div>
+                          )}
+
+                          {/* PEDAGOGICAL CONSISTENCY ADVISORIES (Chống sai lệch nội dung Toán) */}
+                          {countWarning && (
+                            <div className="p-2.5 bg-amber-50 border-2 border-amber-200 rounded-xl text-amber-900 text-xs font-bold flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <span>Lưu ý sư phạm: </span>
+                                <span className="font-semibold">
+                                  Đáp án chính xác câu hỏi là &ldquo;{q.expectedAnswer}&rdquo;, nhưng số lượng vật thể trong mô hình đang là {vc?.count}. Vui lòng đối soát xem học sinh có được yêu cầu đếm đúng số lượng này không.
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {frameConflictWarning && (
+                            <div className="p-2.5 bg-rose-50 border-2 border-rose-200 rounded-xl text-rose-800 text-xs font-bold flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <span>Cảnh báo đồng bộ khung: </span>
+                                <span className="font-semibold">
+                                  Lời dẫn câu hỏi nhắc tới {isFive ? 'Khung 10 ô' : 'Khung 5 ô'}, nhưng cấu hình mô hình hiện tại là {isFive ? 'Khung 5 ô' : 'Khung 10 ô'}. Hãy chọn đúng kiểu khung để học sinh không bị nhầm lẫn.
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {captionLeaksAnswer && (
+                            <div className="p-2.5 bg-amber-50 border-2 border-amber-200 rounded-xl text-amber-900 text-xs font-bold flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <span>Lưu ý bảo mật đáp án: </span>
+                                <span className="font-semibold">
+                                  Chú thích hình có chứa đáp án &ldquo;{q.expectedAnswer}&rdquo;. Hãy điều chỉnh chú thích để không vô tình tiết lộ kết quả cho học sinh.
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {hasImage && !vc?.isTeacherVerified && (
+                            <div className="p-2.5 bg-sky-50 border border-sky-200 rounded-xl text-sky-800 text-xs font-semibold flex items-center gap-2">
+                              <Info className="w-4 h-4 text-sky-600 flex-shrink-0" />
+                              <span>Vui lòng xem trước và tích chọn xác nhận hình ảnh phù hợp với nội dung Toán học.</span>
+                            </div>
+                          )}
+
+                          {/* LIVE STUDENT PREVIEW BOX (Xem trước chuẩn học sinh) */}
+                          <div className="pt-2 border-t border-sky-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <button
+                                type="button"
+                                onClick={() => togglePreview(idx)}
+                                className="text-xs font-black text-sky-800 hover:text-sky-900 flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Play className="w-3.5 h-3.5 text-sky-600" />
+                                <span>Xem trước theo đúng giao diện học sinh</span>
+                                <span className="text-[10px] text-slate-400 font-normal">
+                                  ({isLivePreviewOpen ? 'Thu gọn' : 'Mở rộng'})
+                                </span>
+                              </button>
+                            </div>
+
+                            {isLivePreviewOpen && (
+                              <div className="p-3 bg-white rounded-xl border border-sky-200 shadow-inner">
+                                <div className="text-[10px] font-black uppercase text-slate-400 mb-1 text-center tracking-wider">
+                                  Màn hình học sinh sẽ nhìn thấy:
+                                </div>
+                                <VisualCounters config={q.visualConfig} />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Diagnostic Rule Hint & Explanation */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div>
                         <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1">
-                          <Eye className="w-3.5 h-3.5 text-sky-600" /> Cấu hình mô hình trực quan (Visual)
-                        </label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <select
-                            value={q.visualConfig?.type || 'counters'}
-                            onChange={(e) => handleUpdateVisual(idx, { type: e.target.value as any })}
-                            className="w-full h-8 px-2 rounded-lg border border-slate-200 text-xs font-bold bg-white"
-                          >
-                            <option value="counters">Đếm đồ vật đơn</option>
-                            <option value="comparison">So sánh 2 nhóm</option>
-                            <option value="ten_frame">Khung 10 ô</option>
-                            <option value="bundles">Bó que tính</option>
-                            <option value="number_line">Trục số</option>
-                            <option value="word_story">Bài toán lời văn</option>
-                          </select>
-
-                          <select
-                            value={q.visualConfig?.iconName || 'star'}
-                            onChange={(e) => handleUpdateVisual(idx, { iconName: e.target.value })}
-                            className="w-full h-8 px-2 rounded-lg border border-slate-200 text-xs font-bold bg-white"
-                          >
-                            <option value="star">⭐ Ngôi sao (star)</option>
-                            <option value="apple">🍎 Quả táo (apple)</option>
-                            <option value="candy">🍬 Kẹo ngọt (candy)</option>
-                            <option value="fish">🐟 Chú cá (fish)</option>
-                            <option value="pencil">✏️ Bút chì (pencil)</option>
-                            <option value="block">🧱 Khối vuông (block)</option>
-                          </select>
-                        </div>
-
-                        {q.visualConfig?.type === 'comparison' && (
-                          <div className="grid grid-cols-2 gap-2 mt-2">
-                            <input
-                              type="number"
-                              value={q.visualConfig.leftCount ?? 0}
-                              onChange={(e) => handleUpdateVisual(idx, { leftCount: Number(e.target.value) })}
-                              placeholder="Số lượng Trái"
-                              className="h-7 px-2 rounded-lg border border-slate-200 text-xs font-bold"
-                            />
-                            <input
-                              type="number"
-                              value={q.visualConfig.rightCount ?? 0}
-                              onChange={(e) => handleUpdateVisual(idx, { rightCount: Number(e.target.value) })}
-                              placeholder="Số lượng Phải"
-                              className="h-7 px-2 rounded-lg border border-slate-200 text-xs font-bold"
-                            />
-                          </div>
-                        )}
-
-                        {q.visualConfig?.type === 'word_story' && (
-                          <div className="mt-2">
-                            <input
-                              type="text"
-                              value={q.visualConfig.storyText || ''}
-                              onChange={(e) => handleUpdateVisual(idx, { storyText: e.target.value })}
-                              placeholder="Văn bản tóm tắt tình huống trực quan..."
-                              className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs font-semibold"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1">
-                          <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> Mẫu lỗi chẩn đoán & Gợi ý Thám Tử
+                          <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> Mẫu lỗi chẩn đoán &amp; Gợi ý Thám Tử
                         </label>
                         <select
                           value={q.ruleHints?.[0]?.pattern || 'GENERAL_CALCULATION_ERROR'}
@@ -966,7 +1413,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                           className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs font-medium"
                         />
                       </div>
-                    </div>
+
 
                     {/* Explanation */}
                     <div>
@@ -982,7 +1429,8 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                       />
                     </div>
                   </div>
-                ))}
+                </div>
+              ))}
               </div>
             )}
           </div>
@@ -1061,6 +1509,29 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Media Library Modal Integration (P0) */}
+        {mediaLibraryTargetQIdx !== null && (
+          <MediaLibraryModal
+            isOpen={mediaLibraryTargetQIdx !== null}
+            onClose={() => setMediaLibraryTargetQIdx(null)}
+            selectedMediaId={questions[mediaLibraryTargetQIdx]?.visualConfig?.imageId}
+            onSelectMedia={(selectedMedia: MediaItem) => {
+              handleUpdateVisual(mediaLibraryTargetQIdx, {
+                type: 'image',
+                imageId: selectedMedia.id,
+                imageUrl: selectedMedia.url,
+                imageAlt: selectedMedia.title,
+                imageScale: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageScale || 'medium',
+                imageAspectRatio: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageAspectRatio || 'original',
+                imageFit: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageFit || 'contain',
+                imageAlign: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageAlign || 'center',
+                isTeacherVerified: true,
+              });
+              setMediaLibraryTargetQIdx(null);
+            }}
+          />
         )}
       </div>
     </div>

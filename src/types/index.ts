@@ -77,8 +77,39 @@ export type MathErrorPattern =
   | 'MEASUREMENT_UNIT_ERROR'        // Nhầm đơn vị đo độ dài / thời gian
   | 'GENERAL_CALCULATION_ERROR';    // Lỗi tính toán thông thường
 
+export type MediaCategory =
+  | 'items'              // Đồ vật
+  | 'animals'            // Động vật
+  | 'fruits'             // Hoa quả
+  | 'counters_frames'    // Chấm tròn & Khung số (5 ô, 10 ô)
+  | 'counting_sticks'    // Que tính & Bó que tính
+  | 'geometry'           // Hình học (hình phẳng, hình khối)
+  | 'clock_time'         // Đồng hồ & Thời gian
+  | 'money_measurement'; // Tiền tệ & Đơn vị đo
+
+export interface MediaItem {
+  id: string;
+  title: string;
+  description?: string;
+  category: MediaCategory;
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  sizeBytes: number;
+  url: string; // /api/media/file/:id
+  width?: number;
+  height?: number;
+  uploadedBy: string;
+  uploadedAt: string;
+  tags?: string[];
+  referenceCount?: number;
+}
+
+export interface MediaUploadResponse {
+  success: boolean;
+  media: MediaItem;
+}
+
 export interface VisualAssetConfig {
-  type: 'counters' | 'ten_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story' | 'comparison';
+  type: 'counters' | 'ten_frame' | 'five_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story' | 'comparison' | 'image' | 'none';
   count?: number;
   leftCount?: number;
   rightCount?: number;
@@ -93,8 +124,19 @@ export interface VisualAssetConfig {
   target?: number;
   storyText?: string;
   shapeType?: 'circle' | 'square' | 'triangle' | 'rectangle' | 'cylinder' | 'sphere';
-  dotColor?: 'red' | 'blue' | 'green' | string;
-  gridSize?: number;
+  dotColor?: 'red' | 'blue' | 'green' | 'amber' | string;
+  gridSize?: number; // 5, 10, 20
+  layout?: 'row' | 'grid' | 'circle';
+  // Image-specific configuration for question illustrations
+  imageId?: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  imageScale?: 'small' | 'medium' | 'large' | 'full'; // small (~180px), medium (~280px), large (~380px), full (100%)
+  imageAspectRatio?: 'original' | '1:1' | '4:3' | '16:9';
+  imageFit?: 'contain' | 'cover';
+  imageAlign?: 'center' | 'left' | 'right';
+  caption?: string;
+  isTeacherVerified?: boolean;
 }
 
 export interface Question {

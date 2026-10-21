@@ -4,5 +4,8 @@
       "database": "ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2",
       "rules": "firestore.rules"
     }
-  ]
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  }
 }

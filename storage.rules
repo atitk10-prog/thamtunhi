@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Security rules for THÁM TỬ TOÁN NHÍ media assets
+    // Strictly enforces < 1,000,000 byte limit, allowed image types, and teacher/admin auth
+    match /media/{allPaths=**} {
+      // Allow read for everyone (students viewing questions, teachers previewing)
+      allow read: if true;
+
+      // Allow upload only for authenticated teachers or admins
+      // File size must be strictly under 1,000,000 bytes (< 1MB)
+      // Allowed MIME types: JPEG, PNG, WebP only. SVG and HTML strictly blocked.
+      allow write: if request.auth != null &&
+        (request.auth.token.role == 'teacher' || request.auth.token.role == 'admin') &&
+        request.resource.size < 1000000 &&
+        request.resource.contentType.matches('image/(jpeg|jpg|png|webp)');
+
+      // Allow delete only for teachers or admins
+      allow delete: if request.auth != null &&
+        (request.auth.token.role == 'teacher' || request.auth.token.role == 'admin');
+    }
+
+    // Default deny for all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

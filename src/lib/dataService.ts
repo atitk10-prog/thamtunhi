@@ -11,7 +11,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { getAuthHeaders } from './authSession';
-import { Assignment, Attempt, Lesson, LessonVersion, MistakeInsight, UserProfile, UserAccountStatus } from '../types';
+import { Assignment, Attempt, Lesson, LessonVersion, MistakeInsight, UserProfile, UserAccountStatus, MediaItem, MediaCategory } from '../types';
 
 /**
  * Unified Data Service for THÁM TỬ TOÁN NHÍ
@@ -341,6 +341,224 @@ export const dataService = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Lỗi lưu bài học mới.');
     }
+  },
+
+  // --- MEDIA LIBRARY OPERATIONS (P0) ---
+
+  async fetchMediaLibrary(category?: string, search?: string): Promise<MediaItem[]> {
+    const params = new URLSearchParams();
+    if (category && category !== 'all') params.set('category', category);
+    if (search && search.trim()) params.set('search', search.trim());
+
+    const url = `/api/teacher/media${params.toString() ? `?${params.toString()}` : ''}`;
+    const res = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Không thể tải thư viện hình ảnh.');
+    }
+    const data = await res.json();
+    return data.items || [];
+  },
+
+  async uploadMedia(data: {
+    title: string;
+    category: MediaCategory;
+    description?: string;
+    base64Data: string;
+    mimeType: string;
+    width: number;
+    height: number;
+  }): Promise<MediaItem> {
+    const res = await fetch('/api/teacher/media/upload', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi tải ảnh lên thư viện.');
+    }
+    const result = await res.json();
+    return result.media;
+  },
+
+  async deleteMedia(id: string): Promise<any> {
+    const res = await fetch(`/api/teacher/media/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const errorObj = new Error(err.error || 'Lỗi xóa hình ảnh.');
+      (errorObj as any).code = err.code;
+      (errorObj as any).referencingLessons = err.referencingLessons;
+      throw errorObj;
+    }
+    return res.json();
+  },
+
+  /**
+   * Client-side image compression helper:
+   * - Restricts accepted types: JPG, JPEG, PNG, WebP (< 1,000,000 bytes)
+   * - Proportional scaling keeping aspect ratio (không méo hình)
+   * - Prefers WebP for compact size; preserves PNG if alpha channel transparency is detected
+   * - Rejects dangerous/unsupported files (SVG, HTML, etc.)
+   */
+  async compressImageClient(
+    file: File,
+    options: { maxWidth?: number; maxHeight?: number; maxBytes?: number } = {}
+  ): Promise<{
+    blob: Blob;
+    base64: string;
+    mimeType: string;
+    sizeBytes: number;
+    width: number;
+    height: number;
+  }> {
+    const maxBytes = options.maxBytes ?? 1_000_000; // 1 MB limit
+    const maxWidth = options.maxWidth ?? 1200;
+    const maxHeight = options.maxHeight ?? 1200;
+
+    const lowerName = file.name.toLowerCase();
+    const isSvg = file.type === 'image/svg+xml' || lowerName.endsWith('.svg');
+    const isHtml = file.type === 'text/html' || lowerName.endsWith('.html') || lowerName.endsWith('.htm');
+    if (isSvg || isHtml) {
+      throw new Error('Định dạng tệp không được hỗ trợ vì lý do bảo mật. Vui lòng chọn ảnh JPG, JPEG, PNG hoặc WebP.');
+    }
+
+    const acceptedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!acceptedTypes.includes(file.type) && !acceptedTypes.some((t) => lowerName.endsWith(t.replace('image/', '')))) {
+      throw new Error('Định dạng tệp không hợp lệ. Chỉ chấp nhận JPG, JPEG, PNG hoặc WebP.');
+    }
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      img.onload = async () => {
+        URL.revokeObjectURL(objectUrl);
+        try {
+          let origWidth = img.naturalWidth || img.width;
+          let origHeight = img.naturalHeight || img.height;
+
+          if (!origWidth || !origHeight) {
+            reject(new Error('Không thể đọc kích thước tệp ảnh.'));
+            return;
+          }
+
+          // Compute scale keeping aspect ratio intact (không méo hình)
+          let targetWidth = origWidth;
+          let targetHeight = origHeight;
+          if (targetWidth > maxWidth || targetHeight > maxHeight) {
+            const ratio = Math.min(maxWidth / targetWidth, maxHeight / targetHeight);
+            targetWidth = Math.round(targetWidth * ratio);
+            targetHeight = Math.round(targetHeight * ratio);
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Trình duyệt không hỗ trợ xử lý hình ảnh (Canvas 2D).'));
+            return;
+          }
+
+          // High quality image smoothing
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+          // Detect alpha transparency for PNG
+          let hasAlpha = false;
+          if (file.type === 'image/png' || lowerName.endsWith('.png')) {
+            try {
+              const imgData = ctx.getImageData(0, 0, Math.min(canvas.width, 100), Math.min(canvas.height, 100)).data;
+              for (let i = 3; i < imgData.length; i += 4) {
+                if (imgData[i] < 250) {
+                  hasAlpha = true;
+                  break;
+                }
+              }
+            } catch {
+              hasAlpha = true; // Safe fallback
+            }
+          }
+
+          // Choose target MIME: keep PNG if transparent, otherwise prefer WebP for best compression
+          const targetMime = hasAlpha ? 'image/png' : 'image/webp';
+
+          // Iterative compression to guarantee < 1,000,000 bytes
+          let quality = 0.92;
+          let currentBlob: Blob | null = null;
+          let attempts = 0;
+
+          while (attempts < 6) {
+            currentBlob = await new Promise<Blob | null>((resBlob) => {
+              canvas.toBlob((b) => resBlob(b), targetMime, quality);
+            });
+
+            if (currentBlob && currentBlob.size <= maxBytes) {
+              break;
+            }
+
+            // Reduce quality or downscale if needed
+            quality -= 0.15;
+            if (quality < 0.4) {
+              // Scale down dimensions by 20%
+              canvas.width = Math.round(canvas.width * 0.8);
+              canvas.height = Math.round(canvas.height * 0.8);
+              targetWidth = canvas.width;
+              targetHeight = canvas.height;
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+              quality = 0.8;
+            }
+            attempts++;
+          }
+
+          if (!currentBlob || currentBlob.size > maxBytes) {
+            reject(
+              new Error(
+                `Dung lượng ảnh sau khi nén (${((currentBlob?.size || file.size) / 1024 / 1024).toFixed(2)} MB) vẫn vượt quá giới hạn 1 MB (1.000.000 byte). Vui lòng chọn ảnh nhỏ hơn.`
+              )
+            );
+            return;
+          }
+
+          // Convert to Base64
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            resolve({
+              blob: currentBlob!,
+              base64,
+              mimeType: targetMime,
+              sizeBytes: currentBlob!.size,
+              width: targetWidth,
+              height: targetHeight,
+            });
+          };
+          reader.onerror = () => reject(new Error('Lỗi chuyển đổi dữ liệu ảnh sang Base64.'));
+          reader.readAsDataURL(currentBlob);
+        } catch (err: any) {
+          reject(new Error('Lỗi xử lý nén ảnh: ' + (err?.message || err)));
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Không thể tải hoặc hiển thị tệp ảnh đã chọn.'));
+      };
+
+      img.src = objectUrl;
+    });
   },
 
   async fetchTeacherAnalytics(teacherId: string): Promise<{ attempts: Attempt[]; insights: MistakeInsight[] }> {

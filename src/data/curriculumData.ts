@@ -94,7 +94,7 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
         order: 5,
         prompt: 'Khung 5 ô: Có mấy chấm tròn màu xanh đang có trong khung?',
         interactionType: 'ten_frame_bundle',
-        visualConfig: { type: 'ten_frame', count: 5, tens: 0, ones: 5 },
+        visualConfig: { type: 'ten_frame', gridSize: 5, count: 5, dotColor: 'blue', tens: 0, ones: 5 },
         options: ['3', '4', '5'],
         expectedAnswer: '5',
         explanation: 'Khung 5 ô đã được điền đầy đủ cả 5 chấm tròn.',

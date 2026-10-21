@@ -251,7 +251,8 @@ export function resetPasswordAttempts(key: string) {
 }
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CORS & Security headers for cross-environment safety
 app.use((_req, res, next) => {
@@ -2150,6 +2151,477 @@ app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']),
   } catch (err: any) {
     console.error('Save lesson version error:', err);
     return res.status(500).json({ error: 'Lỗi lưu bài học: ' + err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// MEDIA LIBRARY & QUESTION ILLUSTRATIONS MANAGEMENT (P0)
+// -------------------------------------------------------------
+
+const MEDIA_STORAGE_DIR = path.resolve(__dirname, 'data', 'media_storage');
+const MEDIA_LIBRARY_FILE = path.resolve(__dirname, 'data', 'media_library.json');
+
+try {
+  if (!fs.existsSync(MEDIA_STORAGE_DIR)) {
+    fs.mkdirSync(MEDIA_STORAGE_DIR, { recursive: true });
+  }
+} catch (err) {
+  console.warn('Notice: Failed to initialize MEDIA_STORAGE_DIR:', err);
+}
+
+function loadMediaLibrary(): any[] {
+  try {
+    if (fs.existsSync(MEDIA_LIBRARY_FILE)) {
+      return JSON.parse(fs.readFileSync(MEDIA_LIBRARY_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.warn('Failed to read media_library.json:', err);
+  }
+  return [];
+}
+
+function saveMediaLibrary(items: any[]) {
+  try {
+    const dir = path.dirname(MEDIA_LIBRARY_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(MEDIA_LIBRARY_FILE, JSON.stringify(items, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Failed to save media_library.json:', err);
+  }
+}
+
+// In-memory cache for fast image serving
+const mediaMemoryCache = new Map<string, { buffer: Buffer; mimeType: string }>();
+
+// Strict binary and MIME validator (< 1MB, allowed formats: JPG, PNG, WebP)
+function validateImageBuffer(buffer: Buffer, declaredMime?: string): { valid: boolean; error?: string; realMime?: string } {
+  // 1. Max size: 1,000,000 bytes (< 1MB)
+  if (buffer.length > 1_000_000) {
+    return {
+      valid: false,
+      error: `Dung lượng tệp (${(buffer.length / 1024 / 1024).toFixed(2)} MB) vượt quá giới hạn cho phép là 1 MB (1.000.000 byte). Vui lòng nén hoặc giảm kích thước ảnh trước khi tải lên.`,
+    };
+  }
+
+  if (buffer.length < 12) {
+    return { valid: false, error: 'Tệp hình ảnh không hợp lệ hoặc bị hỏng (kích thước quá nhỏ).' };
+  }
+
+  // 2. Reject SVG, HTML, or executable script injections
+  const startStr = buffer.slice(0, 100).toString('utf8').toLowerCase();
+  if (
+    startStr.includes('<svg') ||
+    startStr.includes('<?xml') ||
+    startStr.includes('<html') ||
+    startStr.includes('<script') ||
+    startStr.includes('<!doctype')
+  ) {
+    return {
+      valid: false,
+      error: 'Loại tệp không được chấp nhận. Hệ thống từ chối tệp SVG, HTML hoặc tệp chứa mã độc hại. Chỉ chấp nhận JPG, JPEG, PNG, WebP.',
+    };
+  }
+
+  // 3. Magic bytes verification
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return { valid: true, realMime: 'image/jpeg' };
+  }
+
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return { valid: true, realMime: 'image/png' };
+  }
+
+  // WebP: RIFF .... WEBP
+  if (
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
+  ) {
+    return { valid: true, realMime: 'image/webp' };
+  }
+
+  return {
+    valid: false,
+    error: 'Định dạng tệp không hợp lệ. Chỉ chấp nhận hình ảnh định dạng JPG, JPEG, PNG hoặc WebP.',
+  };
+}
+
+// Upload Media Endpoint (Teacher & Admin)
+app.post('/api/teacher/media/upload', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { title, category, description, mimeType, base64Data, width, height } = req.body;
+
+    if (!title || !category || !base64Data) {
+      return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ tên hình ảnh, danh mục và dữ liệu ảnh.' });
+    }
+
+    const validCategories = [
+      'items', 'animals', 'fruits', 'counters_frames',
+      'counting_sticks', 'geometry', 'clock_time', 'money_measurement'
+    ];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ error: 'Danh mục hình ảnh không hợp lệ.' });
+    }
+
+    const cleanBase64 = String(base64Data).replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+
+    const validation = validateImageBuffer(buffer, mimeType);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error, code: 'INVALID_IMAGE' });
+    }
+
+    const detectedMime = validation.realMime || mimeType || 'image/webp';
+    const mediaId = `media-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const cleanTitle = String(title).trim();
+    const cleanDesc = description ? String(description).trim() : '';
+
+    const CHUNK_SIZE = 180 * 1024; // 180 KB chunks
+    const totalChunks = Math.ceil(cleanBase64.length / CHUNK_SIZE);
+
+    const mediaDoc = {
+      id: mediaId,
+      title: cleanTitle,
+      description: cleanDesc,
+      category,
+      mimeType: detectedMime,
+      sizeBytes: buffer.length,
+      url: `/api/media/file/${mediaId}`,
+      width: Number(width) || 0,
+      height: Number(height) || 0,
+      totalChunks,
+      uploadedBy: req.user?.uid || 'system',
+      uploadedByName: req.user?.displayName || 'Giáo viên',
+      uploadedAt: new Date().toISOString(),
+      dataOrigin: 'real',
+      environmentTag: 'production',
+    };
+
+    // 1. Persistent Cloud Firestore Storage for Vercel Production
+    // Chunks ensure each document is < 250 KB (well within 1 MB Firestore limit)
+    try {
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkData = cleanBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        await setDoc(doc(db, 'test', `media_bin_${mediaId}_${i}`), {
+          mediaId,
+          chunkIndex: i,
+          data: chunkData,
+        });
+      }
+      await setDoc(doc(db, 'test', `media_meta_${mediaId}`), mediaDoc);
+
+      // Update cloud master catalog index
+      const catalogRef = doc(db, 'test', 'media_catalog_index');
+      const catSnap = await getDoc(catalogRef);
+      let catItems = catSnap.exists() && Array.isArray(catSnap.data().items) ? catSnap.data().items : [];
+      catItems = [mediaDoc, ...catItems.filter((i: any) => i.id !== mediaId)];
+      if (catItems.length > 500) catItems = catItems.slice(0, 500);
+      await setDoc(catalogRef, { items: catItems, updatedAt: new Date().toISOString() });
+    } catch (cloudErr) {
+      console.warn('Notice: Cloud Firestore chunk save notice:', cloudErr);
+    }
+
+    // 2. Local Disk Cache (fallback & high performance)
+    try {
+      const diskPath = path.join(MEDIA_STORAGE_DIR, mediaId);
+      fs.writeFileSync(diskPath, buffer);
+    } catch (fsErr) {
+      console.warn('Notice: Failed writing media file to disk:', fsErr);
+    }
+
+    // 3. Local catalog sync
+    const existingList = loadMediaLibrary();
+    existingList.unshift(mediaDoc);
+    saveMediaLibrary(existingList);
+
+    // 4. In-memory cache for instant serving
+    mediaMemoryCache.set(mediaId, { buffer, mimeType: detectedMime });
+
+    await writeAuditLog({
+      action: 'UPLOAD_MEDIA_ITEM',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'mediaLibrary',
+      targetId: mediaId,
+      targetName: cleanTitle,
+      details: `Tải lên hình ảnh '${cleanTitle}' (${category}, ${(buffer.length / 1024).toFixed(1)} KB) thành công.`,
+    });
+
+    return res.json({
+      success: true,
+      media: mediaDoc,
+    });
+  } catch (err: any) {
+    console.error('Media upload error:', err);
+    return res.status(500).json({ error: 'Lỗi tải ảnh lên hệ thống: ' + err.message });
+  }
+});
+
+// List Media Library Endpoint (Teacher & Admin)
+app.get('/api/teacher/media', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { category, search } = req.query;
+
+    let items = loadMediaLibrary();
+
+    // Query Cloud Firestore catalog index for Vercel production sync
+    try {
+      const catSnap = await getDoc(doc(db, 'test', 'media_catalog_index'));
+      if (catSnap.exists() && Array.isArray(catSnap.data().items)) {
+        const cloudItems = catSnap.data().items;
+        const itemMap = new Map<string, any>();
+        for (const it of cloudItems) itemMap.set(it.id, it);
+        for (const it of items) itemMap.set(it.id, it);
+        items = Array.from(itemMap.values());
+      }
+    } catch {
+      // Fallback to local
+    }
+
+    if (category && typeof category === 'string' && category !== 'all') {
+      items = items.filter((item) => item.category === category);
+    }
+
+    if (search && typeof search === 'string' && search.trim()) {
+      const q = search.trim().toLowerCase();
+      items = items.filter((item) => {
+        return (
+          (item.title && item.title.toLowerCase().includes(q)) ||
+          (item.description && item.description.toLowerCase().includes(q)) ||
+          (item.category && item.category.toLowerCase().includes(q))
+        );
+      });
+    }
+
+    items.sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
+
+    return res.json({ ok: true, items });
+  } catch (err: any) {
+    console.error('Fetch media library error:', err);
+    return res.status(500).json({ error: 'Lỗi lấy danh sách hình ảnh: ' + err.message });
+  }
+});
+
+// Delete Media Endpoint with Strict Referential Integrity (Teacher & Admin)
+app.delete('/api/teacher/media/:id', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: 'Thiếu mã định danh hình ảnh cần xóa.' });
+    }
+
+    const items = loadMediaLibrary();
+    let mediaData = items.find((it) => it.id === id);
+
+    if (!mediaData) {
+      try {
+        const metaSnap = await getDoc(doc(db, 'test', `media_meta_${id}`));
+        if (metaSnap.exists()) {
+          mediaData = metaSnap.data() as any;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    if (!mediaData) {
+      return res.status(404).json({ error: 'Không tìm thấy hình ảnh trong thư viện.' });
+    }
+
+    // Referential integrity check:
+    // 1. Scan lessonVersions
+    const versionsSnap = await getDocs(collection(db, 'lessonVersions'));
+    const referencingVersions: Array<{ id: string; title: string; versionNumber: number; isPublished: boolean }> = [];
+
+    versionsSnap.docs.forEach((d) => {
+      const v = d.data();
+      const hasRef = Array.isArray(v.questions) && v.questions.some((q: any) => {
+        const vc = q.visualConfig;
+        if (!vc) return false;
+        return vc.imageId === id || (typeof vc.imageUrl === 'string' && vc.imageUrl.includes(id));
+      });
+      if (hasRef) {
+        referencingVersions.push({
+          id: d.id,
+          title: v.title || d.id,
+          versionNumber: v.versionNumber || 1,
+          isPublished: Boolean(v.isPublished),
+        });
+      }
+    });
+
+    const publishedRefs = referencingVersions.filter((v) => v.isPublished);
+    if (publishedRefs.length > 0) {
+      const titles = publishedRefs.map((r) => `"${r.title}" (v${r.versionNumber})`).join(', ');
+      return res.status(400).json({
+        error: `Không thể xóa vĩnh viễn hình ảnh này vì đang được sử dụng trong bài học đã xuất bản: ${titles}. Để bảo toàn phiên bản học liệu và kết quả làm bài của học sinh, tệp đang tham chiếu được bảo vệ nghiêm ngặt.`,
+        code: 'CANNOT_DELETE_REFERENCED_MEDIA',
+        referencingLessons: publishedRefs,
+      });
+    }
+
+    // 2. Scan attempts
+    const attemptsSnap = await getDocs(collection(db, 'attempts'));
+    const hasAttemptRef = attemptsSnap.docs.some((d) => {
+      const a = d.data();
+      if (!Array.isArray(a.questionBreakdowns)) return false;
+      return a.questionBreakdowns.some((qb: any) => {
+        return qb.imageId === id || (typeof qb.imageUrl === 'string' && qb.imageUrl.includes(id));
+      });
+    });
+
+    if (hasAttemptRef) {
+      return res.status(400).json({
+        error: 'Không thể xóa hình ảnh vì đã có học sinh làm bài và ghi nhận kết quả gắn liền với hình ảnh này.',
+        code: 'CANNOT_DELETE_REFERENCED_MEDIA',
+      });
+    }
+
+    if (referencingVersions.length > 0) {
+      const draftTitles = referencingVersions.map((r) => `"${r.title}" (bản nháp v${r.versionNumber})`).join(', ');
+      return res.status(400).json({
+        error: `Hình ảnh đang được tham chiếu trong các bản nháp chưa xuất bản: ${draftTitles}. Vui lòng gỡ hình khỏi các câu hỏi trong bản nháp trước khi xóa khỏi thư viện.`,
+        code: 'CANNOT_DELETE_DRAFT_REFERENCED_MEDIA',
+        referencingDrafts: referencingVersions,
+      });
+    }
+
+    // Safe to delete: Delete Cloud Firestore chunks and metadata
+    try {
+      const metaSnap = await getDoc(doc(db, 'test', `media_meta_${id}`));
+      const totalChunks = metaSnap.exists() ? Number(metaSnap.data().totalChunks || 1) : 4;
+      for (let i = 0; i < totalChunks; i++) {
+        await deleteDoc(doc(db, 'test', `media_bin_${id}_${i}`));
+      }
+      await deleteDoc(doc(db, 'test', `media_meta_${id}`));
+
+      // Update cloud catalog index
+      const catalogRef = doc(db, 'test', 'media_catalog_index');
+      const catSnap = await getDoc(catalogRef);
+      if (catSnap.exists() && Array.isArray(catSnap.data().items)) {
+        const filtered = catSnap.data().items.filter((i: any) => i.id !== id);
+        await setDoc(catalogRef, { items: filtered, updatedAt: new Date().toISOString() });
+      }
+    } catch {
+      // Ignore
+    }
+
+    // Safe to delete: local storage
+    const updatedList = items.filter((it) => it.id !== id);
+    saveMediaLibrary(updatedList);
+
+    try {
+      const diskPath = path.join(MEDIA_STORAGE_DIR, id);
+      if (fs.existsSync(diskPath)) fs.unlinkSync(diskPath);
+    } catch {
+      // Ignore
+    }
+
+    mediaMemoryCache.delete(id);
+
+    await writeAuditLog({
+      action: 'DELETE_MEDIA_ITEM',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'mediaLibrary',
+      targetId: id,
+      targetName: mediaData.title || id,
+      details: `Đã xóa hình ảnh '${mediaData.title || id}' khỏi thư viện dùng chung.`,
+    });
+
+    return res.json({ ok: true, deletedId: id });
+  } catch (err: any) {
+    console.error('Delete media error:', err);
+    return res.status(500).json({ error: 'Lỗi xóa hình ảnh: ' + err.message });
+  }
+});
+
+// Binary File Serving Endpoint (Public read for student questions & previews)
+app.get('/api/media/file/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).send('Bad Request');
+
+    // 1. In-memory cache (Fastest, zero I/O)
+    const cached = mediaMemoryCache.get(id);
+    if (cached) {
+      res.setHeader('Content-Type', cached.mimeType);
+      res.setHeader('Content-Length', cached.buffer.length);
+      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      return res.end(cached.buffer);
+    }
+
+    // 2. Disk storage (Local dev / container disk)
+    const diskPath = path.join(MEDIA_STORAGE_DIR, id);
+    if (fs.existsSync(diskPath)) {
+      const buffer = fs.readFileSync(diskPath);
+      const items = loadMediaLibrary();
+      const meta = items.find((i) => i.id === id);
+      const mimeType = meta?.mimeType || 'image/webp';
+
+      if (buffer.length < 2_000_000) {
+        mediaMemoryCache.set(id, { buffer, mimeType });
+      }
+
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      return res.end(buffer);
+    }
+
+    // 3. Persistent Cloud Firestore Chunks (For Vercel Production serverless lambdas)
+    try {
+      const metaSnap = await getDoc(doc(db, 'test', `media_meta_${id}`));
+      if (metaSnap.exists()) {
+        const meta = metaSnap.data();
+        const totalChunks = Number(meta.totalChunks || 1);
+        let assembledBase64 = '';
+        for (let i = 0; i < totalChunks; i++) {
+          const chunkSnap = await getDoc(doc(db, 'test', `media_bin_${id}_${i}`));
+          if (chunkSnap.exists()) {
+            assembledBase64 += chunkSnap.data().data;
+          }
+        }
+        if (assembledBase64) {
+          const buffer = Buffer.from(assembledBase64, 'base64');
+          const mimeType = meta.mimeType || 'image/webp';
+          mediaMemoryCache.set(id, { buffer, mimeType });
+
+          res.setHeader('Content-Type', mimeType);
+          res.setHeader('Content-Length', buffer.length);
+          res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          return res.end(buffer);
+        }
+      }
+    } catch (cloudErr) {
+      console.warn('Notice: Cloud Firestore chunk retrieval notice:', cloudErr);
+    }
+
+    return res.status(404).send('Không tìm thấy hình ảnh.');
+  } catch (err: any) {
+    console.error('Serve media file error:', err);
+    return res.status(500).send('Lỗi máy chủ khi tải hình ảnh.');
   }
 });
 

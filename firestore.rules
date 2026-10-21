@@ -121,7 +121,20 @@ service cloud.firestore {
       allow update, delete: if false; // Immutable audit trail invariant
     }
 
-    // 11. Public Connectivity Testing Endpoint (Health probe only, read-only, no sensitive data)
+    // 11. Media Library Collection (Shared Math Media Catalog)
+    match /mediaLibrary/{mediaId} {
+      allow read: if isSignedIn();
+      allow create, update: if isTeacher();
+      allow delete: if isTeacher();
+    }
+
+    // 12. Media Binaries Collection (Dedicated binary payload store)
+    match /mediaBinaries/{mediaId} {
+      allow read: if true;
+      allow write: if isTeacher();
+    }
+
+    // 13. Public Connectivity Testing Endpoint (Health probe only, read-only, no sensitive data)
     match /test/{docId} {
       allow read: if true;
       allow write: if false;

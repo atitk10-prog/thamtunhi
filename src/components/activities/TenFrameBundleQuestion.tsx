@@ -15,25 +15,60 @@ export const TenFrameBundleQuestion: React.FC<TenFrameBundleQuestionProps> = ({
   disabled = false,
 }) => {
   const visual = question.visualConfig;
-  const isBundle = visual?.type === 'bundles' || visual?.tens !== undefined;
+  const isImage = visual?.type === 'image' || Boolean(visual?.imageUrl);
+  const isBundle = !isImage && (visual?.type === 'bundles' || visual?.tens !== undefined);
   const tens = visual?.tens || 0;
   const ones = visual?.ones || 0;
   const count = visual?.count || (tens * 10 + ones);
 
   const options = question.options || ['10', '15', '20'];
 
-  const isBlueDot = visual?.dotColor === 'blue' || question.prompt.toLowerCase().includes('chấm xanh') || question.prompt.toLowerCase().includes('màu xanh');
-  const isFiveFrame = question.prompt.toLowerCase().includes('khung 5 ô') || visual?.gridSize === 5;
+  // Authoritative Source of Truth: visual.gridSize or visual.type
+  const isFiveFrame = visual?.gridSize !== undefined
+    ? visual.gridSize === 5
+    : visual?.type === 'five_frame' || question.prompt.toLowerCase().includes('khung 5 ô');
+
   const gridCellCount = isFiveFrame ? 5 : 10;
-  const dotClass = isBlueDot
-    ? 'bg-gradient-to-br from-sky-400 to-blue-600 border border-blue-700 text-white'
-    : 'bg-gradient-to-br from-rose-400 to-rose-600 border border-rose-700 text-white';
+
+  // Dot color support (blue, red, green, amber)
+  const dotColor = visual?.dotColor || (
+    question.prompt.toLowerCase().includes('màu xanh') || question.prompt.toLowerCase().includes('chấm xanh')
+      ? 'blue'
+      : question.prompt.toLowerCase().includes('màu đỏ') || question.prompt.toLowerCase().includes('chấm đỏ')
+      ? 'red'
+      : question.prompt.toLowerCase().includes('xanh lá')
+      ? 'green'
+      : 'blue'
+  );
+
+  const dotClasses: Record<string, string> = {
+    blue: 'bg-gradient-to-br from-sky-400 to-blue-600 border border-blue-700 text-white',
+    red: 'bg-gradient-to-br from-rose-400 to-rose-600 border border-rose-700 text-white',
+    green: 'bg-gradient-to-br from-emerald-400 to-emerald-600 border border-emerald-700 text-white',
+    amber: 'bg-gradient-to-br from-amber-400 to-amber-600 border border-amber-700 text-white',
+  };
+  const dotClass = dotClasses[dotColor] || dotClasses.blue;
 
   return (
     <div className="w-full flex flex-col items-center">
       {/* Visual Model Canvas */}
       <div className="w-full max-w-lg my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm">
-        {isBundle && tens > 0 ? (
+        {isImage && visual?.imageUrl ? (
+          <div className="flex flex-col items-center">
+            <div className="max-w-[320px] w-full rounded-2xl bg-white border-2 border-slate-200 shadow-sm p-1.5 overflow-hidden">
+              <img
+                src={visual.imageUrl}
+                alt={visual.imageAlt || 'Hình minh họa'}
+                className="w-full h-full max-h-[300px] object-contain rounded-xl"
+              />
+            </div>
+            {visual.caption && (
+              <p className="text-xs text-slate-500 font-semibold italic mt-2 text-center">
+                {visual.caption}
+              </p>
+            )}
+          </div>
+        ) : isBundle && tens > 0 ? (
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-sky-700 text-center mb-3">
               Mô hình Bó Que tính &amp; Que Lẻ
