@@ -547,7 +547,7 @@ async function generateGeminiContent(promptText: string): Promise<string> {
     }
   }
 
-  throw new Error('Dịch vụ AI hiện không khả dụng. Vui lòng thử lại sau.');
+  throw new Error(`Dịch vụ AI hiện không khả dụng: ${modelErrors.slice(0, 2).join('; ')}`);
 }
 
 // 5. Teacher AI Draft Generation (Protected: teacher or admin role required)
@@ -586,7 +586,7 @@ Yêu cầu định dạng JSON CHUẨN XÁC theo schema sau:
       "id": "q-ai-1",
       "order": 1,
       "prompt": "Lời dẫn câu hỏi bằng tiếng Việt rõ ràng",
-      "interactionType": "number_input" | "single_choice" | "operator_pick" | "ten_frame_bundle",
+      "interactionType": "number_input",
       "options": ["A", "B", "C"],
       "expectedAnswer": "5",
       "explanation": "Lời giải thích cặn kẽ",
@@ -637,8 +637,12 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
 
     return res.json(parsed);
   } catch (err: any) {
-    console.error('Gemini draft generation error (sanitized):', err?.message ? err.message.replace(/AIza[0-9A-Za-z-_]{35}/g, '***') : err);
-    return res.status(500).json({ error: 'Không thể tạo bài nháp từ AI lúc này. Thầy/Cô có thể biên soạn câu hỏi thủ công hoặc thử lại sau.' });
+    const safeMsg = err?.message ? err.message.replace(/AIza[0-9A-Za-z-_]{35}/g, '***').replace(/key=[^&\s]+/g, 'key=***') : String(err);
+    console.error('Gemini draft generation error (sanitized):', safeMsg);
+    return res.status(500).json({
+      error: 'Không thể tạo bài nháp từ AI lúc này. Thầy/Cô có thể biên soạn câu hỏi thủ công hoặc thử lại sau.',
+      detail: safeMsg
+    });
   }
 });
 
