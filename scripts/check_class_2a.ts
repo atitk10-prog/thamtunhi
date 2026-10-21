@@ -1,5 +1,12 @@
-import { db } from '../src/lib/firebase.ts';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import fs from 'fs';
+import path from 'path';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+
+const cfgPath = path.resolve('./firebase-applet-config.json');
+const firebaseConfig = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 async function check2a() {
   const d = await getDoc(doc(db, 'classes', 'class-2a'));

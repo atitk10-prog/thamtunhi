@@ -22,9 +22,16 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
     { left: 'Phần 2', right: 'Khớp 2' }
   ];
 
-  const leftItems = rawPairs.map((p) => p.left);
-  // Keep right items fixed or stable
-  const rightItems = rawPairs.map((p) => p.right);
+  const leftItems = React.useMemo(() => rawPairs.map((p) => p.left), [rawPairs]);
+
+  // Deterministically scramble right cards so they do not align 1-to-1 horizontally
+  const rightItems = React.useMemo(() => {
+    const list = rawPairs.map((p) => p.right);
+    if (list.length <= 1) return list;
+    if (list.length === 2) return [list[1], list[0]];
+    if (list.length === 3) return [list[1], list[2], list[0]];
+    return [...list.slice(1), list[0]];
+  }, [rawPairs]);
 
   const handleSelectLeft = (left: string) => {
     if (disabled) return;
@@ -53,7 +60,7 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
     setSelectedLeft(null);
   };
 
-  const isComplete = leftItems.every((left) => matchedPairs[left]);
+  const isComplete = leftItems.length > 0 && leftItems.every((left) => Boolean(matchedPairs[left]));
 
   return (
     <div className="w-full flex flex-col items-center">
@@ -77,7 +84,7 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
                 type="button"
                 disabled={disabled}
                 onClick={() => handleSelectLeft(left)}
-                className={`min-h-[58px] p-3 sm:p-4 rounded-2xl border-3 text-base sm:text-lg font-bold text-left transition-all active:scale-95 shadow-sm cursor-pointer flex items-center justify-between ${
+                className={`min-h-[58px] p-3 sm:p-4 rounded-2xl border-3 text-base sm:text-lg font-bold text-left transition-all active:scale-95 shadow-sm cursor-pointer flex flex-col justify-center ${
                   isSelected
                     ? 'bg-amber-400 border-amber-600 text-slate-900 ring-4 ring-amber-200 scale-102'
                     : pairedWith
@@ -85,8 +92,15 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
                     : 'bg-white border-slate-200 hover:border-sky-400 hover:bg-sky-50 text-slate-800'
                 }`}
               >
-                <span>{left}</span>
-                {pairedWith && <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" />}
+                <div className="flex items-center justify-between w-full">
+                  <span>{left}</span>
+                  {pairedWith && <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" />}
+                </div>
+                {pairedWith && (
+                  <span className="text-xs font-bold text-emerald-700 mt-1 inline-flex items-center gap-1">
+                    ➔ {pairedWith}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -134,7 +148,7 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
 
         {isComplete && (
           <div className="text-sm font-extrabold text-emerald-700 bg-emerald-100 px-4 py-2 rounded-xl border border-emerald-300">
-            Đã nối đủ các cặp!
+            Đã nối đủ các cặp! Em có thể nhấn Trả lời.
           </div>
         )}
       </div>

@@ -113,7 +113,7 @@ export function detectErrorPattern(
   }
 
   // 4. Operator confusion (+ instead of - or vice versa in calculation)
-  const mathMatch = question.prompt.match(/(\d+)\s*([+\-])\s*(\d+)/);
+  const mathMatch = question.prompt ? question.prompt.match(/(\d+)\s*([+\-])\s*(\d+)/) : null;
   if (mathMatch && !isNaN(userNum)) {
     const a = parseInt(mathMatch[1], 10);
     const op = mathMatch[2];

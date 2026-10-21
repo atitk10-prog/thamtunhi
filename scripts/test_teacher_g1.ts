@@ -148,7 +148,7 @@ async function runTests() {
     assert(reassignRes.status === 200, 'Admin reassigns class-1b to Trần Thanh Thanh returns 200 OK');
 
     // Step B: Trần Thanh Thanh now sees 1B
-    const ttClassesAfter = await (await fetch(`${BASE_URL}/api/teacher/classes`, {
+    const ttClassesAfter: any = await (await fetch(`${BASE_URL}/api/teacher/classes`, {
       headers: { Authorization: `Bearer ${thanhThanhToken}` },
     })).json();
     assert(ttClassesAfter.classes.length === 1 && ttClassesAfter.classes[0].id === 'class-1b', 'Trần Thanh Thanh now has class-1b in assigned classes list');

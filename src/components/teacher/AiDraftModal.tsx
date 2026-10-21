@@ -95,6 +95,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
 
           <button
             type="button"
+            aria-label="Đóng AI Soạn Bài"
             onClick={onClose}
             className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
           >

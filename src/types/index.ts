@@ -124,6 +124,7 @@ export interface Lesson {
   status: 'draft' | 'published' | 'archived';
   currentVersion: number;
   currentVersionId?: string;
+  draftVersionId?: string;
   createdBy: string;
   createdAt: string;
   updatedAt?: string;

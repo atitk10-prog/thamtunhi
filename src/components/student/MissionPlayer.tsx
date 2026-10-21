@@ -58,6 +58,15 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   const [isCompleted, setIsCompleted] = useState(false);
   const [durationSeconds, setDurationSeconds] = useState(0);
 
+  // Preview Mode flag (Teacher viewing curriculum without student telemetry)
+  const isPreview = Boolean(
+    assignment.id === 'preview-assignment' ||
+    assignment.id.startsWith('preview') ||
+    assignment.dataOrigin === 'simulation' ||
+    currentUser.displayName?.includes('(Xem trước)') ||
+    currentUser.role === 'teacher'
+  );
+
   const currentQuestion: Question | undefined = questions[currentIndex];
   const calculatedMaxScore = questions.reduce((sum, q) => sum + (Number((q as any).points) || 10), 0) || (questions.length > 0 ? questions.length * 10 : 80);
 
@@ -90,32 +99,43 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       const newAttemptId = `att-${assignment.id}-${currentUser.id}`;
       setAttemptId(newAttemptId);
 
-      try {
-        const attemptDoc: Attempt = {
-          id: newAttemptId,
-          assignmentId: assignment.id,
-          lessonId: assignment.lessonId,
-          lessonVersionId: assignment.lessonVersionId,
-          lessonTitle: lessonVersion.title,
-          studentId: currentUser.id,
-          studentName: currentUser.displayName,
-          studentCode: currentUser.studentCode || '',
-          classId: currentUser.classId || assignment.classId,
-          status: 'in_progress',
-          currentQuestionIndex: 0,
-          score: 0,
-          maxScore: calculatedMaxScore,
-          firstAttemptCorrectCount: 0,
-          postHintCorrectCount: 0,
-          totalAttemptsMade: 0,
-          startedAt: new Date().toISOString(),
-          durationSeconds: 0,
-          dataOrigin: 'real',
-          environmentTag: 'production',
-        };
-        await dataService.createAttempt(attemptDoc);
-      } catch (err) {
-        console.error('Failed to init attempt:', err);
+      // Do NOT create real attempt doc in preview mode
+      const isPreview = Boolean(
+        assignment.id === 'preview-assignment' ||
+        assignment.id.startsWith('preview') ||
+        assignment.dataOrigin === 'simulation' ||
+        currentUser.displayName?.includes('(Xem trước)') ||
+        currentUser.role === 'teacher'
+      );
+
+      if (!isPreview) {
+        try {
+          const attemptDoc: Attempt = {
+            id: newAttemptId,
+            assignmentId: assignment.id,
+            lessonId: assignment.lessonId,
+            lessonVersionId: assignment.lessonVersionId,
+            lessonTitle: lessonVersion.title,
+            studentId: currentUser.id,
+            studentName: currentUser.displayName,
+            studentCode: currentUser.studentCode || '',
+            classId: currentUser.classId || assignment.classId,
+            status: 'in_progress',
+            currentQuestionIndex: 0,
+            score: 0,
+            maxScore: calculatedMaxScore,
+            firstAttemptCorrectCount: 0,
+            postHintCorrectCount: 0,
+            totalAttemptsMade: 0,
+            startedAt: new Date().toISOString(),
+            durationSeconds: 0,
+            dataOrigin: 'real',
+            environmentTag: 'production',
+          };
+          await dataService.createAttempt(attemptDoc);
+        } catch (err) {
+          console.error('Failed to init attempt:', err);
+        }
       }
     }
 
@@ -217,23 +237,25 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       setPostHintCount(nextPostHint);
 
       // Record answer via unified data service
-      try {
-        await dataService.saveAttemptAnswer({
-          id: answerDocId,
-          attemptId,
-          questionId: currentQuestion.id,
-          studentId: currentUser.id,
-          firstGivenAnswer: answerStr,
-          finalAnswer: answerStr,
-          isFirstAttemptCorrect: !hasFailedFirstTry,
-          isFinalCorrect: true,
-          attemptsCount: hasFailedFirstTry ? 2 : 1,
-          answeredAt: new Date().toISOString(),
-          dataOrigin: 'real',
-          environmentTag: 'production',
-        });
-      } catch (err) {
-        console.error('Record answer error:', err);
+      if (!isPreview) {
+        try {
+          await dataService.saveAttemptAnswer({
+            id: answerDocId,
+            attemptId,
+            questionId: currentQuestion.id,
+            studentId: currentUser.id,
+            firstGivenAnswer: answerStr,
+            finalAnswer: answerStr,
+            isFirstAttemptCorrect: !hasFailedFirstTry,
+            isFinalCorrect: true,
+            attemptsCount: hasFailedFirstTry ? 2 : 1,
+            answeredAt: new Date().toISOString(),
+            dataOrigin: 'real',
+            environmentTag: 'production',
+          });
+        } catch (err) {
+          console.error('Record answer error:', err);
+        }
       }
 
       // Move to next or complete
@@ -249,17 +271,19 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
           sessionStorage.removeItem(cacheKey);
         } catch (e) {}
 
-        try {
-          await dataService.completeAttempt(attemptId, {
-            status: 'completed',
-            score: nextScore,
-            firstAttemptCorrectCount: nextFirstTry,
-            postHintCorrectCount: nextPostHint,
-            completedAt: new Date().toISOString(),
-            durationSeconds: totalDuration,
-          });
-        } catch (err) {
-          console.error('Update attempt completion error:', err);
+        if (!isPreview) {
+          try {
+            await dataService.completeAttempt(attemptId, {
+              status: 'completed',
+              score: nextScore,
+              firstAttemptCorrectCount: nextFirstTry,
+              postHintCorrectCount: nextPostHint,
+              completedAt: new Date().toISOString(),
+              durationSeconds: totalDuration,
+            });
+          } catch (err) {
+            console.error('Update attempt completion error:', err);
+          }
         }
       }
     } else {
@@ -267,45 +291,47 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       setHasFailedFirstTry(true);
 
       // Save mistake insight to attemptAnswers and mistakeInsights
-      try {
-        await dataService.saveAttemptAnswer({
-          id: answerDocId,
-          attemptId,
-          questionId: currentQuestion.id,
-          studentId: currentUser.id,
-          firstGivenAnswer: answerStr,
-          finalAnswer: answerStr,
-          isFirstAttemptCorrect: false,
-          isFinalCorrect: false,
-          attemptsCount: 1,
-          detectedErrorPattern: result.detectedPattern || 'GENERAL_CALCULATION_ERROR',
-          hintShown: result.hintText || '',
-          hintReinforcementType: result.visualGuidance || '',
-          answeredAt: new Date().toISOString(),
-          dataOrigin: 'real',
-          environmentTag: 'production',
-        });
-
-        // Record aggregated insight for teacher via dataService
-        if (result.detectedPattern) {
-          const insightId = `ins-${currentUser.classId || 'class'}-${result.detectedPattern}-${Date.now()}`;
-          await dataService.saveMistakeInsight({
-            id: insightId,
+      if (!isPreview) {
+        try {
+          await dataService.saveAttemptAnswer({
+            id: answerDocId,
+            attemptId,
+            questionId: currentQuestion.id,
             studentId: currentUser.id,
-            studentName: currentUser.displayName,
-            classId: currentUser.classId || assignment.classId,
-            grade: lessonVersion.grade,
-            topic: lessonVersion.topic,
-            errorPattern: result.detectedPattern,
-            errorCount: 1,
-            suggestedRemediation: result.visualGuidance || result.hintText || 'Xem lại hướng dẫn của Thám Tử Cáo',
-            createdAt: new Date().toISOString(),
+            firstGivenAnswer: answerStr,
+            finalAnswer: answerStr,
+            isFirstAttemptCorrect: false,
+            isFinalCorrect: false,
+            attemptsCount: 1,
+            detectedErrorPattern: result.detectedPattern || 'GENERAL_CALCULATION_ERROR',
+            hintShown: result.hintText || '',
+            hintReinforcementType: result.visualGuidance || '',
+            answeredAt: new Date().toISOString(),
             dataOrigin: 'real',
             environmentTag: 'production',
           });
+
+          // Record aggregated insight for teacher via dataService
+          if (result.detectedPattern) {
+            const insightId = `ins-${currentUser.classId || 'class'}-${result.detectedPattern}-${Date.now()}`;
+            await dataService.saveMistakeInsight({
+              id: insightId,
+              studentId: currentUser.id,
+              studentName: currentUser.displayName,
+              classId: currentUser.classId || assignment.classId,
+              grade: lessonVersion.grade,
+              topic: lessonVersion.topic,
+              errorPattern: result.detectedPattern,
+              errorCount: 1,
+              suggestedRemediation: result.visualGuidance || result.hintText || 'Xem lại hướng dẫn của Thám Tử Cáo',
+              createdAt: new Date().toISOString(),
+              dataOrigin: 'real',
+              environmentTag: 'production',
+            });
+          }
+        } catch (err) {
+          console.error('Error recording mistake:', err);
         }
-      } catch (err) {
-        console.error('Error recording mistake:', err);
       }
 
       setFeedbackModal({
@@ -374,7 +400,9 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         dataOrigin: 'real',
         environmentTag: 'production',
       };
-      await dataService.createAttempt(attemptDoc);
+      if (!isPreview) {
+        await dataService.createAttempt(attemptDoc);
+      }
     } catch (err) {
       console.error('Failed to init retry attempt:', err);
     }

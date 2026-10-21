@@ -493,6 +493,36 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
   }
 });
 
+async function generateGeminiContent(promptText: string): Promise<string> {
+  if (!genAI) throw new Error('Mô hình AI chưa được khởi tạo.');
+  const candidateModels = [
+    process.env.GEMINI_MODEL,
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-2.5-flash',
+  ].filter(Boolean) as string[];
+
+  let lastErr: any = null;
+  for (const model of candidateModels) {
+    try {
+      const response = await genAI.models.generateContent({
+        model,
+        contents: promptText,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+      if (response && response.text) {
+        return response.text;
+      }
+    } catch (err: any) {
+      lastErr = err;
+      console.warn(`Gemini model ${model} attempt failed:`, err?.message || err);
+    }
+  }
+  throw lastErr || new Error('Không thể kết nối đến các mô hình AI.');
+}
+
 // 5. Teacher AI Draft Generation (Protected: teacher or admin role required)
 app.post('/api/teacher/generate-draft', requireAuth, requireRole(['teacher', 'admin']), async (req: Request, res: Response) => {
   if (!process.env.GEMINI_API_KEY || !genAI) {
@@ -548,16 +578,8 @@ Yêu cầu định dạng JSON CHUẨN XÁC theo schema sau:
 Chỉ trả về JSON thuần túy, không có văn bản giải thích nào khác ngoài JSON.
 `;
 
-    const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const text = response.text || '{}';
-    const parsed = JSON.parse(text);
+    const text = await generateGeminiContent(prompt);
+    const parsed = JSON.parse(text || '{}');
     return res.json(parsed);
   } catch (err: any) {
     console.error('Gemini draft generation error:', err);
@@ -593,15 +615,8 @@ Trả về định dạng JSON:
 }
 `;
 
-    const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const parsed = JSON.parse(response.text || '{}');
+    const text = await generateGeminiContent(prompt);
+    const parsed = JSON.parse(text || '{}');
     return res.json(parsed);
   } catch (err: any) {
     console.error('AI summary error:', err);
@@ -1611,6 +1626,24 @@ app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']),
     if (!lessonDoc || !versionDoc || !lessonDoc.id || !versionDoc.id) {
       return res.status(400).json({ error: 'Thiếu thông tin bài học hoặc phiên bản câu hỏi.' });
     }
+
+    // Immutability Check: Do not overwrite an existing version if it has assignments or attempts
+    const existingVersionSnap = await getDoc(doc(db, 'lessonVersions', versionDoc.id));
+    if (existingVersionSnap.exists()) {
+      const existingData = existingVersionSnap.data();
+      if (existingData.isPublished) {
+        // Check if there are assignments or attempts referencing this version
+        const aSnap = await getDocs(query(collection(db, 'assignments'), where('lessonVersionId', '==', versionDoc.id)));
+        const attSnap = await getDocs(query(collection(db, 'attempts'), where('lessonVersionId', '==', versionDoc.id)));
+        if (!aSnap.empty || !attSnap.empty) {
+          return res.status(409).json({
+            code: 'VERSION_IMMUTABLE',
+            error: `Phiên bản ${versionDoc.id} đã được giao cho học sinh hoặc đã có kết quả làm bài. Theo nguyên tắc bảo toàn học liệu (Copy-on-Write), vui lòng xuất bản một phiên bản mới thay vì ghi đè lên phiên bản cũ.`
+          });
+        }
+      }
+    }
+
     const safeLesson = {
       ...lessonDoc,
       createdBy: req.user?.uid,

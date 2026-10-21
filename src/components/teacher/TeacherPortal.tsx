@@ -97,7 +97,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const handleOpenEditor = async (lesson?: Lesson) => {
     if (lesson) {
       setEditingLesson(lesson);
-      const vId = lesson.currentVersionId || `version-${lesson.id}-v${lesson.currentVersion || 1}`;
+      const vId = lesson.draftVersionId || lesson.currentVersionId || `version-${lesson.id}-v${lesson.currentVersion || 1}`;
       try {
         const v = await dataService.fetchLessonVersion(vId);
         setEditingVersion(v || null);
@@ -604,6 +604,10 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
         teacherId={currentUser.id}
         onClose={() => setIsEditorOpen(false)}
         onSaved={fetchData}
+        onPreviewLesson={(v) => {
+          setIsEditorOpen(false);
+          setPreviewLessonVersion(v);
+        }}
       />
 
       {/* AI Draft Modal */}
