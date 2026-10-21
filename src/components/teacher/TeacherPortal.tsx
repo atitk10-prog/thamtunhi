@@ -12,7 +12,10 @@ import {
   LogOut,
   CheckCircle2,
   Calendar,
-  Layers
+  Layers,
+  School,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { Lesson, LessonVersion, Classroom, UserProfile, Assignment } from '../../types';
@@ -42,6 +45,13 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const [selectedClass, setSelectedClass] = useState<Classroom | null>(null);
   const [assigningStudent, setAssigningStudent] = useState<{ id: string; displayName: string; classId: string; studentCode?: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   // Filters
   const [gradeFilter, setGradeFilter] = useState<'all' | 1 | 2>('all');
@@ -66,6 +76,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
   const fetchData = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const [lList, cList, aList] = await Promise.all([
         dataService.fetchTeacherLessons(),
@@ -75,8 +86,9 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
       setLessons(lList);
       setClasses(cList);
       setAssignments(aList);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Fetch teacher portal data error:', err);
+      setErrorMessage(err.message || 'Không thể tải dữ liệu giáo viên. Vui lòng kiểm tra kết nối mạng.');
     } finally {
       setLoading(false);
     }
@@ -113,11 +125,11 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
       if (v) {
         setPreviewLessonVersion(v);
       } else {
-        alert('Chưa có phiên bản nội dung bài học để xem trước.');
+        showToast('Chưa có phiên bản nội dung bài học để xem trước.', 'info');
       }
     } catch (err) {
       console.error('Preview lesson fetch error:', err);
-      alert('Không thể tải bài học để xem trước.');
+      showToast('Không thể tải bài học để xem trước.', 'error');
     }
   };
 
@@ -408,19 +420,39 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                 if (lessons.length > 0) {
                   handleOpenAssign(lessons[0], student);
                 } else {
-                  alert('Chưa có bài học trong kho học liệu để giao.');
+                  showToast('Chưa có bài học trong kho học liệu để giao.', 'info');
                 }
               }}
               onAssignToClass={(classId) => {
                 if (lessons.length > 0) {
                   handleOpenAssign(lessons[0]);
                 } else {
-                  alert('Chưa có bài học trong kho học liệu để giao.');
+                  showToast('Chưa có bài học trong kho học liệu để giao.', 'info');
                 }
               }}
             />
           ) : (
             <div className="space-y-6">
+              {/* Error State with Retry Button */}
+              {errorMessage && (
+                <div className="p-6 rounded-3xl bg-rose-50 border border-rose-200 text-rose-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="w-6 h-6 text-rose-600 shrink-0" />
+                    <div>
+                      <div className="font-black text-sm">Đã xảy ra sự cố kết nối</div>
+                      <div className="text-xs text-rose-600">{errorMessage}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchData}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer transition-colors flex items-center gap-2 shrink-0"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Thử lại
+                  </button>
+                </div>
+              )}
+
               {/* Classes Overview Bar */}
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -432,34 +464,63 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {classes.map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => setSelectedClass(c)}
-                      className="bg-white p-5 rounded-3xl border-2 border-slate-200 hover:border-sky-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black uppercase text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
-                            Khối {c.grade}
-                          </span>
-                          <Users className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors" />
-                        </div>
-                        <div className="text-2xl font-black text-slate-900 mt-2 group-hover:text-sky-700 transition-colors">
-                          Lớp {c.name}
-                        </div>
-                        <div className="text-xs font-bold text-slate-600 mt-1">
-                          {c.studentCount || 0} học sinh
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-sky-600 group-hover:underline">
-                        <span>Xem danh sách học sinh &rarr;</span>
-                      </div>
+                {loading ? (
+                  <div className="p-12 text-center text-slate-500 font-bold bg-white rounded-3xl border border-slate-200 flex flex-col items-center justify-center gap-3">
+                    <RefreshCw className="w-6 h-6 text-sky-600 animate-spin" />
+                    <p className="text-xs">Đang tải danh sách lớp học và học sinh...</p>
+                  </div>
+                ) : classes.length === 0 ? (
+                  /* Empty State when teacher has no assigned classes */
+                  <div className="bg-white p-8 sm:p-12 rounded-3xl border border-slate-200 text-center space-y-4 max-w-xl mx-auto shadow-xs">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                      <School className="w-8 h-8" />
                     </div>
-                  ))}
-                </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-black text-slate-900">Chưa Có Lớp Học Được Phân Công</h3>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                        Tài khoản của thầy/cô (<strong>{currentUser.displayName}</strong>) chưa được phân công phụ trách lớp học nào trong niên khóa 2026 - 2027. Vui lòng liên hệ Quản trị viên để được thiết lập phân công giảng dạy.
+                      </p>
+                    </div>
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('lessons')}
+                        className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs cursor-pointer shadow-sm transition-all"
+                      >
+                        Khám Phá Kho Học Liệu GDPT 2018 ({lessons.length} bài) &rarr;
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {classes.map((c) => (
+                      <div
+                        key={c.id}
+                        onClick={() => setSelectedClass(c)}
+                        className="bg-white p-5 rounded-3xl border-2 border-slate-200 hover:border-sky-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black uppercase text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
+                              Khối {c.grade}
+                            </span>
+                            <Users className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors" />
+                          </div>
+                          <div className="text-2xl font-black text-slate-900 mt-2 group-hover:text-sky-700 transition-colors">
+                            Lớp {c.name}
+                          </div>
+                          <div className="text-xs font-bold text-slate-600 mt-1">
+                            {c.studentCount || 0} học sinh
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-sky-600 group-hover:underline">
+                          <span>Xem danh sách học sinh &rarr;</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Assignments Table */}
@@ -583,6 +644,25 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
         }}
         onAssigned={fetchData}
       />
+
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+          <div
+            className={`px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-black border ${
+              toast.type === 'error'
+                ? 'bg-rose-600 text-white border-rose-700'
+                : toast.type === 'success'
+                ? 'bg-emerald-600 text-white border-emerald-700'
+                : 'bg-slate-900 text-white border-slate-800'
+            }`}
+          >
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-200" />}
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-200" />}
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

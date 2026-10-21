@@ -20,6 +20,11 @@ import {
   UserPlus,
   Loader2,
   Calendar,
+  Eye,
+  ArrowUpDown,
+  BookOpen,
+  CheckSquare,
+  AlertTriangle,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { Classroom } from '../../types';
@@ -64,6 +69,14 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'locked'>('all');
+  const [sortOption, setSortOption] = useState<'code-asc' | 'code-desc' | 'name-asc' | 'name-desc' | 'score-desc' | 'progress-desc'>('code-asc');
+
+  // Toast notification
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   // Modals
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -87,6 +100,15 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
   const [studentAttempts, setStudentAttempts] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // Student detail modal
+  const [detailStudent, setDetailStudent] = useState<StudentRosterItem | null>(null);
+  const [detailAttempts, setDetailAttempts] = useState<any[]>([]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // Lock confirmation modal
+  const [lockTargetStudent, setLockTargetStudent] = useState<StudentRosterItem | null>(null);
+  const [isTogglingLock, setIsTogglingLock] = useState(false);
+
   useEffect(() => {
     fetchRoster();
   }, [classroom.id]);
@@ -99,6 +121,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
       setClassAssignments(data.assignments);
     } catch (err: any) {
       console.error('Fetch class roster error:', err);
+      showToast(err.message || 'Không thể tải danh sách học sinh.', 'error');
     } finally {
       setLoading(false);
     }
@@ -131,6 +154,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
         grade: classroom.grade,
       });
       setIsAddOpen(false);
+      showToast(`Đã thêm học sinh ${addName.trim()} vào lớp ${classroom.name}.`, 'success');
       await fetchRoster();
     } catch (err: any) {
       setAddError(err.message || 'Lỗi thêm học sinh mới.');
@@ -139,20 +163,26 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
     }
   };
 
-  // Toggle lock / unlock
-  const handleToggleLock = async (student: StudentRosterItem) => {
-    const isLocked = student.status === 'locked' || student.status === 'inactive';
-    const nextStatus: 'active' | 'locked' = isLocked ? 'active' : 'locked';
-    const confirmMsg = nextStatus === 'locked'
-      ? `Bạn có chắc muốn KHÓA tài khoản của học sinh ${student.displayName} (${student.studentCode})?`
-      : `Mở khóa tài khoản cho học sinh ${student.displayName} (${student.studentCode})?`;
-    if (!window.confirm(confirmMsg)) return;
+  // Open lock confirm modal
+  const handlePromptLock = (student: StudentRosterItem) => {
+    setLockTargetStudent(student);
+  };
 
+  // Execute lock / unlock
+  const handleConfirmToggleLock = async () => {
+    if (!lockTargetStudent) return;
+    setIsTogglingLock(true);
     try {
-      await dataService.updateStudent(student.id, { status: nextStatus });
+      const isLocked = lockTargetStudent.status === 'locked' || lockTargetStudent.status === 'inactive';
+      const nextStatus: 'active' | 'locked' = isLocked ? 'active' : 'locked';
+      await dataService.updateStudent(lockTargetStudent.id, { status: nextStatus });
+      showToast(`Đã ${nextStatus === 'locked' ? 'khóa' : 'mở khóa'} tài khoản học sinh ${lockTargetStudent.displayName}.`, 'success');
+      setLockTargetStudent(null);
       await fetchRoster();
     } catch (err: any) {
-      alert(err.message || 'Không thể thay đổi trạng thái học sinh.');
+      showToast(err.message || 'Không thể thay đổi trạng thái học sinh.', 'error');
+    } finally {
+      setIsTogglingLock(false);
     }
   };
 
@@ -170,6 +200,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
           return;
         }
         await dataService.updateStudent(editingStudent.id, { classId: transferTargetClassId });
+        showToast(`Đã chuyển học sinh ${editingStudent.displayName} sang lớp mới.`, 'success');
       } else if (editAction === 'reset_secret') {
         if (!newSecret.trim()) {
           setEditError('Vui lòng nhập mật khẩu mới.');
@@ -177,6 +208,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
           return;
         }
         await dataService.updateStudent(editingStudent.id, { accessSecret: newSecret.trim() });
+        showToast(`Đã đặt lại mật khẩu cho học sinh ${editingStudent.displayName}.`, 'success');
       } else if (editAction === 'rename') {
         if (!newDisplayName.trim()) {
           setEditError('Vui lòng nhập tên học sinh.');
@@ -184,6 +216,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
           return;
         }
         await dataService.updateStudent(editingStudent.id, { displayName: newDisplayName.trim() });
+        showToast('Đã cập nhật họ tên học sinh.', 'success');
       }
 
       setEditingStudent(null);
@@ -220,6 +253,30 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
     }
   };
 
+  // View student detail modal
+  const handleOpenStudentDetail = async (student: StudentRosterItem) => {
+    setDetailStudent(student);
+    setLoadingDetail(true);
+    try {
+      const res = await fetch(`/api/student/attempts?studentId=${encodeURIComponent(student.id)}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('thamtunhi_auth_token') || ''}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDetailAttempts(data.attempts || []);
+      } else {
+        setDetailAttempts([]);
+      }
+    } catch (err) {
+      console.error('Fetch student detail attempts error:', err);
+      setDetailAttempts([]);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
   // Filter students
   const filteredStudents = students.filter((s) => {
     const matchesSearch =
@@ -231,6 +288,26 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
       (statusFilter === 'active' && s.status !== 'locked') ||
       (statusFilter === 'locked' && s.status === 'locked');
     return matchesSearch && matchesStatus;
+  });
+
+  // Sort students
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    switch (sortOption) {
+      case 'code-asc':
+        return a.studentCode.localeCompare(b.studentCode, undefined, { numeric: true });
+      case 'code-desc':
+        return b.studentCode.localeCompare(a.studentCode, undefined, { numeric: true });
+      case 'name-asc':
+        return a.displayName.localeCompare(b.displayName, 'vi');
+      case 'name-desc':
+        return b.displayName.localeCompare(a.displayName, 'vi');
+      case 'score-desc':
+        return (b.avgScore || 0) - (a.avgScore || 0);
+      case 'progress-desc':
+        return b.completedCount - a.completedCount;
+      default:
+        return 0;
+    }
   });
 
   const formatDate = (dateStr: string | null) => {
@@ -248,6 +325,10 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
       return dateStr;
     }
   };
+
+  const formattedAcademicYear = (classroom.academicYearId || '2026-2027')
+    .replace(/^year-/, '')
+    .replace('-', ' - ');
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -268,7 +349,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
                 Toán Khối {classroom.grade}
               </span>
               <span className="text-xs font-bold text-slate-500">
-                Niên khóa: {classroom.academicYearId || '2025-2026'}
+                Niên khóa: {formattedAcademicYear}
               </span>
             </div>
             <h2 className="text-2xl font-black text-slate-900 mt-1">
@@ -301,7 +382,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
+      {/* Filter, Search and Sort Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3 flex-1 max-w-md">
           <div className="relative w-full">
@@ -317,30 +398,53 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-bold">
-          <span className="text-slate-500 uppercase tracking-wider font-black">Trạng thái:</span>
-          <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1 rounded-lg cursor-pointer ${statusFilter === 'all' ? 'bg-white shadow-xs text-sky-800 font-black' : 'text-slate-600'}`}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Status Filter */}
+          <div className="flex items-center gap-2 text-xs font-bold">
+            <span className="text-slate-500 uppercase tracking-wider font-black">Trạng thái:</span>
+            <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1 rounded-lg cursor-pointer ${statusFilter === 'all' ? 'bg-white shadow-xs text-sky-800 font-black' : 'text-slate-600'}`}
+              >
+                Tất cả ({students.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('active')}
+                className={`px-3 py-1 rounded-lg cursor-pointer ${statusFilter === 'active' ? 'bg-white shadow-xs text-emerald-800 font-black' : 'text-slate-600'}`}
+              >
+                Đang học ({students.filter((s) => s.status !== 'locked').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('locked')}
+                className={`px-3 py-1 rounded-lg cursor-pointer ${statusFilter === 'locked' ? 'bg-white shadow-xs text-rose-800 font-black' : 'text-slate-600'}`}
+              >
+                Bị khóa ({students.filter((s) => s.status === 'locked').length})
+              </button>
+            </div>
+          </div>
+
+          {/* Sort Selector */}
+          <div className="flex items-center gap-2 text-xs font-bold">
+            <span className="text-slate-500 uppercase tracking-wider font-black flex items-center gap-1">
+              <ArrowUpDown className="w-3.5 h-3.5" /> Sắp xếp:
+            </span>
+            <select
+              id="roster-sort-select"
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value as any)}
+              className="h-9 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden cursor-pointer"
             >
-              Tất cả ({students.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('active')}
-              className={`px-3 py-1 rounded-lg cursor-pointer ${statusFilter === 'active' ? 'bg-white shadow-xs text-emerald-800 font-black' : 'text-slate-600'}`}
-            >
-              Đang học ({students.filter((s) => s.status !== 'locked').length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('locked')}
-              className={`px-3 py-1 rounded-lg cursor-pointer ${statusFilter === 'locked' ? 'bg-white shadow-xs text-rose-800 font-black' : 'text-slate-600'}`}
-            >
-              Bị khóa ({students.filter((s) => s.status === 'locked').length})
-            </button>
+              <option value="code-asc">Mã HS (A &rarr; Z)</option>
+              <option value="code-desc">Mã HS (Z &rarr; A)</option>
+              <option value="name-asc">Họ và tên (A &rarr; Z)</option>
+              <option value="name-desc">Họ và tên (Z &rarr; A)</option>
+              <option value="score-desc">Điểm TB (Cao nhất)</option>
+              <option value="progress-desc">Tiến độ (Nhiều nhất)</option>
+            </select>
           </div>
         </div>
       </div>
@@ -352,13 +456,13 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
             <Loader2 className="w-8 h-8 text-sky-600 animate-spin" />
             <p>Đang tải danh sách học sinh Lớp {classroom.name}...</p>
           </div>
-        ) : filteredStudents.length === 0 ? (
+        ) : sortedStudents.length === 0 ? (
           <div className="p-16 text-center text-slate-400 font-bold">
             Không tìm thấy học sinh nào phù hợp với bộ lọc tìm kiếm.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table id="roster-table" className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] font-black border-b border-slate-200">
                 <tr>
                   <th className="px-5 py-4">Mã HS</th>
@@ -371,20 +475,36 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {filteredStudents.map((student) => {
+                {sortedStudents.map((student) => {
                   const isLocked = student.status === 'locked' || student.status === 'inactive';
+                  const notStarted = Math.max(0, student.assignedCount - student.completedCount - student.inProgressCount);
 
                   return (
                     <tr key={student.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-5 py-4">
-                        <span className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 border border-sky-200">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenStudentDetail(student)}
+                          className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 cursor-pointer transition-colors"
+                          title="Bấm để xem chi tiết học sinh"
+                        >
                           {student.studentCode}
-                        </span>
+                        </button>
                       </td>
 
                       <td className="px-5 py-4">
-                        <div className="font-black text-slate-900">{student.displayName}</div>
-                        <div className="text-[11px] text-slate-400">Khối {student.grade} • Lớp {classroom.name}</div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenStudentDetail(student)}
+                          className="text-left cursor-pointer group"
+                        >
+                          <div className="font-black text-slate-900 group-hover:text-sky-600 transition-colors">
+                            {student.displayName}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Khối {student.grade} • Lớp {classroom.name}
+                          </div>
+                        </button>
                       </td>
 
                       <td className="px-5 py-4">
@@ -399,17 +519,27 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
                         )}
                       </td>
 
-                      <td className="px-5 py-4 text-center">
-                        <span className="text-xs font-bold text-slate-800">
-                          {student.completedCount} / {student.assignedCount} bài
-                        </span>
-                        <div className="w-24 h-1.5 bg-slate-100 rounded-full mx-auto mt-1 overflow-hidden">
-                          <div
-                            className="h-full bg-emerald-500 rounded-full"
-                            style={{
-                              width: `${student.assignedCount > 0 ? Math.round((student.completedCount / student.assignedCount) * 100) : 0}%`,
-                            }}
-                          />
+                      <td className="px-5 py-4">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="flex items-center justify-center gap-1 text-[11px] font-extrabold">
+                            <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100" title="Đã hoàn thành">
+                              Xong: {student.completedCount}
+                            </span>
+                            <span className="text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-100" title="Đang làm dở">
+                              Đang làm: {student.inProgressCount}
+                            </span>
+                            <span className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" title="Chưa làm">
+                              Chưa: {notStarted}
+                            </span>
+                          </div>
+                          <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-0.5">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full"
+                              style={{
+                                width: `${student.assignedCount > 0 ? Math.round((student.completedCount / student.assignedCount) * 100) : 0}%`,
+                              }}
+                            />
+                          </div>
                         </div>
                       </td>
 
@@ -433,6 +563,15 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
+                            onClick={() => handleOpenStudentDetail(student)}
+                            title="Xem chi tiết học sinh & tiến độ"
+                            className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 cursor-pointer transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => onAssignToStudent(student)}
                             title="Giao bài riêng cho học sinh này"
                             className="p-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 cursor-pointer transition-colors"
@@ -451,7 +590,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
 
                           <button
                             type="button"
-                            onClick={() => handleToggleLock(student)}
+                            onClick={() => handlePromptLock(student)}
                             title={isLocked ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
                             className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
                               isLocked ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -837,6 +976,321 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: STUDENT DETAIL (TIẾN ĐỘ & BÀI ĐƯỢC GIAO) */}
+      {detailStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-3xl bg-white rounded-3xl border-3 border-sky-300 shadow-2xl p-6 sm:p-8 flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center font-black text-lg">
+                  {detailStudent.displayName.charAt(0)}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-black text-slate-900">
+                      {detailStudent.displayName}
+                    </h3>
+                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-200">
+                      {detailStudent.studentCode}
+                    </span>
+                    {detailStudent.status === 'locked' || detailStudent.status === 'inactive' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">
+                        <Lock className="w-3 h-3" /> Đã khóa
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3" /> Đang học
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                    Khối {detailStudent.grade} • Lớp {classroom.name} • Niên khóa {formattedAcademicYear}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDetailStudent(null)}
+                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Modal Content */}
+            <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+              {/* Stat Cards Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
+                  <div className="text-xs font-extrabold text-slate-500 uppercase">Tổng bài giao</div>
+                  <div className="text-2xl font-black text-slate-900 mt-1">{detailStudent.assignedCount}</div>
+                </div>
+
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 text-center">
+                  <div className="text-xs font-extrabold text-emerald-700 uppercase">Đã hoàn thành</div>
+                  <div className="text-2xl font-black text-emerald-800 mt-1">{detailStudent.completedCount}</div>
+                </div>
+
+                <div className="bg-sky-50 p-4 rounded-2xl border border-sky-200 text-center">
+                  <div className="text-xs font-extrabold text-sky-700 uppercase">Đang làm dở</div>
+                  <div className="text-2xl font-black text-sky-800 mt-1">{detailStudent.inProgressCount}</div>
+                </div>
+
+                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-center">
+                  <div className="text-xs font-extrabold text-amber-800 uppercase">Điểm trung bình</div>
+                  <div className="text-2xl font-black text-amber-900 mt-1">
+                    {detailStudent.avgScore !== null ? `⭐ ${detailStudent.avgScore}%` : 'Chưa có'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Assignments Progress Breakdown Section */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-sky-600" /> Tiến độ các bài tập được giao
+                  </h4>
+                  <span className="text-xs font-bold text-slate-500">
+                    Lần học gần nhất: {formatDate(detailStudent.lastActive)}
+                  </span>
+                </div>
+
+                {loadingDetail ? (
+                  <div className="p-8 text-center text-slate-500 font-bold flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-sky-600" />
+                    <p className="text-xs">Đang tải chi tiết bài làm học sinh...</p>
+                  </div>
+                ) : classAssignments.length === 0 ? (
+                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs font-bold text-slate-400">
+                    Lớp chưa có bài tập nào được giao.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {classAssignments
+                      .filter((a) => !a.studentId || a.studentId === detailStudent.id)
+                      .map((a) => {
+                        const att = detailAttempts.find(
+                          (at) => at.assignmentId === a.id || at.lessonId === a.lessonId
+                        );
+                        const isCompleted = att?.status === 'completed';
+                        const isInProgress = att?.status === 'in_progress';
+                        const max = att?.maxScore && att.maxScore > 0 ? att.maxScore : 80;
+                        const scorePct = att?.score !== undefined ? Math.round(((att.score || 0) / max) * 100) : null;
+
+                        return (
+                          <div
+                            key={a.id}
+                            className="p-3.5 rounded-2xl border border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3 hover:border-slate-300 transition-colors"
+                          >
+                            <div>
+                              <div className="font-black text-slate-900 text-xs sm:text-sm">
+                                {a.title}
+                                {a.studentId && (
+                                  <span className="ml-2 text-[10px] font-black uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                    Giao riêng
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 font-semibold mt-0.5 flex items-center gap-2">
+                                <span>Hạn: {a.dueDate || 'Không giới hạn'}</span>
+                                {att && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Làm: {formatDate(att.completedAt || att.startedAt)}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              {isCompleted ? (
+                                <div className="text-right">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Đã hoàn thành
+                                  </span>
+                                  {scorePct !== null && (
+                                    <div className="text-[11px] font-black text-emerald-900 mt-0.5">
+                                      {att.score}/{max} ({scorePct}%)
+                                    </div>
+                                  )}
+                                </div>
+                              ) : isInProgress ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-sky-50 text-sky-800 border border-sky-200">
+                                  <Clock className="w-3.5 h-3.5 text-sky-600" /> Đang làm dở
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-600 border border-slate-200">
+                                  Chưa bắt đầu
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Actions Footer */}
+            <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 mt-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const st = detailStudent;
+                    setDetailStudent(null);
+                    onAssignToStudent(st);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                >
+                  <Send className="w-3.5 h-3.5" /> Giao bài riêng
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const st = detailStudent;
+                    setDetailStudent(null);
+                    handlePromptLock(st);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  {detailStudent.status === 'locked' || detailStudent.status === 'inactive' ? (
+                    <><Unlock className="w-3.5 h-3.5 text-emerald-600" /> Mở khóa tài khoản</>
+                  ) : (
+                    <><Lock className="w-3.5 h-3.5 text-rose-600" /> Khóa tài khoản</>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const st = detailStudent;
+                    setDetailStudent(null);
+                    setEditingStudent(st);
+                    setEditAction('reset_secret');
+                    setNewSecret('');
+                    setEditError(null);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Key className="w-3.5 h-3.5" /> Đặt lại mật khẩu
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const st = detailStudent;
+                    setDetailStudent(null);
+                    setEditingStudent(st);
+                    setEditAction('transfer');
+                    setTransferTargetClassId(allClasses.find((c) => c.id !== classroom.id)?.id || classroom.id);
+                    setEditError(null);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5" /> Chuyển lớp
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDetailStudent(null)}
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs cursor-pointer transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: LOCK / UNLOCK CONFIRMATION */}
+      {lockTargetStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-3xl border-3 border-amber-300 shadow-2xl p-6 sm:p-8 flex flex-col">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-xl font-black text-slate-900">
+              {lockTargetStudent.status === 'locked' || lockTargetStudent.status === 'inactive'
+                ? 'Mở Khóa Tài Khoản Học Sinh'
+                : 'Khóa Tài Khoản Học Sinh'}
+            </h3>
+
+            <p className="text-xs text-slate-600 font-semibold mt-2 leading-relaxed">
+              {lockTargetStudent.status === 'locked' || lockTargetStudent.status === 'inactive' ? (
+                <>
+                  Bạn có chắc muốn mở khóa tài khoản cho học sinh{' '}
+                  <strong className="text-slate-900">{lockTargetStudent.displayName}</strong> ({lockTargetStudent.studentCode})? Học sinh có thể tiếp tục đăng nhập và tham gia làm bài tập.
+                </>
+              ) : (
+                <>
+                  Bạn có chắc muốn tạm khóa tài khoản của học sinh{' '}
+                  <strong className="text-slate-900">{lockTargetStudent.displayName}</strong> ({lockTargetStudent.studentCode})? Học sinh này sẽ tạm thời không thể đăng nhập vào ứng dụng.
+                </>
+              )}
+            </p>
+
+            <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setLockTargetStudent(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition-colors"
+              >
+                Hủy bỏ
+              </button>
+
+              <button
+                type="button"
+                id="btn-confirm-lock"
+                disabled={isTogglingLock}
+                onClick={handleConfirmToggleLock}
+                className={`px-5 py-2.5 rounded-xl text-white font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50 transition-all ${
+                  lockTargetStudent.status === 'locked' || lockTargetStudent.status === 'inactive'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-rose-600 hover:bg-rose-700'
+                }`}
+              >
+                {isTogglingLock ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : lockTargetStudent.status === 'locked' || lockTargetStudent.status === 'inactive' ? (
+                  <Unlock className="w-4 h-4" />
+                ) : (
+                  <Lock className="w-4 h-4" />
+                )}
+                {lockTargetStudent.status === 'locked' || lockTargetStudent.status === 'inactive'
+                  ? 'Xác nhận Mở Khóa'
+                  : 'Xác nhận Khóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Alert */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+          <div
+            className={`px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-black border ${
+              toast.type === 'error'
+                ? 'bg-rose-600 text-white border-rose-700'
+                : toast.type === 'success'
+                ? 'bg-emerald-600 text-white border-emerald-700'
+                : 'bg-slate-900 text-white border-slate-800'
+            }`}
+          >
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-200" />}
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-200" />}
+            <span>{toast.message}</span>
           </div>
         </div>
       )}

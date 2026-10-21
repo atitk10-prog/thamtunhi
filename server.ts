@@ -1009,13 +1009,18 @@ app.get('/api/teacher/classes', requireAuth, requireRole(['teacher', 'admin']), 
     ]);
 
     const allUsers = uSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    const allClasses = cSnap.docs.map((d) => {
-      const cData: any = d.data();
-      const realStudentCount = allUsers.filter(
-        (u: any) => u.role === 'student' && !u.isDeleted && (u.classId === d.id || u.className === cData.name || u.classId === cData.name)
-      ).length;
-      return { id: d.id, ...cData, studentCount: realStudentCount };
-    });
+    const allClasses = cSnap.docs
+      .filter((d) => {
+        const cData: any = d.data();
+        return !cData.isDeleted && cData.status !== 'archived';
+      })
+      .map((d) => {
+        const cData: any = d.data();
+        const realStudentCount = allUsers.filter(
+          (u: any) => u.role === 'student' && !u.isDeleted && u.status !== 'inactive' && (u.classId === d.id || u.className === cData.name || u.classId === cData.name)
+        ).length;
+        return { id: d.id, ...cData, studentCount: realStudentCount };
+      });
 
     // If admin, return all classes; if teacher, return assigned classes
     const filtered = req.user?.role === 'admin'
@@ -1054,7 +1059,7 @@ app.get('/api/teacher/classes/:classId/students', requireAuth, requireRole(['tea
     const classAssignments = allAssignments.filter((a: any) => a.classId === classId);
 
     const students = allUsers
-      .filter((u: any) => u.role === 'student' && !u.isDeleted && (u.classId === classId || u.className === cData.name || u.classId === cData.name))
+      .filter((u: any) => u.role === 'student' && !u.isDeleted && u.status !== 'inactive' && (u.classId === classId || u.className === cData.name || u.classId === cData.name))
       .map((s: any) => {
         const studentAssignments = allAssignments.filter(
           (a: any) => (a.classId === classId && (!a.studentId || a.studentId === s.id)) || a.studentId === s.id
