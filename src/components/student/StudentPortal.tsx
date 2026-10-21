@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle, Clock, Award, LogOut, Sparkles, BookOpen } from 'lucide-react';
+import { Play, CheckCircle, Clock, Award, LogOut, Sparkles, BookOpen, Key, RefreshCw, AlertCircle } from 'lucide-react';
 import { Assignment, LessonVersion, Attempt, UserProfile } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
 import { MissionPlayer } from './MissionPlayer';
+import { StudentPinModal } from './StudentPinModal';
 import { dataService } from '../../lib/dataService';
 
 interface StudentPortalProps {
@@ -17,11 +18,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [attempts, setAttempts] = useState<Record<string, Attempt>>({});
   const [loading, setLoading] = useState(true);
+  const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
   // Active mission state
   const [activeAssignment, setActiveAssignment] = useState<Assignment | null>(null);
   const [activeLessonVersion, setActiveLessonVersion] = useState<LessonVersion | null>(null);
   const [loadingMission, setLoadingMission] = useState(false);
+
+  // PIN change modal
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   useEffect(() => {
     fetchStudentAssignments();
@@ -39,11 +44,19 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   const fetchStudentAssignments = async () => {
     setLoading(true);
+    setEmptyReason(null);
     try {
-      // 1. Fetch assignments for student's class via unified data service
-      const list = await dataService.fetchStudentAssignments(currentUser.classId || 'class-1a');
+      if (!currentUser.classId) {
+        setEmptyReason('Tài khoản chưa được xếp vào lớp học. Em hãy báo thầy cô xếp lớp cho em nhé!');
+        setAssignments([]);
+        setAttempts({});
+        return;
+      }
 
-      // 2. Fetch attempts for current student via unified data service
+      // 1. Fetch assignments strictly for student's class and own private assignments
+      const list = await dataService.fetchStudentAssignments(currentUser.classId, currentUser.id);
+
+      // 2. Fetch attempts for current student
       const attList = await dataService.fetchStudentAttempts(currentUser.id);
       const attMap: Record<string, Attempt> = {};
       attList.forEach((att) => {
@@ -52,8 +65,17 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
       setAssignments(list);
       setAttempts(attMap);
-    } catch (err) {
+
+      if (list.length === 0) {
+        setEmptyReason(
+          `Thầy cô lớp ${currentUser.className || ''} chưa giao bài luyện tập mới. Em hãy quay lại sau nhé!`
+        );
+      }
+    } catch (err: any) {
       console.error('Fetch student assignments error:', err);
+      setEmptyReason(
+        err.message || 'Không thể kết nối đến máy chủ để tải bài tập. Em hãy kiểm tra đường truyền mạng nhé.'
+      );
     } finally {
       setLoading(false);
     }
@@ -120,15 +142,25 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="hidden sm:flex flex-col text-right">
               <span className="text-sm font-extrabold text-slate-800">
                 {currentUser.displayName}
               </span>
               <span className="text-xs font-bold text-sky-600">
-                Mã: {currentUser.studentCode} • Lớp {currentUser.className || '1A'}
+                Mã: {currentUser.studentCode} • {currentUser.className ? `Lớp ${currentUser.className}` : 'Chưa phân lớp'}
               </span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsPinModalOpen(true)}
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 border-2 border-amber-300 text-xs font-black flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
+              title="Đổi mã PIN bí mật của em"
+            >
+              <Key className="w-4 h-4 text-amber-600" />
+              <span>Đổi mã PIN</span>
+            </button>
 
             <button
               type="button"
@@ -168,7 +200,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <BookOpen className="w-6 h-6 text-sky-600" /> Bàn Nhiệm Vụ Của Em
             </h3>
             <p className="text-xs sm:text-sm font-bold text-slate-500 mt-0.5">
-              Các bài luyện tập toán được giáo viên giao cho lớp {currentUser.className || '1A'}
+              Các bài luyện tập toán được giáo viên giao cho em và lớp {currentUser.className || ''}
             </p>
           </div>
         </div>
@@ -180,12 +212,19 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             </p>
           </div>
         ) : assignments.length === 0 ? (
-          <div className="p-12 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
+          <div className="p-10 sm:p-12 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200 shadow-xs">
             <FoxDetective mood="thinking" size="md" className="mx-auto mb-4" />
             <h4 className="text-lg font-black text-slate-700">Chưa có nhiệm vụ mới</h4>
-            <p className="text-sm font-medium text-slate-500 mt-1">
-              Thầy cô sẽ sớm giao bài luyện tập toán thú vị cho em nhé!
+            <p className="text-sm font-semibold text-slate-500 mt-1 max-w-md mx-auto">
+              {emptyReason || 'Thầy cô sẽ sớm giao bài luyện tập toán thú vị cho em nhé!'}
             </p>
+            <button
+              type="button"
+              onClick={fetchStudentAssignments}
+              className="mt-4 px-4 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer border border-sky-200 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Tải lại danh sách
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -257,6 +296,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           </div>
         )}
       </main>
+
+      {/* Student PIN / Password Change Modal */}
+      <StudentPinModal
+        isOpen={isPinModalOpen}
+        studentName={currentUser.displayName}
+        studentCode={currentUser.studentCode || ''}
+        onClose={() => setIsPinModalOpen(false)}
+        onSuccess={() => fetchStudentAssignments()}
+      />
     </div>
   );
 };

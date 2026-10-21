@@ -73,3 +73,36 @@ export async function verifyCurrentSession(): Promise<UserProfile | null> {
     }
   }
 }
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ ok: boolean; message: string; token: string }> {
+  const res = await fetch('/api/auth/change-password', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Lỗi đổi mật khẩu.');
+  }
+  if (data.token) {
+    try {
+      localStorage.setItem(TOKEN_KEY, data.token);
+    } catch (e) {
+      console.warn('Storage warning:', e);
+    }
+  }
+  return data;
+}
+
+export function updateStoredUser(updates: Partial<UserProfile>): UserProfile | null {
+  try {
+    const saved = localStorage.getItem(USER_KEY);
+    if (!saved) return null;
+    const current = JSON.parse(saved) as UserProfile;
+    const merged = { ...current, ...updates };
+    localStorage.setItem(USER_KEY, JSON.stringify(merged));
+    return merged;
+  } catch {
+    return null;
+  }
+}

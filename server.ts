@@ -211,6 +211,45 @@ export function requireRole(allowedRoles: Array<'admin' | 'teacher' | 'student'>
   };
 }
 
+// In-memory brute-force & rate-limit tracker
+interface AttemptTracker {
+  count: number;
+  firstAttempt: number;
+  blockedUntil?: number;
+}
+export const passwordAttemptTrackers = new Map<string, AttemptTracker>();
+
+export function checkPasswordRateLimit(key: string, maxAttempts = 5, windowMs = 15 * 60 * 1000): { allowed: boolean; retryAfterSeconds?: number } {
+  const now = Date.now();
+  const tracker = passwordAttemptTrackers.get(key);
+  if (!tracker) {
+    return { allowed: true };
+  }
+  if (tracker.blockedUntil && tracker.blockedUntil > now) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((tracker.blockedUntil - now) / 1000) };
+  }
+  if (now - tracker.firstAttempt > windowMs) {
+    passwordAttemptTrackers.delete(key);
+    return { allowed: true };
+  }
+  if (tracker.count >= maxAttempts) {
+    tracker.blockedUntil = now + windowMs;
+    return { allowed: false, retryAfterSeconds: Math.ceil(windowMs / 1000) };
+  }
+  return { allowed: true };
+}
+
+export function recordFailedPasswordAttempt(key: string, windowMs = 15 * 60 * 1000) {
+  const now = Date.now();
+  const tracker = passwordAttemptTrackers.get(key) || { count: 0, firstAttempt: now };
+  tracker.count += 1;
+  passwordAttemptTrackers.set(key, tracker);
+}
+
+export function resetPasswordAttempts(key: string) {
+  passwordAttemptTrackers.delete(key);
+}
+
 const app = express();
 app.use(express.json());
 
@@ -271,7 +310,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 });
 
 // 2. Student Authentication endpoint (Student Code + Access Secret)
-// Zero fallback passwords, sanitized response, signed JWT session token
+// Bcrypt-secured, transparent migration from legacy plaintext, signed session token with tokenVersion
 app.post('/api/auth/student-login', async (req: Request, res: Response) => {
   if (!AUTH_SECRET) {
     return res.status(503).json({
@@ -285,10 +324,20 @@ app.post('/api/auth/student-login', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Vui lòng nhập đầy đủ Mã học sinh và Mật khẩu truy cập.' });
   }
 
-  try {
-    const cleanCode = String(studentCode).trim().toUpperCase();
-    const cleanSecret = String(accessSecret).trim();
+  const cleanCode = String(studentCode).trim().toUpperCase();
+  const cleanSecret = String(accessSecret).trim();
 
+  // Rate limit / brute force check
+  const rateCheck = checkPasswordRateLimit('login:student:' + cleanCode);
+  if (!rateCheck.allowed) {
+    return res.status(429).json({
+      error: `Thử sai quá nhiều lần. Vui lòng đợi ${rateCheck.retryAfterSeconds} giây trước khi thử lại.`,
+      code: 'RATE_LIMIT_EXCEEDED',
+      retryAfter: rateCheck.retryAfterSeconds,
+    });
+  }
+
+  try {
     const q = query(
       collection(db, 'users'),
       where('role', '==', 'student'),
@@ -297,16 +346,40 @@ app.post('/api/auth/student-login', async (req: Request, res: Response) => {
     const snap = await getDocs(q);
 
     if (snap.empty) {
+      recordFailedPasswordAttempt('login:student:' + cleanCode);
       return res.status(401).json({ error: 'Mã học sinh hoặc mật khẩu không chính xác.' });
     }
 
-    const studentDoc = snap.docs[0].data();
-    const expectedSecret = studentDoc.accessSecret;
+    const studentDoc: any = snap.docs[0].data();
+    const expectedHash = studentDoc.accessSecretHash;
+    const legacySecret = studentDoc.accessSecret;
 
-    // Strict validation: No hardcoded fallback password allowed
-    if (!expectedSecret || cleanSecret !== expectedSecret) {
+    let isSecretValid = false;
+    if (expectedHash) {
+      isSecretValid = await bcrypt.compare(cleanSecret, expectedHash);
+    } else if (legacySecret) {
+      isSecretValid = (cleanSecret === legacySecret);
+      // Transparent migration of student plaintext accessSecret to bcrypt hash
+      if (isSecretValid) {
+        try {
+          const newHash = await bcrypt.hash(cleanSecret, 10);
+          await updateDoc(doc(db, 'users', studentDoc.id), {
+            accessSecretHash: newHash,
+            accessSecret: null, // Wipe plaintext
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (migErr) {
+          console.error('Student secret hash migration error:', migErr);
+        }
+      }
+    }
+
+    if (!isSecretValid) {
+      recordFailedPasswordAttempt('login:student:' + cleanCode);
       return res.status(401).json({ error: 'Mã học sinh hoặc mật khẩu không chính xác.' });
     }
+
+    resetPasswordAttempts('login:student:' + cleanCode);
 
     // Check account status: locked or inactive accounts cannot log in
     if (studentDoc.status === 'locked' || studentDoc.status === 'inactive') {
@@ -314,9 +387,12 @@ app.post('/api/auth/student-login', async (req: Request, res: Response) => {
     }
 
     // Mask secrets before sending to client
-    const { accessSecret: _, password: __, ...safeUser } = studentDoc;
+    const { accessSecret: _, accessSecretHash: ___, password: __, passwordHash: ____, ...safeUser } = studentDoc;
 
-    // Generate signed session token
+    const currentTokenVersion = studentDoc.tokenVersion || 0;
+    userTokenVersions.set(safeUser.id, currentTokenVersion);
+
+    // Generate signed session token with tokenVersion
     const token = createAuthToken({
       uid: safeUser.id,
       role: 'student',
@@ -324,6 +400,7 @@ app.post('/api/auth/student-login', async (req: Request, res: Response) => {
       studentCode: safeUser.studentCode,
       classId: safeUser.classId,
       grade: safeUser.grade,
+      tokenVersion: currentTokenVersion,
     });
 
     const customToken = await mintCustomToken(safeUser.id, {
@@ -477,6 +554,11 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
 
     if (userSnap.exists()) {
       profile = userSnap.data();
+      // Ensure authProvider is marked
+      if (profile.authProvider !== 'google') {
+        await updateDoc(userDocRef, { authProvider: 'google', updatedAt: new Date().toISOString() });
+        profile.authProvider = 'google';
+      }
     } else {
       const isAdmin = email === 'AT.IT.K10@gmail.com';
       profile = {
@@ -484,6 +566,7 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
         role: isAdmin ? 'admin' : 'teacher',
         displayName: displayName || (isAdmin ? 'Quản trị viên' : 'Giáo viên'),
         email: email || '',
+        authProvider: 'google',
         createdAt: new Date().toISOString(),
         dataOrigin: 'real',
         environmentTag: 'production',
@@ -491,7 +574,7 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
       await setDoc(userDocRef, profile);
     }
 
-    const { password: _, accessSecret: __, ...safeUser } = profile;
+    const { password: _, accessSecret: __, passwordHash: ___, accessSecretHash: ____, ...safeUser } = profile;
     const sessionPayload: Omit<AuthSession, 'exp'> = {
       uid: safeUser.id,
       role: safeUser.role,
@@ -505,6 +588,195 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Google login exchange error:', err);
     return res.status(500).json({ error: 'Lỗi xác thực phiên Google.' });
+  }
+});
+
+// 4c. Unified Self-Service Change Password for Teacher, Student, and Admin
+// Enforces: Auth session identity (never trusts client userId), current password verification,
+// bcrypt hashing, role-based password complexity, rate-limiting, Google account blocking,
+// and immediate revocation of older sessions via tokenVersion bump.
+app.post('/api/auth/change-password', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const uid = req.user!.uid;
+    const role = req.user!.role;
+
+    // Rate-limiting / brute force protection
+    const rateCheck = checkPasswordRateLimit('change:' + uid);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({
+        error: `Thử sai quá nhiều lần. Vui lòng đợi ${rateCheck.retryAfterSeconds} giây trước khi thử lại.`,
+        code: 'RATE_LIMIT_EXCEEDED',
+        retryAfter: rateCheck.retryAfterSeconds,
+      });
+    }
+
+    const currentPassword = String(req.body.currentPassword || req.body.currentSecret || '').trim();
+    const newPassword = String(req.body.newPassword || req.body.newSecret || '').trim();
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Vui lòng nhập đầy đủ mật khẩu hiện tại và mật khẩu mới.' });
+    }
+
+    const uDoc = await getDoc(doc(db, 'users', uid));
+    if (!uDoc.exists()) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản người dùng.' });
+    }
+    const uData: any = uDoc.data();
+
+    // Google OAuth Account Check: Prevent password modification inside app
+    if (uData.authProvider === 'google' || (!uData.passwordHash && !uData.password && !uData.accessSecretHash && !uData.accessSecret && role !== 'student')) {
+      return res.status(400).json({
+        error: 'Tài khoản đăng nhập bằng Google không thể đổi mật khẩu nội bộ trong ứng dụng. Vui lòng quản lý mật khẩu qua tài khoản Google của bạn.',
+        code: 'GOOGLE_AUTH_ACCOUNT',
+      });
+    }
+
+    // Verify current password against bcrypt hash or legacy plaintext
+    let isCurrentValid = false;
+    if (role === 'student') {
+      if (uData.accessSecretHash) {
+        isCurrentValid = await bcrypt.compare(currentPassword, uData.accessSecretHash);
+      } else if (uData.accessSecret) {
+        isCurrentValid = (currentPassword === uData.accessSecret);
+      }
+    } else {
+      if (uData.passwordHash) {
+        isCurrentValid = await bcrypt.compare(currentPassword, uData.passwordHash);
+      } else if (uData.password) {
+        isCurrentValid = (currentPassword === uData.password);
+      }
+    }
+
+    if (!isCurrentValid) {
+      recordFailedPasswordAttempt('change:' + uid);
+      return res.status(401).json({ error: 'Mật khẩu hiện tại không chính xác.' });
+    }
+
+    // Reset rate-limiting tracker upon correct verification
+    resetPasswordAttempts('change:' + uid);
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ error: 'Mật khẩu mới không được trùng với mật khẩu hiện tại.' });
+    }
+
+    // Validate password strength by role
+    if (role === 'student') {
+      // Child-friendly PIN or word (4 to 20 characters)
+      if (newPassword.length < 4 || newPassword.length > 20) {
+        return res.status(400).json({ error: 'Mã bí mật của học sinh phải có từ 4 đến 20 ký tự hoặc số.' });
+      }
+    } else {
+      // Teacher & Admin: at least 8 chars, mixed case and numbers/symbols
+      if (newPassword.length < 8) {
+        return res.status(400).json({ error: 'Mật khẩu mới phải có tối thiểu 8 ký tự.' });
+      }
+      const hasUpper = /[A-Z]/.test(newPassword);
+      const hasLower = /[a-z]/.test(newPassword);
+      const hasNumberOrSymbol = /[0-9\W]/.test(newPassword);
+      if (!hasUpper || !hasLower || !hasNumberOrSymbol) {
+        return res.status(400).json({
+          error: 'Mật khẩu mới phải chứa ít nhất một chữ hoa, một chữ thường và một chữ số hoặc ký tự đặc biệt.',
+        });
+      }
+    }
+
+    // Hash new password using bcrypt (cost factor = 10)
+    const newHash = await bcrypt.hash(newPassword, 10);
+    const nextVersion = (uData.tokenVersion || 0) + 1;
+
+    // Update in Firestore and wipe plaintext
+    const nowIso = new Date().toISOString();
+    if (role === 'student') {
+      await updateDoc(doc(db, 'users', uid), {
+        accessSecretHash: newHash,
+        accessSecret: null, // Wipe plaintext
+        tokenVersion: nextVersion,
+        passwordChangedAt: nowIso,
+        updatedAt: nowIso,
+      });
+    } else {
+      await updateDoc(doc(db, 'users', uid), {
+        passwordHash: newHash,
+        password: null, // Wipe plaintext
+        tokenVersion: nextVersion,
+        passwordChangedAt: nowIso,
+        mustChangePassword: false,
+        updatedAt: nowIso,
+      });
+    }
+
+    // Invalidate old sessions immediately in memory registry
+    userTokenVersions.set(uid, nextVersion);
+
+    // Audit log without logging the secret
+    await writeAuditLog({
+      action: 'USER_CHANGE_PASSWORD',
+      actorId: uid,
+      actorName: uData.displayName || req.user?.displayName,
+      actorRole: role,
+      targetCollection: 'users',
+      targetId: uid,
+      targetName: uData.displayName || req.user?.displayName,
+      details: `${role === 'teacher' ? 'Giáo viên' : role === 'student' ? 'Học sinh' : 'Quản trị viên'} đã tự đổi mật khẩu thành công. Tất cả phiên cũ đã bị thu hồi.`,
+    });
+
+    // Issue refreshed token for the new active session
+    const newToken = createAuthToken({
+      uid,
+      role,
+      displayName: uData.displayName,
+      email: uData.email,
+      studentCode: uData.studentCode,
+      classId: uData.classId,
+      grade: uData.grade,
+      tokenVersion: nextVersion,
+    });
+
+    return res.json({
+      ok: true,
+      message: 'Đổi mật khẩu thành công. Các phiên đăng nhập cũ đã được thu hồi an toàn.',
+      token: newToken,
+    });
+  } catch (err: any) {
+    console.error('Change password error:', err);
+    return res.status(500).json({ error: 'Lỗi đổi mật khẩu: ' + err.message });
+  }
+});
+
+// 4d. Teacher Profile Update endpoint
+app.patch('/api/teacher/profile', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const teacherId = req.user!.uid;
+    const { displayName, phone } = req.body;
+    if (!displayName || String(displayName).trim().length < 2) {
+      return res.status(400).json({ error: 'Họ tên giáo viên phải có ít nhất 2 ký tự.' });
+    }
+    const cleanName = String(displayName).trim();
+    const updates: any = {
+      displayName: cleanName,
+      name: cleanName,
+      updatedAt: new Date().toISOString(),
+    };
+    if (phone !== undefined) {
+      updates.phone = String(phone).trim();
+    }
+    await updateDoc(doc(db, 'users', teacherId), updates);
+
+    await writeAuditLog({
+      action: 'UPDATE_TEACHER_PROFILE',
+      actorId: teacherId,
+      actorName: cleanName,
+      actorRole: req.user?.role,
+      targetCollection: 'users',
+      targetId: teacherId,
+      targetName: cleanName,
+      details: `Giáo viên cập nhật thông tin cá nhân: ${cleanName}`,
+    });
+
+    return res.json({ ok: true, profile: updates });
+  } catch (err: any) {
+    console.error('Update teacher profile error:', err);
+    return res.status(500).json({ error: 'Lỗi cập nhật thông tin cá nhân: ' + err.message });
   }
 });
 
@@ -847,13 +1119,38 @@ app.post('/api/admin/cleanup-demo', requireAuth, requireRole(['admin']), async (
 // --- A. STUDENT DATA ENDPOINTS ---
 app.get('/api/student/assignments', requireAuth, requireRole(['student', 'teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const classId = req.user?.role === 'student' ? req.user.classId : (req.query.classId as string || req.user?.classId);
-    if (!classId) {
-      return res.status(400).json({ error: 'Thiếu thông tin classId của lớp học.' });
+    const user = req.user!;
+    let classId: string | undefined;
+
+    if (user.role === 'student') {
+      classId = user.classId;
+      if (!classId) {
+        return res.status(400).json({
+          error: 'Tài khoản học sinh chưa được phân vào lớp học. Vui lòng liên hệ giáo viên phụ trách.',
+          code: 'NO_CLASS_ASSIGNED',
+        });
+      }
+    } else {
+      classId = (req.query.classId as string) || user.classId;
+      if (!classId) {
+        return res.status(400).json({ error: 'Thiếu thông tin classId của lớp học.' });
+      }
     }
+
     const q = query(collection(db, 'assignments'), where('classId', '==', classId));
     const snap = await getDocs(q);
-    const assignments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    let assignments = snap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+
+    // ABAC Enforced:
+    // A student MUST only see assignments for their whole class OR targeted specifically to them
+    if (user.role === 'student') {
+      assignments = assignments.filter((a) => !a.studentId || a.studentId === user.uid);
+    } else if (req.query.studentId) {
+      // Teacher/Admin viewing assignments for a specific student in this class
+      const targetStudentId = String(req.query.studentId);
+      assignments = assignments.filter((a) => !a.studentId || a.studentId === targetStudentId);
+    }
+
     return res.json({ ok: true, assignments });
   } catch (err: any) {
     console.error('Fetch student assignments error:', err);
@@ -1230,6 +1527,8 @@ app.post('/api/teacher/classes/:classId/students', requireAuth, requireRole(['te
       return res.status(400).json({ error: `Mã học sinh "${normalizedCode}" đã tồn tại trên hệ thống.` });
     }
 
+    const rawSecret = String(accessSecret).trim();
+    const secretHash = await bcrypt.hash(rawSecret, 10);
     const newStudentId = `student-${normalizedCode.toLowerCase()}-${Date.now().toString().slice(-4)}`;
     const studentDoc = {
       id: newStudentId,
@@ -1240,7 +1539,8 @@ app.post('/api/teacher/classes/:classId/students', requireAuth, requireRole(['te
       classId,
       className: cData.name,
       grade: Number(grade || cData.grade || 1),
-      accessSecret: String(accessSecret).trim(),
+      accessSecretHash: secretHash,
+      tokenVersion: 1,
       status: 'active',
       isDeleted: false,
       createdAt: new Date().toISOString(),
@@ -1262,7 +1562,9 @@ app.post('/api/teacher/classes/:classId/students', requireAuth, requireRole(['te
       timestamp: new Date().toISOString(),
     });
 
-    return res.json({ ok: true, student: studentDoc });
+    // Mask secret in response
+    const { accessSecretHash: _, ...safeStudent } = studentDoc;
+    return res.json({ ok: true, student: safeStudent });
   } catch (err: any) {
     console.error('Add student error:', err);
     return res.status(500).json({ error: 'Lỗi thêm học sinh: ' + err.message });
@@ -1300,7 +1602,12 @@ app.patch('/api/teacher/students/:studentId', requireAuth, requireRole(['teacher
       updates.name = String(displayName).trim();
     }
     if (accessSecret && String(accessSecret).trim()) {
-      updates.accessSecret = String(accessSecret).trim();
+      const rawSecret = String(accessSecret).trim();
+      updates.accessSecretHash = await bcrypt.hash(rawSecret, 10);
+      updates.accessSecret = null;
+      const nextVersion = (sData.tokenVersion || 0) + 1;
+      updates.tokenVersion = nextVersion;
+      userTokenVersions.set(studentId, nextVersion);
     }
     if (classId && classId !== sData.classId) {
       const targetClassDoc = await getDoc(doc(db, 'classes', classId));
@@ -1678,21 +1985,126 @@ app.get('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin'
 
 app.post('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const assignmentDoc = req.body;
-    if (!assignmentDoc || !assignmentDoc.id || !assignmentDoc.classId || !assignmentDoc.lessonVersionId) {
-      return res.status(400).json({ error: 'Thiếu thông tin bài tập cần giao.' });
+    const { classId, lessonId, lessonVersionId, title, studentId, studentName, dueDate, allowReassign } = req.body;
+    if (!classId || !lessonId || !lessonVersionId) {
+      return res.status(400).json({ error: 'Thiếu thông tin bài tập cần giao (classId, lessonId, lessonVersionId).' });
     }
-    const safeDoc = {
-      ...assignmentDoc,
-      teacherId: req.user?.uid, // Enforce teacher ownership
+
+    // 1. Verify Classroom & Teacher Assignment
+    const classDoc = await getDoc(doc(db, 'classes', classId));
+    if (!classDoc.exists()) {
+      return res.status(404).json({ error: 'Lớp học không tồn tại trong hệ thống.' });
+    }
+    const classData: any = classDoc.data();
+    if (req.user?.role !== 'admin' && classData.teacherId !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Bạn không được phân công phụ trách lớp học này.' });
+    }
+
+    // 2. Verify Student (if targeted assignment)
+    let safeStudentName = studentName;
+    if (studentId) {
+      const studentDoc = await getDoc(doc(db, 'users', studentId));
+      if (!studentDoc.exists()) {
+        return res.status(404).json({ error: 'Học sinh được chỉ định không tồn tại.' });
+      }
+      const sData: any = studentDoc.data();
+      if (sData.role !== 'student' || sData.classId !== classId) {
+        return res.status(400).json({ error: 'Học sinh không thuộc lớp học được chọn.' });
+      }
+      safeStudentName = sData.displayName || studentName;
+    }
+
+    // 3. Verify Lesson & Published Status & Grade Match
+    const lessonDoc = await getDoc(doc(db, 'lessons', lessonId));
+    if (!lessonDoc.exists()) {
+      return res.status(404).json({ error: 'Bài học không tồn tại trong kho học liệu.' });
+    }
+    const lessonData: any = lessonDoc.data();
+    if (lessonData.isPublished === false) {
+      return res.status(400).json({ error: 'Bài học chưa được xuất bản. Vui lòng duyệt và xuất bản trước khi giao.' });
+    }
+    if (Number(lessonData.grade) !== Number(classData.grade)) {
+      return res.status(400).json({
+        error: `Khối lớp của bài học (Khối ${lessonData.grade}) không khớp với khối của lớp (Khối ${classData.grade}).`,
+        code: 'GRADE_MISMATCH',
+      });
+    }
+
+    // 4. Verify Lesson Version & Valid Questions
+    const versionDoc = await getDoc(doc(db, 'lessonVersions', lessonVersionId));
+    if (!versionDoc.exists()) {
+      return res.status(404).json({ error: 'Phiên bản bài học không tồn tại trong hệ thống.' });
+    }
+    const versionData: any = versionDoc.data();
+    if (!versionData.questions || !Array.isArray(versionData.questions) || versionData.questions.length === 0) {
+      return res.status(400).json({ error: 'Phiên bản bài học không có câu hỏi hợp lệ để giao.' });
+    }
+
+    // 5. Check Duplicate Assignment
+    const existingQ = query(
+      collection(db, 'assignments'),
+      where('classId', '==', classId),
+      where('lessonId', '==', lessonId)
+    );
+    const existingSnap = await getDocs(existingQ);
+    const existingAssignments = existingSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as any))
+      .filter((a) => (studentId ? a.studentId === studentId : !a.studentId));
+
+    if (existingAssignments.length > 0 && allowReassign !== true) {
+      return res.status(409).json({
+        code: 'ASSIGNMENT_DUPLICATE',
+        error: `Bài học "${lessonData.title}" đã được giao cho ${studentId ? 'học sinh' : 'lớp'} trước đó. Bạn có muốn giao lại đợt mới không?`,
+        existingAssignment: existingAssignments[0],
+      });
+    }
+
+    // 6. Generate Non-Colliding ID (Never overwrite old assignment runs or attempt history!)
+    const cleanDueDate = dueDate || new Date(Date.now() + 7 * 86400 * 1000).toISOString().split('T')[0];
+    const timestamp = Date.now();
+    const assignmentId = req.body.id && allowReassign !== true && existingAssignments.length === 0
+      ? req.body.id
+      : `assign-${lessonId}-${classId}${studentId ? '-' + studentId : ''}-${timestamp.toString().slice(-6)}`;
+
+    const assignmentPayload: any = {
+      id: assignmentId,
+      title: title || `[Toán ${lessonData.grade}] ${lessonData.title}`,
+      lessonId,
+      lessonVersionId,
+      classId,
+      className: classData.name,
+      grade: Number(lessonData.grade),
+      teacherId: req.user?.uid,
+      teacherName: req.user?.displayName || 'Giáo viên',
+      dueDate: cleanDueDate,
+      status: 'open',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       dataOrigin: 'real',
       environmentTag: 'production',
     };
-    await setDoc(doc(db, 'assignments', assignmentDoc.id), safeDoc, { merge: true });
-    return res.json({ ok: true, assignment: safeDoc });
+    if (studentId) {
+      assignmentPayload.studentId = studentId;
+      assignmentPayload.studentName = safeStudentName;
+    }
+
+    await setDoc(doc(db, 'assignments', assignmentId), assignmentPayload);
+
+    await writeAuditLog({
+      action: 'ASSIGN_LESSON',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'assignments',
+      targetId: assignmentId,
+      targetName: assignmentPayload.title,
+      details: `Giao bài "${assignmentPayload.title}" cho ${studentId ? `học sinh ${safeStudentName}` : `lớp ${classData.name}`}, hạn nộp ${cleanDueDate}.`,
+    });
+
+    return res.json({ ok: true, assignment: assignmentPayload });
   } catch (err: any) {
     console.error('Save assignment error:', err);
-    return res.status(500).json({ error: 'Lỗi lưu bài tập: ' + err.message });
+    return res.status(500).json({ error: 'Lỗi giao bài tập: ' + err.message });
   }
 });
 
@@ -2160,7 +2572,12 @@ app.post('/api/admin/users/:id/reset-password', requireAuth, requireRole(['admin
     const uData: any = uDoc.data();
     const updates: any = { updatedAt: new Date().toISOString() };
     if (uData.role === 'student') {
-      updates.accessSecret = cleanPassword;
+      const hash = await bcrypt.hash(cleanPassword, 10);
+      updates.accessSecretHash = hash;
+      updates.accessSecret = null;
+      const nextVersion = (uData.tokenVersion || 0) + 1;
+      updates.tokenVersion = nextVersion;
+      userTokenVersions.set(userId, nextVersion);
     } else {
       const hash = await bcrypt.hash(cleanPassword, 10);
       updates.passwordHash = hash;

@@ -28,13 +28,26 @@ import { Assignment, Attempt, Lesson, LessonVersion, MistakeInsight, UserProfile
 export const dataService = {
   // --- 1. STUDENT OPERATIONS ---
 
-  async fetchStudentAssignments(classId: string): Promise<Assignment[]> {
+  async fetchStudentAssignments(classId: string, studentId?: string): Promise<Assignment[]> {
+    if (!classId) {
+      throw new Error('Chưa có thông tin lớp học để tải bài tập.');
+    }
+
+    let url = `/api/student/assignments?classId=${encodeURIComponent(classId)}`;
+    if (studentId) {
+      url += `&studentId=${encodeURIComponent(studentId)}`;
+    }
+
     // Attempt 1: Direct Firestore SDK (if client has Firebase Auth session)
     if (auth.currentUser) {
       try {
         const q = query(collection(db, 'assignments'), where('classId', '==', classId));
         const snap = await getDocs(q);
-        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Assignment));
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Assignment));
+        if (studentId) {
+          return list.filter((a) => !a.studentId || a.studentId === studentId);
+        }
+        return list;
       } catch (err: any) {
         if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
           throw err;
@@ -43,11 +56,12 @@ export const dataService = {
     }
 
     // Attempt 2: Authenticated Backend API Proxy
-    const res = await fetch(`/api/student/assignments?classId=${encodeURIComponent(classId)}`, {
+    const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
-      throw new Error('Không thể tải danh sách bài tập được giao.');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Không thể tải danh sách bài tập được giao.');
     }
     const data = await res.json();
     return data.assignments || [];
@@ -275,18 +289,7 @@ export const dataService = {
     return data.assignments || [];
   },
 
-  async saveAssignment(assignmentDoc: Assignment): Promise<void> {
-    if (auth.currentUser) {
-      try {
-        await setDoc(doc(db, 'assignments', assignmentDoc.id), assignmentDoc, { merge: true });
-        return;
-      } catch (err: any) {
-        if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
-          throw err;
-        }
-      }
-    }
-
+  async saveAssignment(assignmentDoc: Partial<Assignment> & { allowReassign?: boolean }): Promise<Assignment> {
     const res = await fetch('/api/teacher/assignments', {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -294,8 +297,26 @@ export const dataService = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Lỗi lưu bài tập.');
+      const errorObj = new Error(err.error || 'Lỗi lưu bài tập.');
+      (errorObj as any).code = err.code;
+      (errorObj as any).existingAssignment = err.existingAssignment;
+      throw errorObj;
     }
+    const data = await res.json();
+    return data.assignment;
+  },
+
+  async updateTeacherProfile(displayName: string, phone?: string): Promise<any> {
+    const res = await fetch('/api/teacher/profile', {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ displayName, phone }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi cập nhật hồ sơ giáo viên.');
+    }
+    return res.json();
   },
 
   async saveLessonVersion(lessonDoc: Lesson, versionDoc: LessonVersion): Promise<void> {

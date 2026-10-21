@@ -16,6 +16,7 @@ import {
   School,
   AlertCircle,
   RefreshCw,
+  User,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { Lesson, LessonVersion, Classroom, UserProfile, Assignment } from '../../types';
@@ -26,6 +27,7 @@ import { AssignModal } from './AssignModal';
 import { MisconceptionAnalytics } from './MisconceptionAnalytics';
 import { ClassRosterView } from './ClassRosterView';
 import { MissionPlayer } from '../student/MissionPlayer';
+import { TeacherAccountModal } from './TeacherAccountModal';
 
 interface TeacherPortalProps {
   currentUser: UserProfile;
@@ -44,9 +46,14 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedClass, setSelectedClass] = useState<Classroom | null>(null);
   const [assigningStudent, setAssigningStudent] = useState<{ id: string; displayName: string; classId: string; studentCode?: string } | null>(null);
+  const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Teacher Profile & Account Modal
+  const [teacherProfile, setTeacherProfile] = useState<UserProfile>(currentUser);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
@@ -112,8 +119,13 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
     setIsEditorOpen(true);
   };
 
-  const handleOpenAssign = (lesson: Lesson, student?: { id: string; displayName: string; classId: string; studentCode?: string }) => {
+  const handleOpenAssign = (
+    lesson: Lesson | null = null,
+    classId: string | null = null,
+    student: { id: string; displayName: string; classId: string; studentCode?: string } | null = null
+  ) => {
     setAssigningLesson(lesson);
+    setAssigningClassId(classId);
     setAssigningStudent(student || null);
     setIsAssignOpen(true);
   };
@@ -204,15 +216,19 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex flex-col text-right">
-              <span className="text-sm font-black text-slate-800">
-                {currentUser.displayName}
-              </span>
-              <span className="text-xs font-semibold text-emerald-600">
-                Giáo viên Toán GDPT 2018
-              </span>
-            </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsAccountModalOpen(true)}
+              className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-black flex items-center gap-2 cursor-pointer transition-colors shadow-2xs"
+              title="Tài khoản & Đổi mật khẩu"
+            >
+              <User className="w-4 h-4 text-sky-600 shrink-0" />
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="leading-tight font-black">{teacherProfile.displayName || currentUser.displayName}</span>
+                <span className="text-[10px] text-sky-600 font-bold">Tài khoản &amp; Đổi mật khẩu</span>
+              </div>
+            </button>
 
             <button
               type="button"
@@ -394,7 +410,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => handleOpenAssign(lesson)}
+                        onClick={() => handleOpenAssign(lesson, null, null)}
                         className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
                       >
                         <Send className="w-3.5 h-3.5" /> Giao bài
@@ -417,18 +433,10 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
               allClasses={classes}
               onBack={() => setSelectedClass(null)}
               onAssignToStudent={(student) => {
-                if (lessons.length > 0) {
-                  handleOpenAssign(lessons[0], student);
-                } else {
-                  showToast('Chưa có bài học trong kho học liệu để giao.', 'info');
-                }
+                handleOpenAssign(null, student.classId, student);
               }}
               onAssignToClass={(classId) => {
-                if (lessons.length > 0) {
-                  handleOpenAssign(lessons[0]);
-                } else {
-                  showToast('Chưa có bài học trong kho học liệu để giao.', 'info');
-                }
+                handleOpenAssign(null, classId, null);
               }}
             />
           ) : (
@@ -638,15 +646,35 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
       {/* Assign Modal */}
       <AssignModal
         isOpen={isAssignOpen}
-        lesson={assigningLesson}
-        classes={classes}
+        initialLesson={assigningLesson}
+        initialClassId={assigningClassId}
         targetStudent={assigningStudent}
+        classes={classes}
+        lessons={lessons}
         teacherId={currentUser.id}
+        onPreviewLesson={handlePreviewLesson}
         onClose={() => {
           setIsAssignOpen(false);
+          setAssigningLesson(null);
+          setAssigningClassId(null);
           setAssigningStudent(null);
         }}
-        onAssigned={fetchData}
+        onAssigned={() => {
+          fetchData();
+          showToast('Đã giao bài tập thành công!', 'success');
+        }}
+      />
+
+      {/* Teacher Account & Password Modal */}
+      <TeacherAccountModal
+        isOpen={isAccountModalOpen}
+        currentUser={teacherProfile}
+        managedClassesCount={classes.length}
+        onClose={() => setIsAccountModalOpen(false)}
+        onProfileUpdated={(updated) => {
+          setTeacherProfile(updated);
+          showToast('Đã cập nhật thông tin thành công!', 'success');
+        }}
       />
 
       {/* Floating Toast Notification */}

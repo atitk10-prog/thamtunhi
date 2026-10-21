@@ -11,7 +11,10 @@ export interface UserProfile {
   id: string; // Auth UID
   role: UserRole;
   displayName: string;
+  name?: string;
   email?: string;
+  phone?: string;
+  authProvider?: string;
   studentCode?: string; // For students: HS1A01, HS2B05
   accessSecretMasked?: string; // Hint for teacher roster
   classId?: string;
@@ -124,6 +127,7 @@ export interface Lesson {
   durationMinutes: number;
   totalQuestions: number;
   status: 'draft' | 'published' | 'archived';
+  isPublished?: boolean;
   currentVersion: number;
   currentVersionId?: string;
   draftVersionId?: string;
