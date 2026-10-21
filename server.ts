@@ -237,6 +237,20 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     errorDetail = err?.message || String(err);
   }
 
+  let availableModels: string[] = [];
+  if (genAI) {
+    try {
+      const pager = await (genAI.models as any).list();
+      for await (const m of pager) {
+        if (m.name) {
+          availableModels.push(m.name.replace('models/', ''));
+        }
+      }
+    } catch (e: any) {
+      console.warn('List models probe failed:', e?.message || e);
+    }
+  }
+
   const isHealthy = firestoreConnected;
 
   res.status(isHealthy ? 200 : 503).json({
@@ -246,6 +260,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     firestoreConnected,
     lessonsCount,
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+    availableModels: availableModels.slice(0, 10),
     authSecretConfigured: Boolean(CONFIGURED_SECRET),
     authSecretStatus: CONFIGURED_SECRET ? 'CONFIGURED' : (isProdEnvironment ? 'BLOCKED' : 'DEV_FALLBACK'),
     buildVersion: '1.1.0-prod',
@@ -501,6 +516,20 @@ async function generateGeminiContent(promptText: string): Promise<string> {
     'gemini-1.5-flash',
     'gemini-1.5-pro',
   ].filter(Boolean) as string[];
+
+  try {
+    const pager = await (genAI.models as any).list();
+    for await (const m of pager) {
+      if (m.name) {
+        const cleanName = m.name.replace('models/', '');
+        if (!candidateModels.includes(cleanName)) {
+          candidateModels.push(cleanName);
+        }
+      }
+    }
+  } catch (e) {
+    // ignore list failure
+  }
 
   const modelErrors: string[] = [];
   for (const model of candidateModels) {
