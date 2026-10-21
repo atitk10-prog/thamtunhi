@@ -511,13 +511,12 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
 async function generateGeminiContent(promptText: string): Promise<string> {
   if (!genAI) throw new Error('Mô hình AI chưa được cấu hình.');
   
-  // Prioritize verified active models on Google AI Studio for instant response
+  // Prioritize gemini-3.8-flash per official Google recommendation
   const candidateModels: string[] = [
     process.env.GEMINI_MODEL,
-    'gemini-2.5-flash',
+    'gemini-3.8-flash',
     'gemini-flash-latest',
     'gemini-2.5-flash-lite',
-    'gemini-3.8-flash',
     'gemini-pro-latest',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
@@ -544,10 +543,12 @@ async function generateGeminiContent(promptText: string): Promise<string> {
         .replace(/key=[^&\s]+/g, 'key=***');
       console.warn(`Gemini model ${model} attempt failed:`, safeMsg);
       modelErrors.push(`[${model}] ${safeMsg}`);
+      // Brief pause to allow transient spikes to clear
+      await new Promise(r => setTimeout(r, 400));
     }
   }
 
-  throw new Error(`Dịch vụ AI hiện không khả dụng: ${modelErrors.slice(0, 2).join('; ')}`);
+  throw new Error(`Dịch vụ AI hiện không khả dụng: ${modelErrors.slice(0, 4).join('; ')}`);
 }
 
 // 5. Teacher AI Draft Generation (Protected: teacher or admin role required)
