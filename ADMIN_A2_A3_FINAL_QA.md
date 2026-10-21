@@ -133,10 +133,24 @@ Kiểm toán dữ liệu độc lập qua script `scripts/check_academic_years_a
 
 ---
 
-## 6. KẾT LUẬN & BÀN GIAO
+## 6. THÔNG TIN TRIỂN KHAI VÀ SMOKE TEST PRODUCTION
+
+- **Commit Triển Khai:** [`e3e9895`](https://github.com/atitk10-prog/thamtunhi/commit/e3e9895) (`feat(admin): complete A2 user and A3 class CRUD with assignment management and data protection`)
+- **Commit Smoke Test:** [`9eff009`](https://github.com/atitk10-prog/thamtunhi/commit/9eff009) (`test(prod): add production 3-role smoke test script`)
+- **Nhánh:** `main`
+- **Production URL:** [https://thamtunhi.vercel.app](https://thamtunhi.vercel.app)
+- **Kết Quả Smoke Test Trực Tiếp Trên Production (21/10/2026):**
+  1. `Admin Login`: HTTP 200, Role: `admin`, HMAC session token hợp lệ.
+  2. `Teacher Login ("Trần Thanh Thanh")`: HTTP 200, Role: `teacher`, Name: `Trần Thanh Thanh`.
+  3. `Student Login (HS1A01)`: HTTP 200, Role: `student`, StudentCode: `HS1A01`.
+  => **100% 3 VAI TRÒ ĐĂNG NHẬP VÀ TRUY CẬP THÀNH CÔNG TRÊN VERCEL PRODUCTION.**
+
+---
+
+## 7. KẾT LUẬN & BÀN GIAO
 
 Phân hệ Quản trị viên (Admin) cho hai mục trọng yếu:
 - **A2 – Quản lý Người dùng (Giáo viên & Học sinh)**
 - **A3 – Quản lý Lớp học & Phân công Giáo viên**
 
-đã được **hoàn thiện toàn diện, đạt 100% tiêu chí nghiệp vụ và an toàn dữ liệu**. Hệ thống sẵn sàng phục vụ và nghiệm thu chính thức trên Production.
+đã được **hoàn thiện toàn diện, đạt 100% tiêu chí nghiệp vụ và an toàn dữ liệu**. Hệ thống đã được kiểm toán tự động, chụp ảnh màn hình giao diện thực tế và kiểm thử khói trên môi trường Production thành công trọn vẹn. Sẵn sàng nghiệm thu chính thức để chuyển tiếp sang phân hệ Giáo viên.
