@@ -625,6 +625,9 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
         q.order = idx + 1;
         q.difficulty = q.difficulty || difficulty;
         q.skillTag = q.skillTag || cleanTopic;
+        if (q.interactionType === 'multiple_choice') {
+          q.interactionType = 'single_choice';
+        }
         if (q.interactionType === 'single_choice') {
           if (!Array.isArray(q.options) || q.options.length < 2) {
             q.options = [q.expectedAnswer, '3', '4', '5'];
