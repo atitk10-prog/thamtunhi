@@ -511,31 +511,17 @@ app.post('/api/auth/google-login', async (req: Request, res: Response) => {
 async function generateGeminiContent(promptText: string): Promise<string> {
   if (!genAI) throw new Error('Mô hình AI chưa được cấu hình.');
   
-  // Prioritize gemini-3.8-flash per Google instructions, followed by flash-latest, then discovered models
+  // Prioritize verified active models on Google AI Studio for instant response
   const candidateModels: string[] = [
     process.env.GEMINI_MODEL,
-    'gemini-3.8-flash',
-    'gemini-flash-latest',
     'gemini-2.5-flash',
+    'gemini-flash-latest',
     'gemini-2.5-flash-lite',
+    'gemini-3.8-flash',
     'gemini-pro-latest',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
   ].filter(Boolean) as string[];
-
-  try {
-    const pager = await (genAI.models as any).list();
-    for await (const m of pager) {
-      if (m.name) {
-        const cleanName = m.name.replace('models/', '');
-        if (!candidateModels.includes(cleanName)) {
-          candidateModels.push(cleanName);
-        }
-      }
-    }
-  } catch (e) {
-    // ignore list failure
-  }
 
   const modelErrors: string[] = [];
   for (const model of candidateModels) {
