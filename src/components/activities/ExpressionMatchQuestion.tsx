@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link2, RotateCcw } from 'lucide-react';
 import { Question } from '../../types';
+import { VisualCounters } from './VisualCounters';
 
 interface ExpressionMatchQuestionProps {
   question: Question;
@@ -64,6 +65,10 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
 
   return (
     <div className="w-full flex flex-col items-center">
+      {question.visualConfig && question.visualConfig.type !== 'none' && (
+        <VisualCounters config={question.visualConfig} />
+      )}
+
       <div className="text-xs sm:text-sm font-extrabold text-sky-700 bg-sky-50 px-4 py-2 rounded-xl mb-4 border border-sky-200">
         👉 Bước 1: Chạm chọn thẻ cột Trái &rarr; Bước 2: Chạm chọn thẻ cột Phải để nối cặp
       </div>

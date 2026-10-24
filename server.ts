@@ -888,8 +888,24 @@ async function generateGeminiContent(promptText: string): Promise<string> {
 
 // Mathematical integrity & visualConfig enrichment helper
 function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
+  // Auto-extract and enrich visual representation from question text
+  const rawText = ((q.prompt || '') + ' ' + (q.explanation || '') + ' ' + tTopic).toLowerCase();
+
+  // If Gemini provided visualConfig, sanitize and validate it
   if (q.visualConfig && typeof q.visualConfig === 'object' && q.visualConfig.type) {
     const vc = q.visualConfig;
+    if (vc.type === 'addition') {
+      const left = Number(vc.leftCount) || 1;
+      const right = Number(vc.rightCount) || 1;
+      return {
+        type: 'addition',
+        leftCount: Math.min(Math.max(1, left), 20),
+        rightCount: Math.min(Math.max(1, right), 20),
+        iconName: vc.iconName || 'apple',
+        leftLabel: vc.leftLabel,
+        rightLabel: vc.rightLabel,
+      };
+    }
     if (vc.type === 'counters' && typeof vc.count === 'number' && vc.count > 0) {
       if (!vc.iconName) vc.iconName = 'apple';
       return vc;
@@ -900,7 +916,16 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
       return vc;
     }
     if (vc.type === 'bundles' || (vc.tens !== undefined && vc.ones !== undefined)) {
-      return vc;
+      const tens = Number(vc.tens) || 0;
+      const ones = Number(vc.ones) || 0;
+      // Safeguard: If both are 0, do NOT accept blank bundle. Fall through to auto-detection from prompt
+      if (tens > 0 || ones > 0) {
+        return {
+          type: 'bundles',
+          tens,
+          ones,
+        };
+      }
     }
     if (vc.type === 'comparison' && (vc.leftCount !== undefined || vc.count !== undefined)) {
       return vc;
@@ -916,8 +941,34 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
     }
   }
 
-  // Auto-extract and enrich visual representation from question text
-  const rawText = ((q.prompt || '') + ' ' + (q.explanation || '') + ' ' + tTopic).toLowerCase();
+  // 0. Addition detection: e.g. "1 + 3 = ?", "2 + 5", "gộp... lại"
+  const addMatch = (q.prompt || '').match(/(\d+)\s*\+\s*(\d+)/);
+  if (addMatch) {
+    const a = parseInt(addMatch[1], 10);
+    const b = parseInt(addMatch[2], 10);
+    if (a > 0 && b > 0 && a <= 20 && b <= 20) {
+      let iconName = 'apple';
+      if (rawText.includes('cá')) iconName = 'fish';
+      else if (rawText.includes('sao')) iconName = 'star';
+      else if (rawText.includes('kẹo')) iconName = 'candy';
+      else if (rawText.includes('bút') || rawText.includes('que')) iconName = 'pencil';
+      else if (rawText.includes('khối') || rawText.includes('viên')) iconName = 'block';
+      else if (rawText.includes('cà rốt')) iconName = 'carrot';
+      else if (rawText.includes('hoa') || rawText.includes('bông')) iconName = 'flower';
+      else if (rawText.includes('chim')) iconName = 'bird';
+      else if (rawText.includes('thỏ')) iconName = 'rabbit';
+      else if (rawText.includes('cam')) iconName = 'orange';
+
+      return {
+        type: 'addition',
+        leftCount: a,
+        rightCount: b,
+        iconName,
+        leftLabel: `Nhóm 1 (${a})`,
+        rightLabel: `Nhóm 2 (${b})`,
+      };
+    }
+  }
 
   // 1. Money detection
   if (rawText.includes('đồng') || rawText.includes('tiền') || rawText.includes('mua') || rawText.includes('trả lại')) {
@@ -1217,14 +1268,15 @@ YÊU CẦU SƯ PHẠM VÀ DỮ LIỆU:
    - "number_input": Điền số hoặc kết quả tính (expectedAnswer là chuỗi số).
    - "expression_match": Nối cặp (cung cấp mảng "pairs" gồm ít nhất 3 cặp { left, right }, expectedAnswer là "MATCHED_ALL").
    - "operator_pick": Chọn dấu +, -, =, >, < (options: [">", "<", "="] hoặc ["+", "-"]).
-5. HÌNH MINH HỌA TRỰC QUAN (visualConfig): Mỗi câu hỏi phải có cấu hình trực quan tương ứng:
-   - "counters": Đếm đồ vật (iconName: "apple", "fish", "star", "candy", "pencil", "carrot", "flower", "bird", "rabbit", "orange", "block"). Số lượng "count" phải KHỚP CHÍNH XÁC với dữ liệu câu hỏi.
-   - "ten_frame" hoặc "five_frame": Khung 10 ô hoặc khung 5 ô (gridSize: 5 hoặc 10, count, dotColor: "blue" | "red" | "green" | "amber").
-   - "bundles": Bó que tính và que rời (tens: số bó chục, ones: số que rời).
-   - "comparison": So sánh 2 nhóm (leftCount, rightCount, leftLabel, rightLabel, iconName).
-   - "shapes": Nhận biết hình (shapeType: "circle" | "square" | "triangle" | "rectangle" | "cylinder" | "sphere").
-   - "money": Tiền Việt Nam (moneyBills: [{"denomination": 2000, "count": 2}]).
-   - "clock": Xem đồng hồ kim (hours: 1-12, minutes: 0, 15, 30, 45).
+5. HÌNH MINH HỌA TRỰC QUAN (visualConfig): Mỗi câu hỏi BẮT BUỘC có cấu hình trực quan chuẩn xác:
+   - "addition": Dành cho phép cộng (ví dụ 1 + 3 = ?). Cấu hình: { "type": "addition", "leftCount": 1, "rightCount": 3, "iconName": "apple" }. Hiển thị Nhóm 1 + Nhóm 2. TUYỆT ĐỐI không để lộ kết quả tổng trên hình.
+   - "counters": Đếm đồ vật đơn { "type": "counters", "count": 4, "iconName": "apple" } (iconName: "apple", "fish", "star", "candy", "pencil", "carrot", "flower", "bird", "rabbit", "orange", "block").
+   - "ten_frame" hoặc "five_frame": Khung 10 ô hoặc khung 5 ô { "type": "ten_frame", "gridSize": 10, "count": 6, "dotColor": "blue" }.
+   - "bundles": Bó que tính và que rời { "type": "bundles", "tens": 0, "ones": 4 }. Chú ý: Nếu số lượng nhỏ hơn 10 thì tens: 0 và ones: số que lẻ. Chỉ dùng tens >= 1 khi số lượng >= 10. TUYỆT ĐỐI KHÔNG để tens: 0 và ones: 0.
+   - "comparison": So sánh 2 nhóm { "type": "comparison", "leftCount": 4, "rightCount": 2, "iconName": "star" }.
+   - "shapes": Nhận biết hình { "type": "shapes", "shapeType": "circle" | "square" | "triangle" | "rectangle" | "cylinder" | "sphere" }.
+   - "money": Tiền Việt Nam { "type": "money", "moneyBills": [{"denomination": 2000, "count": 2}] }.
+   - "clock": Xem đồng hồ kim { "type": "clock", "hours": 8, "minutes": 30 }.
 6. GỢI Ý MANH MỐI (ruleHints): Mỗi câu hỏi có ít nhất 1 gợi ý thám tử chứa:
    - "pattern": Mã lỗi (ví dụ COUNTING_OFF_BY_ONE, WRONG_OPERATOR, CROSS_TEN_ERROR, PLACE_VALUE_SWAP, COMPARISON_INVERSION, WORD_PROBLEM_WRONG_OPERATION, GEOMETRY_MISIDENTIFICATION...).
    - "hintText": Lời nhắc nhở nhẹ nhàng, ấm áp không lộ ngay đáp án.

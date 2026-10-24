@@ -178,7 +178,9 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
   if (isFrame) {
     const isFive = config.type === 'five_frame' || config.gridSize === 5;
     const gridCellCount = isFive ? 5 : 10;
-    const count = Math.min(config.count ?? 0, gridCellCount);
+    const count = config.count ?? 0;
+    const firstFrameCount = Math.min(count, gridCellCount);
+    const secondFrameCount = !isFive && count > 10 ? Math.min(count - 10, 10) : 0;
 
     const dotColor = config.dotColor || 'blue';
     const dotClasses: Record<string, string> = {
@@ -200,10 +202,10 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
           }`}
         >
           {Array.from({ length: gridCellCount }).map((_, i) => {
-            const isFilled = i < count;
+            const isFilled = i < firstFrameCount;
             return (
               <div
-                key={i}
+                key={`f1-${i}`}
                 className="w-11 h-11 rounded-xl border-2 border-slate-200 bg-slate-50 flex items-center justify-center"
               >
                 {isFilled && (
@@ -215,53 +217,139 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
             );
           })}
         </div>
+
+        {secondFrameCount > 0 && (
+          <div className="mt-3">
+            <div className="text-[11px] font-bold text-slate-500 text-center mb-1">Khung thứ hai:</div>
+            <div className="max-w-[280px] mx-auto grid grid-cols-5 gap-2 p-3 bg-white rounded-2xl border-3 border-sky-300 shadow-inner">
+              {Array.from({ length: 10 }).map((_, i) => {
+                const isFilled = i < secondFrameCount;
+                return (
+                  <div
+                    key={`f2-${i}`}
+                    className="w-11 h-11 rounded-xl border-2 border-slate-200 bg-slate-50 flex items-center justify-center"
+                  >
+                    {isFilled && (
+                      <div className={`w-8 h-8 rounded-full ${dotClass} shadow-sm flex items-center justify-center text-xs font-bold animate-in zoom-in-50`}>
+                        ●
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  // 4. Bundles of Tens & Singles
+  // 4. Bundles of Tens & Singles / Que tính (Zero-safe & Scope-safe)
   if (config.type === 'bundles' || (config.tens !== undefined && config.ones !== undefined)) {
-    const tens = config.tens || 0;
-    const ones = config.ones || 0;
+    const rawTens = config.tens ?? 0;
+    const rawOnes = config.ones ?? 0;
+    // Safeguard: Never render 0 bundles and 0 sticks. Fallback to config.count or 4 single sticks.
+    const total = rawTens * 10 + rawOnes > 0 ? rawTens * 10 + rawOnes : (config.count && config.count > 0 ? config.count : 4);
+    const tens = Math.floor(total / 10);
+    const ones = total % 10;
+    const isSmallStick = tens === 0;
 
     return (
       <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-lg mx-auto">
-        <div className="text-xs font-black uppercase tracking-wider text-sky-700 text-center mb-3">
-          Mô hình Bó Que tính &amp; Que Lẻ
+        <div className="text-xs font-black uppercase tracking-wider text-emerald-800 text-center mb-3">
+          {isSmallStick ? `🥢 Mô hình Que tính (${ones} que lẻ)` : '🥢 Mô hình Bó Que tính & Que Lẻ'}
         </div>
         <div className="flex flex-wrap items-center justify-center gap-6 p-4 bg-white/80 rounded-2xl border-2 border-sky-100">
-          {/* Tens */}
-          <div className="flex flex-wrap items-center gap-3">
-            {Array.from({ length: tens }).map((_, i) => (
-              <div
-                key={`ten-${i}`}
-                className="flex flex-col items-center p-2 rounded-xl bg-amber-50 border-2 border-amber-300 shadow-sm"
-              >
-                <div className="w-10 h-16 rounded-lg bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 border-2 border-amber-600 flex items-center justify-center text-xs font-black text-amber-950 shadow">
-                  10
+          {/* Tens bundles (only show when tens > 0) */}
+          {tens > 0 && (
+            <div className="flex flex-wrap items-center gap-3">
+              {Array.from({ length: tens }).map((_, i) => (
+                <div
+                  key={`ten-${i}`}
+                  className="flex flex-col items-center p-2 rounded-xl bg-amber-50 border-2 border-amber-300 shadow-sm"
+                >
+                  <div className="w-10 h-16 rounded-lg bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 border-2 border-amber-600 flex items-center justify-center text-xs font-black text-amber-950 shadow">
+                    10
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-800 mt-1">1 bó chục</span>
                 </div>
-                <span className="text-[11px] font-bold text-amber-800 mt-1">1 bó chục</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
+          {/* Plus separator when both tens and ones exist */}
           {ones > 0 && tens > 0 && <span className="text-2xl font-black text-slate-400">+</span>}
 
-          {/* Ones */}
+          {/* Ones sticks */}
           {ones > 0 && (
-            <div className="flex flex-wrap items-center gap-2 max-w-[160px]">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-[220px]">
               {Array.from({ length: ones }).map((_, i) => (
                 <div
                   key={`one-${i}`}
-                  className="w-2.5 h-14 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 border border-emerald-700 shadow-sm"
-                  title="Que tính rời"
+                  className="w-3 h-16 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 border border-emerald-700 shadow-sm transition-transform hover:scale-110"
+                  title={`Que tính ${i + 1}`}
                 />
               ))}
-              <div className="w-full text-center text-[11px] font-bold text-emerald-800">
-                Que rời
+              <div className="w-full text-center text-[11px] font-bold text-emerald-800 mt-1">
+                {tens > 0 ? `${ones} que rời` : `${ones} que tính`}
               </div>
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // 5. Addition (Phép cộng 2 nhóm gộp lại: ví dụ 1 + 3 -> 1 vật + 3 vật)
+  if (config.type === 'addition') {
+    const left = Math.max(1, config.leftCount ?? 1);
+    const right = Math.max(1, config.rightCount ?? 1);
+
+    const iconLabels: Record<string, string> = {
+      apple: 'quả táo',
+      fish: 'chú cá',
+      star: 'ngôi sao',
+      candy: 'viên kẹo',
+      pencil: 'bút chì',
+      carrot: 'củ cà rốt',
+      flower: 'bông hoa',
+      bird: 'chú chim',
+      rabbit: 'chú thỏ',
+      orange: 'quả cam',
+      block: 'khối vuông',
+    };
+    const unitName = iconLabels[icon] || 'vật thể';
+
+    return (
+      <div className="my-5 p-5 bg-gradient-to-r from-sky-50 via-amber-50/30 to-indigo-50 rounded-3xl border-2 border-sky-200 w-full max-w-xl mx-auto shadow-xs">
+        <div className="text-xs uppercase tracking-wider font-extrabold text-sky-800 mb-3 text-center">
+          Quan sát mô hình phép cộng: Gộp hai nhóm vật thể
+        </div>
+        <div className="flex items-center justify-center gap-3 sm:gap-6">
+          {/* Group 1 */}
+          <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
+            <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide text-center">
+              {config.leftLabel || `${left} ${unitName}`}
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
+              {Array.from({ length: left }).map((_, i) => renderIcon(i, 'add-left'))}
+            </div>
+          </div>
+
+          {/* Plus Sign */}
+          <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-900 font-black flex items-center justify-center shadow-md text-2xl border-2 border-amber-500 flex-shrink-0">
+            +
+          </div>
+
+          {/* Group 2 */}
+          <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-indigo-300 shadow-xs flex flex-col items-center">
+            <div className="text-xs font-black text-indigo-800 mb-2 uppercase tracking-wide text-center">
+              {config.rightLabel || `${right} ${unitName}`}
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
+              {Array.from({ length: right }).map((_, i) => renderIcon(i, 'add-right'))}
+            </div>
+          </div>
         </div>
       </div>
     );

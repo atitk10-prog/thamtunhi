@@ -84,6 +84,9 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
   // AI Draft Modal state inside editor
   const [isAiDraftOpen, setIsAiDraftOpen] = useState(false);
+  // Dedicated state for AI-created new lesson draft (preserving current published lesson)
+  const [overrideLessonId, setOverrideLessonId] = useState<string | null>(null);
+  const [isNewAiLesson, setIsNewAiLesson] = useState<boolean>(false);
 
   // Live student preview toggles per question
   const [previewOpenIdxs, setPreviewOpenIdxs] = useState<Record<number, boolean>>({});
@@ -95,6 +98,9 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
   // Synchronize state whenever modal opens or lesson/lessonVersion changes
   useEffect(() => {
     if (!isOpen) return;
+
+    setOverrideLessonId(null);
+    setIsNewAiLesson(false);
 
     // 1. If lessonVersion has questions (from draft, AI, or published version), ALWAYS preserve all questions
     if (lessonVersion && Array.isArray(lessonVersion.questions) && lessonVersion.questions.length > 0) {
@@ -299,14 +305,20 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
   // Construct current version doc in memory (for preview or saving)
   const buildCurrentVersionDoc = (publish: boolean): { lessonDoc: Lesson; versionDoc: LessonVersion } => {
-    const lessonId = lesson?.id || `lesson-custom-${Date.now()}`;
-    const nextVersionNumber = isEditing
+    const effectiveIsEditing = isNewAiLesson ? false : isEditing;
+    const lessonId = isNewAiLesson
+      ? (overrideLessonId || `lesson-ai-${Date.now()}`)
+      : (lesson?.id || `lesson-custom-${Date.now()}`);
+
+    const nextVersionNumber = effectiveIsEditing
       ? (publish ? (lesson?.currentVersion || 1) + 1 : lesson?.currentVersion || 1)
       : 1;
 
-    const versionId = publish
-      ? `version-${lessonId}-v${nextVersionNumber}`
-      : (lesson?.draftVersionId || `version-${lessonId}-v${nextVersionNumber}-draft`);
+    const versionId = isNewAiLesson
+      ? (publish ? `version-${lessonId}-v1` : `version-${lessonId}-v1-draft`)
+      : (publish
+          ? `version-${lessonId}-v${nextVersionNumber}`
+          : (lesson?.draftVersionId || `version-${lessonId}-v${nextVersionNumber}-draft`));
 
     const versionDoc: LessonVersion = {
       id: versionId,
@@ -335,11 +347,11 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       totalQuestions: questions.length,
       status: publish ? 'published' : 'draft',
       isPublished: publish,
-      currentVersion: publish ? nextVersionNumber : (lesson?.currentVersion || 1),
-      currentVersionId: publish ? versionId : (lesson?.currentVersionId || versionId),
+      currentVersion: publish ? nextVersionNumber : (effectiveIsEditing ? (lesson?.currentVersion || 1) : 1),
+      currentVersionId: publish ? versionId : (effectiveIsEditing ? (lesson?.currentVersionId || versionId) : versionId),
       draftVersionId: publish ? undefined : versionId,
-      createdBy: lesson?.createdBy || teacherId,
-      createdAt: lesson?.createdAt || new Date().toISOString(),
+      createdBy: effectiveIsEditing ? (lesson?.createdBy || teacherId) : teacherId,
+      createdAt: effectiveIsEditing ? (lesson?.createdAt || new Date().toISOString()) : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       dataOrigin: 'real',
       environmentTag: 'production',
@@ -439,16 +451,20 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-lg bg-sky-100 text-sky-800">
-                {isEditing ? `Phiên bản hiện tại: v${lesson?.currentVersion || 1}` : 'Soạn bài mới'}
+                {isNewAiLesson
+                  ? '✨ Bản nháp mới từ AI'
+                  : (isEditing ? `Phiên bản hiện tại: v${lesson?.currentVersion || 1}` : 'Soạn bài mới')}
               </span>
-              {lesson?.status === 'published' && (
+              {!isNewAiLesson && lesson?.status === 'published' && (
                 <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800">
                   Đang phát hành
                 </span>
               )}
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-slate-800 mt-1">
-              {isEditing ? `Biên Tập: ${lesson?.title}` : 'Tạo Bài Học Toán Mới'}
+              {isNewAiLesson
+                ? `Bản Nháp Mới: ${title || 'Toán Thám Tử'}`
+                : (isEditing ? `Biên Tập: ${lesson?.title}` : 'Tạo Bài Học Toán Mới')}
             </h3>
           </div>
 
@@ -488,6 +504,21 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                 </div>
                 <span>{versionLoadError}</span>
               </div>
+            </div>
+          )}
+
+          {/* AI New Lesson Draft Reassurance Banner */}
+          {isNewAiLesson && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>
+                  Đang soạn thảo bài học nháp mới tạo từ AI (Mã bài: {overrideLessonId}, chứa đúng {questions.length} câu hỏi). Bài học đã phát hành trước đó được bảo toàn nguyên vẹn.
+                </span>
+              </div>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                NHÁP
+              </span>
             </div>
           )}
 
@@ -1009,6 +1040,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                     }}
                                     className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
                                   >
+                                    <option value="addition">➕ Phép cộng gộp hai nhóm (1 + 3)</option>
                                     <option value="counters">🍎 Đếm đồ vật đơn</option>
                                     <option value="five_frame">⏹️ Khung 5 ô (Five-Frame)</option>
                                     <option value="ten_frame">🔟 Khung 10 ô (Ten-Frame)</option>
@@ -1021,6 +1053,52 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                 </div>
 
                                 {/* Dynamic sub-controls based on model type */}
+                                {vc?.type === 'addition' && (
+                                  <>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Loại vật thể</label>
+                                      <select
+                                        value={vc.iconName || 'apple'}
+                                        onChange={(e) => handleUpdateVisual(idx, { iconName: e.target.value })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      >
+                                        <option value="apple">🍎 Quả táo (apple)</option>
+                                        <option value="star">⭐ Ngôi sao (star)</option>
+                                        <option value="candy">🍬 Kẹo ngọt (candy)</option>
+                                        <option value="fish">🐟 Chú cá (fish)</option>
+                                        <option value="pencil">✏️ Bút chì (pencil)</option>
+                                        <option value="carrot">🥕 Cà rốt (carrot)</option>
+                                        <option value="flower">🌸 Bông hoa (flower)</option>
+                                        <option value="bird">🐦 Chú chim (bird)</option>
+                                        <option value="rabbit">🐰 Chú thỏ (rabbit)</option>
+                                        <option value="orange">🍊 Quả cam (orange)</option>
+                                        <option value="block">🧱 Khối vuông (block)</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Nhóm 1 (Trái)</label>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={20}
+                                        value={vc.leftCount ?? 1}
+                                        onChange={(e) => handleUpdateVisual(idx, { leftCount: Math.max(1, Number(e.target.value)) })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Nhóm 2 (Phải)</label>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={20}
+                                        value={vc.rightCount ?? 3}
+                                        onChange={(e) => handleUpdateVisual(idx, { rightCount: Math.max(1, Number(e.target.value)) })}
+                                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                      />
+                                    </div>
+                                  </>
+                                )}
                                 {vc?.type === 'counters' && (
                                   <>
                                     <div>
@@ -1585,11 +1663,31 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
           isOpen={isAiDraftOpen}
           onClose={() => setIsAiDraftOpen(false)}
           existingQuestionCount={questions.length}
-          isExistingLesson={isEditing}
+          isExistingLesson={isEditing && !isNewAiLesson}
+          isPublishedLesson={!isNewAiLesson && (lesson?.status === 'published' || Boolean(lesson?.isPublished))}
           currentTitle={title}
           onApplyQuestions={(newAiQuestions, meta) => {
-            // Safeguard: Only update title, topic, and grade if brand new lesson (not isEditing) OR teacher explicitly confirmed updateMetadata
-            const shouldUpdateMeta = !isEditing || meta?.updateMetadata === true;
+            // Option 1: Tạo bài học mới (Bản nháp độc lập)
+            if (meta?.applyMode === 'create_new') {
+              const newLessonId = `lesson-ai-${Date.now()}`;
+              setOverrideLessonId(newLessonId);
+              setIsNewAiLesson(true);
+              const chosenTopic = meta?.topic || topic || 'Chủ đề mới';
+              const chosenGrade = meta?.grade || grade || 1;
+              setTopic(chosenTopic);
+              setGrade(chosenGrade);
+              setTitle(`Bài tập Toán: ${chosenTopic}`);
+              setDescription(`Bài học nháp tạo từ AI Gemini (${newAiQuestions.length} câu hỏi theo chuẩn GDPT 2018).`);
+              setLearningStandard(`Rèn luyện kỹ năng và chẩn đoán mẫu lỗi chủ đề ${chosenTopic} theo chuẩn GDPT 2018`);
+              // Contain ONLY the new AI questions, ZERO old questions copied!
+              setQuestions(newAiQuestions.map((q, i) => ({ ...q, order: i + 1 })));
+              setVersionLoadError(null);
+              setErrorMsg(null);
+              return;
+            }
+
+            // Option 2 & 3: Replace or Append in current lesson
+            const shouldUpdateMeta = (!isEditing && !isNewAiLesson) || meta?.updateMetadata === true;
 
             if (shouldUpdateMeta) {
               if (meta?.topic) setTopic(meta.topic);
@@ -1602,9 +1700,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
               }
             }
 
-            const isReplace = meta?.applyMode === 'replace' || questions.length === 0 || (!isEditing && questions.length === 1 && questions[0].prompt.includes('Thám tử Cáo có 3 quả táo'));
-
-            if (isReplace) {
+            if (meta?.applyMode === 'replace') {
               setQuestions(newAiQuestions.map((q, i) => ({ ...q, order: i + 1 })));
             } else {
               const startOrder = questions.length;

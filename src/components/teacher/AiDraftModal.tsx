@@ -8,7 +8,7 @@ export interface AiDraftMeta {
   topic: string;
   targetPattern?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
-  applyMode?: 'replace' | 'append';
+  applyMode?: 'create_new' | 'replace' | 'append';
   updateMetadata?: boolean;
 }
 
@@ -18,6 +18,7 @@ interface AiDraftModalProps {
   onApplyQuestions: (questions: Question[], meta?: AiDraftMeta) => void;
   existingQuestionCount?: number;
   isExistingLesson?: boolean;
+  isPublishedLesson?: boolean;
   currentTitle?: string;
 }
 
@@ -27,6 +28,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
   onApplyQuestions,
   existingQuestionCount = 0,
   isExistingLesson = false,
+  isPublishedLesson = false,
   currentTitle = '',
 }) => {
   const [grade, setGrade] = useState<1 | 2>(1);
@@ -35,12 +37,30 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
   const [customPattern, setCustomPattern] = useState<string>('');
   const [questionCount, setQuestionCount] = useState<number>(4);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [applyMode, setApplyMode] = useState<'replace' | 'append'>('replace');
+  const [applyMode, setApplyMode] = useState<'create_new' | 'replace' | 'append'>(
+    isPublishedLesson ? 'create_new' : (existingQuestionCount > 0 ? 'append' : 'create_new')
+  );
+  const [confirmReplace, setConfirmReplace] = useState<boolean>(false);
   const [updateMetadata, setUpdateMetadata] = useState<boolean>(false);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [draftQuestions, setDraftQuestions] = useState<Question[]>([]);
+
+  // Automatically select recommended apply mode when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      if (isPublishedLesson) {
+        setApplyMode('create_new');
+      } else if (existingQuestionCount > 0) {
+        setApplyMode('append');
+      } else {
+        setApplyMode('create_new');
+      }
+      setConfirmReplace(false);
+      setErrorMsg(null);
+    }
+  }, [isOpen, isPublishedLesson, existingQuestionCount]);
 
   if (!isOpen) return null;
 
@@ -101,6 +121,10 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
 
   const handleApply = () => {
     if (draftQuestions.length > 0) {
+      if (applyMode === 'replace' && existingQuestionCount > 0 && !confirmReplace) {
+        setErrorMsg('Vui lòng tích chọn ô xác nhận trước khi thay thế các câu hỏi hiện tại.');
+        return;
+      }
       onApplyQuestions(draftQuestions, {
         grade,
         topic,
@@ -260,37 +284,127 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
                 </span>
               </div>
 
-              {/* Mode choice if existing questions */}
-              {existingQuestionCount > 0 && (
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
-                  <span className="text-xs font-bold text-slate-700 block">Thao tác đưa vào bài học:</span>
-                  <div className="flex items-center gap-4 text-xs font-bold">
-                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-800">
+              {/* 3 Lựa chọn áp dụng câu hỏi AI */}
+              {(existingQuestionCount > 0 || isExistingLesson) && (
+                <div className="p-3.5 rounded-2xl bg-white border-2 border-slate-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-700 block">
+                      Chọn phương thức áp dụng vào hệ thống:
+                    </span>
+                    {isPublishedLesson && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                        Bài đang phát hành
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    {/* Lựa chọn 1: Tạo bài học mới (mặc định cho bài đã phát hành) */}
+                    <label
+                      className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                        applyMode === 'create_new'
+                          ? 'bg-sky-50/80 border-sky-500 shadow-xs ring-2 ring-sky-200'
+                          : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
                       <input
                         type="radio"
                         name="applyMode"
-                        checked={applyMode === 'replace'}
-                        onChange={() => setApplyMode('replace')}
-                        className="text-sky-600"
+                        checked={applyMode === 'create_new'}
+                        onChange={() => setApplyMode('create_new')}
+                        className="mt-1 text-sky-600 focus:ring-sky-500"
                       />
-                      <span>Thay thế toàn bộ câu hỏi hiện tại ({existingQuestionCount} câu)</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-slate-800">
+                            🌱 Tạo bài học mới (Bản nháp độc lập)
+                          </span>
+                          {isPublishedLesson && (
+                            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                              Mặc định an toàn
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                          Tạo bài học nháp mới có ID riêng, tiêu đề theo chủ đề AI (&ldquo;Bài tập Toán: {topic}&rdquo;), chứa đúng <strong>{draftQuestions.length} câu hỏi vừa sinh</strong>. Không làm thay đổi hay ghi đè bài học hoặc phiên bản đang phát hành.
+                        </p>
+                      </div>
                     </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-800">
+
+                    {/* Lựa chọn 2: Thay thế câu hỏi hiện tại (Yêu cầu xác nhận) */}
+                    <div
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        applyMode === 'replace'
+                          ? 'bg-rose-50/60 border-rose-400 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="applyMode"
+                          checked={applyMode === 'replace'}
+                          onChange={() => setApplyMode('replace')}
+                          className="mt-1 text-rose-600 focus:ring-rose-500"
+                        />
+                        <div className="flex-1">
+                          <span className="text-xs font-black text-slate-800">
+                            ⚠️ Thay thế câu hỏi hiện tại ({existingQuestionCount} câu)
+                          </span>
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                            Xóa toàn bộ {existingQuestionCount} câu hỏi cũ trong bài hiện tại và thay thế bằng {draftQuestions.length} câu hỏi mới từ AI.
+                          </p>
+                        </div>
+                      </label>
+
+                      {/* Checkbox bắt buộc xác nhận khi chọn thay thế */}
+                      {applyMode === 'replace' && existingQuestionCount > 0 && (
+                        <div className="mt-2.5 ml-7 p-2.5 rounded-lg bg-rose-100/80 border border-rose-300">
+                          <label className="flex items-start gap-2 cursor-pointer text-xs font-black text-rose-900">
+                            <input
+                              type="checkbox"
+                              checked={confirmReplace}
+                              onChange={(e) => setConfirmReplace(e.target.checked)}
+                              className="w-4 h-4 mt-0.5 rounded text-rose-600 focus:ring-rose-500"
+                            />
+                            <span>
+                              Tôi xác nhận muốn xóa {existingQuestionCount} câu hỏi hiện tại để thay thế bằng {draftQuestions.length} câu mới này.
+                            </span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Lựa chọn 3: Thêm vào cuối bài */}
+                    <label
+                      className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                        applyMode === 'append'
+                          ? 'bg-indigo-50/70 border-indigo-500 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
                       <input
                         type="radio"
                         name="applyMode"
                         checked={applyMode === 'append'}
                         onChange={() => setApplyMode('append')}
-                        className="text-sky-600"
+                        className="mt-1 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <span>Thêm {draftQuestions.length} câu vào cuối bài</span>
+                      <div className="flex-1">
+                        <span className="text-xs font-black text-slate-800">
+                          ➕ Thêm vào cuối bài hiện tại
+                        </span>
+                        <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                          Giữ nguyên {existingQuestionCount} câu hỏi hiện có và nối tiếp thêm {draftQuestions.length} câu hỏi mới vào sau (tổng cộng {existingQuestionCount + draftQuestions.length} câu).
+                        </p>
+                      </div>
                     </label>
                   </div>
                 </div>
               )}
 
               {/* Safeguard: Do not overwrite existing lesson title/grade without explicit teacher confirmation */}
-              {isExistingLesson && (
+              {isExistingLesson && applyMode !== 'create_new' && (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-1.5">
                   <div className="text-xs font-black text-amber-900 flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
@@ -356,9 +470,19 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
               <button
                 type="button"
                 onClick={handleApply}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95"
+                disabled={applyMode === 'replace' && existingQuestionCount > 0 && !confirmReplace}
+                className={`px-5 py-2 rounded-xl text-white font-black text-sm flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95 ${
+                  applyMode === 'replace' && existingQuestionCount > 0 && !confirmReplace
+                    ? 'bg-slate-400 cursor-not-allowed opacity-60 shadow-none'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
               >
-                <Check className="w-4 h-4" /> Đưa vào bài giảng
+                <Check className="w-4 h-4" />
+                {applyMode === 'create_new'
+                  ? `Tạo bài học mới (${draftQuestions.length} câu)`
+                  : applyMode === 'replace'
+                  ? `Thay thế câu hỏi (${draftQuestions.length} câu)`
+                  : `Thêm ${draftQuestions.length} câu vào bài`}
               </button>
             </div>
           ) : (

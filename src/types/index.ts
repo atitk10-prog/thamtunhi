@@ -109,7 +109,7 @@ export interface MediaUploadResponse {
 }
 
 export interface VisualAssetConfig {
-  type: 'counters' | 'ten_frame' | 'five_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story' | 'comparison' | 'image' | 'money' | 'clock' | 'none';
+  type: 'counters' | 'addition' | 'ten_frame' | 'five_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story' | 'comparison' | 'image' | 'money' | 'clock' | 'none';
   count?: number;
   leftCount?: number;
   rightCount?: number;
