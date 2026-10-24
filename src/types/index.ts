@@ -109,13 +109,13 @@ export interface MediaUploadResponse {
 }
 
 export interface VisualAssetConfig {
-  type: 'counters' | 'ten_frame' | 'five_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story' | 'comparison' | 'image' | 'none';
+  type: 'counters' | 'ten_frame' | 'five_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story' | 'comparison' | 'image' | 'money' | 'clock' | 'none';
   count?: number;
   leftCount?: number;
   rightCount?: number;
   leftLabel?: string;
   rightLabel?: string;
-  iconName?: string; // apple, star, candy, fish, pencil, block
+  iconName?: string; // apple, star, candy, fish, pencil, block, carrot, flower, bird, rabbit, orange, banana, ball, book
   tens?: number;
   ones?: number;
   min?: number;
@@ -127,6 +127,12 @@ export interface VisualAssetConfig {
   dotColor?: 'red' | 'blue' | 'green' | 'amber' | string;
   gridSize?: number; // 5, 10, 20
   layout?: 'row' | 'grid' | 'circle';
+  // Money visualization (Vietnamese Currency VND)
+  moneyBills?: { denomination: number; count: number }[];
+  // Clock visualization (Analog clock face)
+  hours?: number;
+  minutes?: number;
+  showDigital?: boolean;
   // Image-specific configuration for question illustrations
   imageId?: string;
   imageUrl?: string;

@@ -113,7 +113,7 @@ export const AssignModal: React.FC<AssignModalProps> = ({
   // Published lessons matching grade and search query
   const eligibleLessons = useMemo(() => {
     return lessons
-      .filter((l) => l.isPublished !== false)
+      .filter((l) => (l.status === 'published' || l.isPublished === true) && l.status !== 'draft')
       .filter((l) => {
         // If a class is already determined, strictly match grade
         if (targetStudent || initialClassId) {

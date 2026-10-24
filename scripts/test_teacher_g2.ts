@@ -397,10 +397,10 @@ async function runG2Tests() {
 
     // 5.4 Test student token cannot write to /api/teacher/lessons (blocked with 403)
     const studentToken = makeToken({
-      uid: 'student-hs1a01',
+      uid: 'student-generic-abac-test',
       role: 'student',
-      displayName: 'Em An (1A)',
-      studentCode: 'HS1A01',
+      displayName: 'Học Sinh Kiểm Thử ABAC',
+      studentCode: 'HS_ABAC',
       classId: 'class-1a',
       grade: 1,
     });

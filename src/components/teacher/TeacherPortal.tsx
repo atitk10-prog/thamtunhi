@@ -622,23 +622,48 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
       <AiDraftModal
         isOpen={isAiDraftOpen}
         onClose={() => setIsAiDraftOpen(false)}
-        onApplyQuestions={(newQuestions) => {
+        onApplyQuestions={(newQuestions, meta) => {
           // Open editor with AI questions populated
-          setEditingLesson(null);
-          setEditingVersion({
-            id: `version-draft-${Date.now()}`,
-            lessonId: `lesson-draft-${Date.now()}`,
-            versionNumber: 1,
-            title: `Bài tập Toán AI: ${newQuestions[0]?.skillTag || 'Luyện tập'}`,
-            grade: newQuestions[0]?.order ? 1 : 1,
-            topic: newQuestions[0]?.skillTag || 'Phép tính',
+          const now = Date.now();
+          const lessonId = `lesson-draft-${now}`;
+          const versionId = `version-${lessonId}-v1-draft`;
+          const chosenGrade: 1 | 2 = meta?.grade || 1;
+          const chosenTopic = meta?.topic || newQuestions[0]?.skillTag || 'Luyện tập';
+          const draftLesson: Lesson = {
+            id: lessonId,
+            title: `Bài tập Toán: ${chosenTopic}`,
+            grade: chosenGrade,
+            topic: chosenTopic,
             learningStandard: 'Rèn luyện kỹ năng và khắc phục mẫu lỗi theo chuẩn GDPT 2018',
+            description: `Bài học do AI hỗ trợ soạn nháp với ${newQuestions.length} câu hỏi theo chuẩn GDPT 2018.`,
+            durationMinutes: 20,
+            totalQuestions: newQuestions.length,
+            status: 'draft',
+            isPublished: false,
+            currentVersion: 1,
+            draftVersionId: versionId,
+            createdBy: currentUser.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            dataOrigin: 'real',
+            environmentTag: 'production',
+          };
+          const draftVersion: LessonVersion = {
+            id: versionId,
+            lessonId,
+            versionNumber: 1,
+            title: draftLesson.title,
+            grade: chosenGrade,
+            topic: chosenTopic,
+            learningStandard: draftLesson.learningStandard,
             questions: newQuestions,
             isPublished: false,
             createdBy: currentUser.id,
             dataOrigin: 'real',
             environmentTag: 'production',
-          });
+          };
+          setEditingLesson(draftLesson);
+          setEditingVersion(draftVersion);
           setIsEditorOpen(true);
         }}
       />

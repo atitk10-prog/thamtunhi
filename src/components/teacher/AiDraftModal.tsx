@@ -3,10 +3,17 @@ import { Sparkles, X, AlertTriangle, Check, Loader2 } from 'lucide-react';
 import { Question } from '../../types';
 import { getAuthHeaders } from '../../lib/authSession';
 
+export interface AiDraftMeta {
+  grade: 1 | 2;
+  topic: string;
+  targetPattern?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+}
+
 interface AiDraftModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApplyQuestions: (questions: Question[]) => void;
+  onApplyQuestions: (questions: Question[], meta?: AiDraftMeta) => void;
 }
 
 export const AiDraftModal: React.FC<AiDraftModalProps> = ({
@@ -47,21 +54,21 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.code === 'AI_NOT_CONFIGURED') {
-          setErrorMsg('AI chưa cấu hình: Chưa tìm thấy GEMINI_API_KEY trong hệ thống. Thầy/Cô vẫn có thể tự biên soạn bài học thủ công qua công cụ biên tập.');
-        } else {
-          setErrorMsg(data.error || 'Có lỗi khi tạo bài nháp từ AI.');
+        let msg = data.error || 'Có lỗi khi tạo bài nháp từ AI.';
+        if (data.detail && data.detail !== data.error) {
+          msg += ` (Chi tiết: ${data.detail})`;
         }
+        setErrorMsg(msg);
         return;
       }
 
       if (data.questions && Array.isArray(data.questions)) {
         setDraftQuestions(data.questions);
       } else {
-        setErrorMsg('Dữ liệu AI trả về không đúng định dạng chuẩn.');
+        setErrorMsg('Dữ liệu AI trả về không đúng định dạng danh sách câu hỏi.');
       }
-    } catch (err) {
-      setErrorMsg('Không thể kết nối đến máy chủ AI.');
+    } catch (err: any) {
+      setErrorMsg(`Không thể kết nối đến máy chủ AI: ${err?.message || 'Lỗi mạng hoặc máy chủ không phản hồi'}`);
     } finally {
       setLoading(false);
     }
@@ -69,7 +76,12 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
 
   const handleApply = () => {
     if (draftQuestions.length > 0) {
-      onApplyQuestions(draftQuestions);
+      onApplyQuestions(draftQuestions, {
+        grade,
+        topic,
+        targetPattern,
+        difficulty,
+      });
       onClose();
     }
   };

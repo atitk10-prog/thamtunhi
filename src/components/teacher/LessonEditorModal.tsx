@@ -29,6 +29,7 @@ import { dataService } from '../../lib/dataService';
 import { Lesson, LessonVersion, Question, InteractionType, MathErrorPattern, VisualAssetConfig, MediaItem } from '../../types';
 import { VisualCounters } from '../activities/VisualCounters';
 import { MediaLibraryModal } from './MediaLibraryModal';
+import { AiDraftModal, AiDraftMeta } from './AiDraftModal';
 
 interface LessonEditorModalProps {
   isOpen: boolean;
@@ -81,6 +82,9 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
   // Media Library target question index for illustration assignment
   const [mediaLibraryTargetQIdx, setMediaLibraryTargetQIdx] = useState<number | null>(null);
 
+  // AI Draft Modal state inside editor
+  const [isAiDraftOpen, setIsAiDraftOpen] = useState(false);
+
   // Live student preview toggles per question
   const [previewOpenIdxs, setPreviewOpenIdxs] = useState<Record<number, boolean>>({});
 
@@ -92,7 +96,18 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    if (lesson) {
+    // 1. If lessonVersion has questions (from draft, AI, or published version), ALWAYS preserve all questions
+    if (lessonVersion && Array.isArray(lessonVersion.questions) && lessonVersion.questions.length > 0) {
+      setTitle(lessonVersion.title || lesson?.title || '');
+      setGrade((lessonVersion.grade || lesson?.grade || 1) as 1 | 2);
+      setTopic(lessonVersion.topic || lesson?.topic || '');
+      setLearningStandard(lessonVersion.learningStandard || lesson?.learningStandard || '');
+      setDescription(lesson?.description || '');
+      setDurationMinutes(lesson?.durationMinutes || 20);
+      setQuestions(JSON.parse(JSON.stringify(lessonVersion.questions)));
+      setVersionLoadError(null);
+      setErrorMsg(null);
+    } else if (lesson) {
       setTitle(lesson.title || '');
       setGrade((lesson.grade as 1 | 2) || 1);
       setTopic(lesson.topic || '');
@@ -100,17 +115,17 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       setDescription(lesson.description || '');
       setDurationMinutes(lesson.durationMinutes || 20);
 
-      if (lessonVersion && Array.isArray(lessonVersion.questions) && lessonVersion.questions.length > 0) {
-        setQuestions(JSON.parse(JSON.stringify(lessonVersion.questions)));
-        setVersionLoadError(null);
-        setErrorMsg(null);
-      } else if (lessonVersion === null) {
+      if (lessonVersion === null) {
         // Failed to load lesson version from server - Strictly DO NOT fallback to mock questions
         setQuestions([]);
         setVersionLoadError('Không thể tải dữ liệu câu hỏi của bài học này từ cơ sở dữ liệu. Để bảo vệ an toàn kho học liệu, các thao tác Lưu nháp và Xuất bản đã bị khóa.');
+      } else {
+        setQuestions([]);
+        setVersionLoadError(null);
+        setErrorMsg(null);
       }
     } else {
-      // New lesson creation mode
+      // Brand new lesson creation mode from scratch
       setTitle('');
       setGrade(1);
       setTopic('');
@@ -291,7 +306,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
     const versionId = publish
       ? `version-${lessonId}-v${nextVersionNumber}`
-      : `version-${lessonId}-v${nextVersionNumber}-draft`;
+      : (lesson?.draftVersionId || `version-${lessonId}-v${nextVersionNumber}-draft`);
 
     const versionDoc: LessonVersion = {
       id: versionId,
@@ -318,7 +333,8 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       description,
       durationMinutes,
       totalQuestions: questions.length,
-      status: publish ? 'published' : (lesson?.status || 'draft'),
+      status: publish ? 'published' : 'draft',
+      isPublished: publish,
       currentVersion: publish ? nextVersionNumber : (lesson?.currentVersion || 1),
       currentVersionId: publish ? versionId : (lesson?.currentVersionId || versionId),
       draftVersionId: publish ? undefined : versionId,
@@ -376,6 +392,22 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       if (!q.expectedAnswer.trim()) {
         setErrorMsg(`Câu hỏi số ${i + 1} chưa có đáp án chuẩn.`);
         return;
+      }
+      if (q.interactionType === 'single_choice') {
+        if (!q.options || q.options.length < 2) {
+          setErrorMsg(`Câu hỏi số ${i + 1} (trắc nghiệm) cần ít nhất 2 phương án lựa chọn.`);
+          return;
+        }
+        const trimmedOpts = q.options.map((o) => o.trim()).filter(Boolean);
+        const uniqueOpts = new Set(trimmedOpts);
+        if (uniqueOpts.size < trimmedOpts.length) {
+          setErrorMsg(`Câu hỏi số ${i + 1} (trắc nghiệm): Các phương án lựa chọn không được trùng lặp.`);
+          return;
+        }
+        if (!trimmedOpts.includes(q.expectedAnswer.trim())) {
+          setErrorMsg(`Câu hỏi số ${i + 1} (trắc nghiệm): Đáp án đúng ("${q.expectedAnswer}") phải nằm trong danh sách các phương án.`);
+          return;
+        }
       }
       if (q.interactionType === 'expression_match' && (!q.pairs || q.pairs.length < 2)) {
         setErrorMsg(`Câu hỏi số ${i + 1} (ghép nối) cần ít nhất 2 cặp thẻ.`);
@@ -545,14 +577,26 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                 Danh sách câu hỏi ({questions.length} câu)
               </h4>
 
-              <button
-                type="button"
-                onClick={handleAddQuestion}
-                disabled={Boolean(versionLoadError)}
-                className="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-extrabold flex items-center gap-1.5 border border-sky-200 cursor-pointer disabled:opacity-40 transition-colors"
-              >
-                <Plus className="w-4 h-4" /> Thêm câu hỏi
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAiDraftOpen(true)}
+                  disabled={Boolean(versionLoadError)}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white text-xs font-black flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-40 transition-all active:scale-95"
+                  title="Nhờ AI Gemini gợi ý soạn thêm câu hỏi theo chủ đề"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" /> AI Soạn Đề
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAddQuestion}
+                  disabled={Boolean(versionLoadError)}
+                  className="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-extrabold flex items-center gap-1.5 border border-sky-200 cursor-pointer disabled:opacity-40 transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Thêm câu hỏi
+                </button>
+              </div>
             </div>
 
             {questions.length === 0 ? (
@@ -1533,6 +1577,28 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
             }}
           />
         )}
+        {/* Direct AI Draft Modal inside Editor */}
+        <AiDraftModal
+          isOpen={isAiDraftOpen}
+          onClose={() => setIsAiDraftOpen(false)}
+          onApplyQuestions={(newAiQuestions, meta) => {
+            if (meta?.topic && !topic) setTopic(meta.topic);
+            if (meta?.grade) setGrade(meta.grade);
+            if (!title && meta?.topic) setTitle(`Bài tập Toán: ${meta.topic}`);
+
+            // If only 1 placeholder question exists, replace it cleanly; otherwise append
+            if (questions.length === 1 && questions[0].prompt.includes('Thám tử Cáo có 3 quả táo')) {
+              setQuestions(newAiQuestions);
+            } else {
+              const startOrder = questions.length;
+              const reindexed = newAiQuestions.map((q, i) => ({
+                ...q,
+                order: startOrder + i + 1,
+              }));
+              setQuestions([...questions, ...reindexed]);
+            }
+          }}
+        />
       </div>
     </div>
   );

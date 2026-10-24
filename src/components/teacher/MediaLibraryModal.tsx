@@ -454,7 +454,17 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                             alt={item.title}
                             className="max-h-full max-w-full object-contain transition-transform group-hover:scale-105"
                             loading="lazy"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
                           />
+                          <div className="hidden flex-col items-center justify-center text-center p-2 text-slate-400">
+                            <span className="text-3xl mb-1">{catInfo?.icon || '🖼️'}</span>
+                            <span className="text-[10px] font-bold text-amber-700">Tệp ảnh cần kiểm tra</span>
+                          </div>
 
                           {/* Quick Lightbox Zoom */}
                           <button
@@ -482,12 +492,12 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                             >
                               {item.title}
                             </h4>
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium mt-0.5">
-                              <span>{(item.sizeBytes / 1024).toFixed(0)} KB</span>
-                              <span className="uppercase">{item.mimeType.replace('image/', '')}</span>
+                            <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold mt-0.5">
+                              <span>{item.sizeBytes < 1024 ? `${(item.sizeBytes / 1024).toFixed(1)} KB` : `${(item.sizeBytes / 1024).toFixed(0)} KB`}</span>
+                              <span className="uppercase text-slate-400 font-semibold">{item.mimeType.replace('image/', '')}</span>
                             </div>
                             {item.description && (
-                              <p className="text-[11px] text-slate-500 line-clamp-1 mt-1" title={item.description}>
+                              <p className="text-[11px] text-slate-500 line-clamp-1 mt-1 font-medium" title={item.description}>
                                 {item.description}
                               </p>
                             )}

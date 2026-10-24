@@ -1,7 +1,7 @@
 {
-  "totalLessons": 24,
-  "totalQuestions": 192,
-  "totalVisuals": 27,
+  "totalLessons": 28,
+  "totalQuestions": 224,
+  "totalVisuals": 59,
   "rows": [
     {
       "lessonId": "lesson-g1-01",
@@ -322,8 +322,124 @@
       "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
     },
     {
-      "lessonId": "lesson-g2-01",
+      "lessonId": "lesson-qa-e2e-1792853045735",
       "order": 13,
+      "title": "[Kiểm thử E2E] Ôn tập đếm và hình minh họa trực quan",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-qa-e2e-1792853045735-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input"
+      ],
+      "visualTypes": [
+        "counters",
+        "ten_frame",
+        "comparison",
+        "money",
+        "clock",
+        "image",
+        "bundles"
+      ],
+      "sampleAnswers": [
+        "5",
+        "5",
+        "Đúng",
+        ">"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-qa-e2e-1792853114472",
+      "order": 14,
+      "title": "[Kiểm thử E2E] Ôn tập đếm và hình minh họa trực quan",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-qa-e2e-1792853114472-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input"
+      ],
+      "visualTypes": [
+        "counters",
+        "ten_frame",
+        "comparison",
+        "money",
+        "clock",
+        "image",
+        "bundles"
+      ],
+      "sampleAnswers": [
+        "5",
+        "5",
+        "Đúng",
+        ">"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-qa-e2e-1792853144036",
+      "order": 15,
+      "title": "[Kiểm thử E2E] Ôn tập đếm và hình minh họa trực quan",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-qa-e2e-1792853144036-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input"
+      ],
+      "visualTypes": [
+        "counters",
+        "ten_frame",
+        "comparison",
+        "money",
+        "clock",
+        "image",
+        "bundles"
+      ],
+      "sampleAnswers": [
+        "5",
+        "5",
+        "Đúng",
+        ">"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-qa-e2e-1792853182937",
+      "order": 16,
+      "title": "[Kiểm thử E2E] Ôn tập đếm và hình minh họa trực quan",
+      "grade": 1,
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-qa-e2e-1792853182937-v1",
+      "questionCount": 8,
+      "activityTypes": [
+        "single_choice",
+        "number_input"
+      ],
+      "visualTypes": [
+        "counters",
+        "ten_frame",
+        "comparison",
+        "money",
+        "clock",
+        "image",
+        "bundles"
+      ],
+      "sampleAnswers": [
+        "5",
+        "5",
+        "Đúng",
+        ">"
+      ],
+      "pedagogicalAuditNotes": "CHUẨN SƯ PHẠM (Đạt kiểm định GDPT 2018, visual sinh động, không lộ đáp án)"
+    },
+    {
+      "lessonId": "lesson-g2-01",
+      "order": 17,
       "title": "Phép cộng có nhớ trong phạm vi 20 (Qua 10)",
       "grade": 2,
       "currentVersion": 1,
@@ -350,7 +466,7 @@
     },
     {
       "lessonId": "lesson-g2-02",
-      "order": 14,
+      "order": 18,
       "title": "Phép trừ có nhớ trong phạm vi 20 (Trừ qua 10)",
       "grade": 2,
       "currentVersion": 1,
@@ -377,7 +493,7 @@
     },
     {
       "lessonId": "lesson-g2-03",
-      "order": 15,
+      "order": 19,
       "title": "Đề-xi-mét (dm) và Đo độ dài",
       "grade": 2,
       "currentVersion": 1,
@@ -400,7 +516,7 @@
     },
     {
       "lessonId": "lesson-g2-04",
-      "order": 16,
+      "order": 20,
       "title": "Phép cộng có nhớ trong phạm vi 100",
       "grade": 2,
       "currentVersion": 1,
@@ -426,7 +542,7 @@
     },
     {
       "lessonId": "lesson-g2-05",
-      "order": 17,
+      "order": 21,
       "title": "Phép trừ có nhớ trong phạm vi 100",
       "grade": 2,
       "currentVersion": 1,
@@ -452,7 +568,7 @@
     },
     {
       "lessonId": "lesson-g2-06",
-      "order": 18,
+      "order": 22,
       "title": "Khối trụ và Khối cầu",
       "grade": 2,
       "currentVersion": 1,
@@ -475,7 +591,7 @@
     },
     {
       "lessonId": "lesson-g2-07",
-      "order": 19,
+      "order": 23,
       "title": "Làm quen với Phép nhân và Dấu nhân (×)",
       "grade": 2,
       "currentVersion": 1,
@@ -498,7 +614,7 @@
     },
     {
       "lessonId": "lesson-g2-08",
-      "order": 20,
+      "order": 24,
       "title": "Bảng nhân 2 và Bảng nhân 5",
       "grade": 2,
       "currentVersion": 1,
@@ -521,7 +637,7 @@
     },
     {
       "lessonId": "lesson-g2-09",
-      "order": 21,
+      "order": 25,
       "title": "Làm quen với Phép chia và Bảng chia 2, chia 5",
       "grade": 2,
       "currentVersion": 1,
@@ -544,7 +660,7 @@
     },
     {
       "lessonId": "lesson-g2-10",
-      "order": 22,
+      "order": 26,
       "title": "Các số trong phạm vi 1000 và Hàng trăm",
       "grade": 2,
       "currentVersion": 1,
@@ -568,7 +684,7 @@
     },
     {
       "lessonId": "lesson-g2-11",
-      "order": 23,
+      "order": 27,
       "title": "Đo lường: Ki-lô-gam (kg) và Lít (l)",
       "grade": 2,
       "currentVersion": 1,
@@ -591,7 +707,7 @@
     },
     {
       "lessonId": "lesson-g2-12",
-      "order": 24,
+      "order": 28,
       "title": "Xem lịch, Ngày - Tháng và Xem đồng hồ",
       "grade": 2,
       "currentVersion": 1,

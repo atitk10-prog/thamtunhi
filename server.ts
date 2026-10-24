@@ -782,23 +782,27 @@ app.patch('/api/teacher/profile', requireAuth, requireRole(['teacher', 'admin'])
 });
 
 async function generateGeminiContent(promptText: string): Promise<string> {
-  if (!genAI) throw new Error('Mô hình AI chưa được cấu hình.');
+  if (!genAI) {
+    const err: any = new Error('Mô hình AI chưa được cấu hình. Thiếu GEMINI_API_KEY.');
+    err.code = 'AI_NOT_CONFIGURED';
+    throw err;
+  }
   
-  // Prioritize verified models from Google AI Studio list
-  const candidateModels: string[] = [
-    process.env.GEMINI_MODEL,
-    'gemini-2.5-flash-lite',
-    'gemini-flash-lite-latest',
-    'gemini-2.5-flash',
-    'gemini-flash-latest',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-  ].filter(Boolean) as string[];
+  // Use explicit environment model or stable 'gemini-2.5-flash' as primary.
+  // Deprecated models ('gemini-2.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-flash-latest') are strictly removed.
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const fallbackModel = 'gemini-2.0-flash';
+  
+  const modelsToTry = [primaryModel];
+  if (primaryModel !== fallbackModel) {
+    modelsToTry.push(fallbackModel);
+  }
 
-  const modelErrors: string[] = [];
-  for (const model of candidateModels) {
+  let lastError: any = null;
+
+  for (let i = 0; i < modelsToTry.length; i++) {
+    const model = modelsToTry[i];
     try {
-      // 20s timeout per model attempt to prevent Vercel gateway 504
       const callPromise = genAI.models.generateContent({
         model,
         contents: promptText,
@@ -807,8 +811,13 @@ async function generateGeminiContent(promptText: string): Promise<string> {
         },
       });
 
+      // 25s timeout per attempt to fit safely within Vercel execution constraints
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout 20s exceeded for ${model}`)), 20000)
+        setTimeout(() => {
+          const timeoutErr: any = new Error(`Quá thời gian chờ phản hồi từ mô hình ${model} (quá 25 giây).`);
+          timeoutErr.code = 'GEMINI_TIMEOUT';
+          reject(timeoutErr);
+        }, 25000)
       );
 
       const response = await Promise.race([callPromise, timeoutPromise]);
@@ -816,17 +825,57 @@ async function generateGeminiContent(promptText: string): Promise<string> {
         return response.text;
       }
     } catch (err: any) {
+      lastError = err;
       const rawMsg = err?.message || String(err);
-      // Strict security: scrub API keys or query params from log messages
       const safeMsg = rawMsg
         .replace(/AIza[0-9A-Za-z-_]{35}/g, '***')
         .replace(/key=[^&\s]+/g, 'key=***');
-      console.warn(`Gemini model ${model} attempt failed:`, safeMsg);
-      modelErrors.push(`[${model}] ${safeMsg}`);
+      
+      console.warn(`[Gemini] Thử nghiệm mô hình ${model} thất bại:`, safeMsg);
+
+      // Fast abort on non-retryable errors (Quota exceeded 429, Auth error 401/403)
+      if (
+        rawMsg.includes('429') ||
+        rawMsg.includes('RESOURCE_EXHAUSTED') ||
+        rawMsg.toLowerCase().includes('quota') ||
+        rawMsg.toLowerCase().includes('rate limit')
+      ) {
+        const quotaErr: any = new Error('Tài khoản Gemini API đã vượt quá hạn mức yêu cầu (Quota Exceeded / Rate Limit). Vui lòng thử lại sau hoặc nâng hạn mức trên Google AI Studio.');
+        quotaErr.code = 'GEMINI_QUOTA_EXCEEDED';
+        quotaErr.detail = safeMsg;
+        throw quotaErr;
+      }
+
+      if (
+        rawMsg.includes('401') ||
+        rawMsg.includes('403') ||
+        rawMsg.includes('API_KEY_INVALID') ||
+        rawMsg.toLowerCase().includes('api key not valid')
+      ) {
+        const authErr: any = new Error('API Key Gemini không hợp lệ hoặc không có quyền truy cập vào mô hình.');
+        authErr.code = 'GEMINI_AUTH_INVALID';
+        authErr.detail = safeMsg;
+        throw authErr;
+      }
+
+      if (err.code === 'GEMINI_TIMEOUT') {
+        err.detail = safeMsg;
+        throw err;
+      }
+
+      // If it's a 404 (model not found / deprecated) and we have a fallback, loop will try fallbackModel once
     }
   }
 
-  throw new Error(`Dịch vụ AI hiện không khả dụng: ${modelErrors.slice(0, 4).join('; ')}`);
+  const rawMsg = lastError?.message || String(lastError);
+  const safeMsg = rawMsg
+    .replace(/AIza[0-9A-Za-z-_]{35}/g, '***')
+    .replace(/key=[^&\s]+/g, 'key=***');
+
+  const finalErr: any = new Error(`Dịch vụ AI không thể xử lý yêu cầu lúc này: ${safeMsg}`);
+  finalErr.code = 'AI_SERVICE_UNAVAILABLE';
+  finalErr.detail = safeMsg;
+  throw finalErr;
 }
 
 // 5. Teacher AI Draft Generation (Protected: teacher or admin role required)
@@ -858,6 +907,18 @@ Hãy tạo đúng ${cleanCount} câu hỏi môn Toán lớp ${parsedGrade} về 
 Tập trung phát hiện mẫu lỗi: "${cleanPattern}".
 Mỗi câu hỏi phải phù hợp tư duy trẻ 6-8 tuổi, văn phong sư phạm ấm áp, thân thiện.
 
+QUY TẮC BẮT BUỘC VỀ SƯ PHẠM VÀ HÌNH MINH HỌA:
+1. ĐƠN VỊ TIỀN TỆ: Nếu chủ đề hoặc câu hỏi nhắc tới tiền tệ, BẮT BUỘC dùng tiền Việt Nam: 1 000 đồng, 2 000 đồng, 5 000 đồng, 10 000 đồng, 20 000 đồng, 50 000 đồng, 100 000 đồng. TUYỆT ĐỐI KHÔNG dùng USD hay ký hiệu $.
+2. HÌNH MINH HỌA (visualConfig): Mỗi câu hỏi phải có cấu hình minh họa trực quan "visualConfig" phù hợp với bài toán:
+   - "counters": Đếm đồ vật (iconName: "apple", "fish", "star", "candy", "pencil", "carrot", "flower", "bird", "rabbit", "orange", "block"). Số lượng count phải khớp chính xác với đề bài.
+   - "ten_frame" hoặc "five_frame": Khung 10 ô hoặc khung 5 ô (gridSize: 5 hoặc 10, count, dotColor: "blue" | "red" | "green" | "amber").
+   - "bundles": Bó que tính và que rời (tens: số bó chục, ones: số que rời).
+   - "comparison": So sánh 2 nhóm (leftCount, rightCount, leftLabel, rightLabel, iconName).
+   - "shapes": Nhận biết hình (shapeType: "circle" | "square" | "triangle" | "rectangle" | "cylinder" | "sphere").
+   - "money": Tờ tiền Việt Nam (moneyBills: [{"denomination": 2000, "count": 2}, {"denomination": 5000, "count": 1}]).
+   - "clock": Xem đồng hồ kim (hours: 1-12, minutes: 0, 15, 30, 45).
+   - "word_story": Bài toán lời văn (storyText: tóm tắt ngắn gọn tình huống).
+
 Yêu cầu định dạng JSON CHUẨN XÁC theo schema sau:
 {
   "questions": [
@@ -866,16 +927,21 @@ Yêu cầu định dạng JSON CHUẨN XÁC theo schema sau:
       "order": 1,
       "prompt": "Lời dẫn câu hỏi bằng tiếng Việt rõ ràng",
       "interactionType": "number_input",
-      "options": ["A", "B", "C"],
+      "options": ["3", "4", "5"],
       "expectedAnswer": "5",
-      "explanation": "Lời giải thích cặn kẽ",
+      "explanation": "Lời giải thích cặn kẽ từng bước",
       "skillTag": "${cleanTopic}",
       "difficulty": "${difficulty}",
+      "visualConfig": {
+        "type": "counters",
+        "count": 5,
+        "iconName": "apple"
+      },
       "ruleHints": [
         {
           "pattern": "${cleanPattern}",
           "hintText": "Lời khuyên sư phạm gợi ý cho bé",
-          "visualActionGuidance": "Chỉ dẫn thao tác que tính hoặc khung 10 ô"
+          "visualActionGuidance": "Chỉ dẫn thao tác đếm hoặc quan sát trực quan"
         }
       ]
     }
@@ -884,7 +950,23 @@ Yêu cầu định dạng JSON CHUẨN XÁC theo schema sau:
 Chỉ trả về JSON thuần túy, không có văn bản giải thích nào khác ngoài JSON.
 `;
 
-    const text = await generateGeminiContent(prompt);
+    let text: string;
+    try {
+      text = await generateGeminiContent(prompt);
+    } catch (aiErr: any) {
+      const code = aiErr.code || 'AI_SERVICE_ERROR';
+      const detail = aiErr.detail || aiErr.message || 'Lỗi khi gọi API Gemini';
+      if (code === 'GEMINI_QUOTA_EXCEEDED') {
+        return res.status(429).json({ code, error: aiErr.message, detail });
+      }
+      if (code === 'GEMINI_AUTH_INVALID') {
+        return res.status(401).json({ code, error: aiErr.message, detail });
+      }
+      if (code === 'GEMINI_TIMEOUT') {
+        return res.status(504).json({ code, error: aiErr.message, detail });
+      }
+      return res.status(500).json({ code, error: aiErr.message, detail });
+    }
 
     // Sanitize JSON text in case of markdown code fences
     let cleanJsonText = (text || '').trim();
@@ -894,7 +976,172 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
       cleanJsonText = cleanJsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
 
-    const parsed = JSON.parse(cleanJsonText || '{}');
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cleanJsonText || '{}');
+    } catch (jsonErr: any) {
+      console.error('Failed to parse Gemini output as JSON:', cleanJsonText.substring(0, 200));
+      return res.status(502).json({
+        code: 'AI_JSON_PARSE_ERROR',
+        error: 'Nội dung phản hồi từ mô hình AI không thể phân tích cú pháp JSON hợp lệ.',
+        detail: cleanJsonText.substring(0, 200),
+      });
+    }
+
+    // Normalize questions array from different possible wrappers
+    let rawQuestions: any[] = [];
+    if (Array.isArray(parsed)) {
+      rawQuestions = parsed;
+    } else if (Array.isArray(parsed.questions)) {
+      rawQuestions = parsed.questions;
+    } else if (Array.isArray(parsed.items)) {
+      rawQuestions = parsed.items;
+    } else if (Array.isArray(parsed.questionList)) {
+      rawQuestions = parsed.questionList;
+    }
+
+    if (rawQuestions.length === 0) {
+      return res.status(502).json({
+        code: 'AI_EMPTY_QUESTIONS',
+        error: 'Mô hình AI phản hồi cấu trúc JSON nhưng không chứa danh sách câu hỏi hợp lệ.',
+        detail: JSON.stringify(parsed).substring(0, 200),
+      });
+    }
+
+    parsed.questions = rawQuestions;
+
+    // Mathematical integrity & visualConfig enrichment helper
+    function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
+      if (q.visualConfig && typeof q.visualConfig === 'object' && q.visualConfig.type) {
+        const vc = q.visualConfig;
+        if (vc.type === 'counters' && typeof vc.count === 'number' && vc.count > 0) {
+          if (!vc.iconName) vc.iconName = 'apple';
+          return vc;
+        }
+        if ((vc.type === 'ten_frame' || vc.type === 'five_frame') && typeof vc.count === 'number') {
+          vc.gridSize = vc.type === 'five_frame' || vc.gridSize === 5 ? 5 : 10;
+          vc.count = Math.min(vc.count, vc.gridSize);
+          return vc;
+        }
+        if (vc.type === 'bundles' || (vc.tens !== undefined && vc.ones !== undefined)) {
+          return vc;
+        }
+        if (vc.type === 'comparison' && (vc.leftCount !== undefined || vc.count !== undefined)) {
+          return vc;
+        }
+        if (vc.type === 'shapes' && vc.shapeType) {
+          return vc;
+        }
+        if (vc.type === 'money' || vc.moneyBills) {
+          return vc;
+        }
+        if (vc.type === 'clock' || vc.hours !== undefined) {
+          return vc;
+        }
+      }
+
+      // Auto-extract and enrich visual representation from question text
+      const rawText = ((q.prompt || '') + ' ' + (q.explanation || '') + ' ' + tTopic).toLowerCase();
+
+      // 1. Money detection
+      if (rawText.includes('đồng') || rawText.includes('tiền') || rawText.includes('mua') || rawText.includes('trả lại')) {
+        const billMatches = (q.prompt || '').match(/(\d[\d\s.,]*)\s*(đồng|đ)/gi);
+        const bills: { denomination: number; count: number }[] = [];
+        if (billMatches) {
+          for (const m of billMatches) {
+            const num = parseInt(m.replace(/\D/g, ''), 10);
+            if ([1000, 2000, 5000, 10000, 20000, 50000, 100000].includes(num)) {
+              bills.push({ denomination: num, count: 1 });
+            }
+          }
+        }
+        if (bills.length > 0) {
+          return { type: 'money', moneyBills: bills };
+        }
+        return {
+          type: 'money',
+          moneyBills: [{ denomination: tGrade === 1 ? 2000 : 10000, count: 1 }]
+        };
+      }
+
+      // 2. Clock detection
+      if (rawText.includes('đồng hồ') || rawText.includes('giờ') || rawText.includes('phút')) {
+        const hourMatch = (q.prompt || '').match(/(\d{1,2})\s*giờ/i);
+        const minuteMatch = (q.prompt || '').match(/(\d{1,2})\s*phút/i);
+        const hours = hourMatch ? parseInt(hourMatch[1], 10) % 12 : 8;
+        const minutes = minuteMatch ? parseInt(minuteMatch[1], 10) : 0;
+        return { type: 'clock', hours: hours || 12, minutes };
+      }
+
+      // 3. Ten-frame / Five-frame detection
+      if (rawText.includes('khung 10') || rawText.includes('khung 5') || rawText.includes('chấm tròn')) {
+        const numMatch = (q.prompt || '').match(/(\d+)/);
+        const count = numMatch ? parseInt(numMatch[1], 10) : 5;
+        const isFive = rawText.includes('khung 5');
+        const size = isFive ? 5 : 10;
+        return {
+          type: isFive ? 'five_frame' : 'ten_frame',
+          gridSize: size,
+          count: Math.min(count, size),
+          dotColor: 'blue'
+        };
+      }
+
+      // 4. Bundles detection
+      if (rawText.includes('que tính') || rawText.includes('bó que') || rawText.includes('chục và đơn vị')) {
+        const numMatch = (q.prompt || '').match(/(\d+)/);
+        const total = numMatch ? parseInt(numMatch[1], 10) : 15;
+        return {
+          type: 'bundles',
+          tens: Math.floor(total / 10),
+          ones: total % 10
+        };
+      }
+
+      // 5. Shapes detection
+      if (rawText.includes('hình tròn')) return { type: 'shapes', shapeType: 'circle' };
+      if (rawText.includes('hình vuông')) return { type: 'shapes', shapeType: 'square' };
+      if (rawText.includes('hình tam giác')) return { type: 'shapes', shapeType: 'triangle' };
+      if (rawText.includes('hình chữ nhật')) return { type: 'shapes', shapeType: 'rectangle' };
+      if (rawText.includes('khối trụ')) return { type: 'shapes', shapeType: 'cylinder' };
+      if (rawText.includes('khối cầu')) return { type: 'shapes', shapeType: 'sphere' };
+
+      // 6. Object counters
+      let iconName = 'apple';
+      if (rawText.includes('cá')) iconName = 'fish';
+      else if (rawText.includes('sao')) iconName = 'star';
+      else if (rawText.includes('kẹo')) iconName = 'candy';
+      else if (rawText.includes('bút')) iconName = 'pencil';
+      else if (rawText.includes('khối') || rawText.includes('viên')) iconName = 'block';
+      else if (rawText.includes('cà rốt')) iconName = 'carrot';
+      else if (rawText.includes('hoa') || rawText.includes('bông')) iconName = 'flower';
+      else if (rawText.includes('chim')) iconName = 'bird';
+      else if (rawText.includes('thỏ')) iconName = 'rabbit';
+      else if (rawText.includes('cam')) iconName = 'orange';
+
+      // Comparison detection
+      if (rawText.includes('nhiều hơn') || rawText.includes('ít hơn') || rawText.includes('so sánh') || (rawText.includes(' và ') && rawText.includes('?'))) {
+        const nums = ((q.prompt || '').match(/\b\d+\b/g) || []).map(Number);
+        if (nums.length >= 2) {
+          return {
+            type: 'comparison',
+            leftCount: Math.min(nums[0], 10),
+            rightCount: Math.min(nums[1], 10),
+            leftLabel: 'Nhóm 1',
+            rightLabel: 'Nhóm 2',
+            iconName
+          };
+        }
+      }
+
+      const nums = ((q.prompt || '').match(/\b\d+\b/g) || []).map(Number);
+      const count = nums.length > 0 ? Math.min(nums[0], 10) : 5;
+      return {
+        type: 'counters',
+        count,
+        iconName
+      };
+    }
 
     // Mathematical integrity validation for AI questions
     if (Array.isArray(parsed.questions)) {
@@ -914,6 +1161,8 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
             q.options[0] = q.expectedAnswer;
           }
         }
+        // Auto enrich visualConfig
+        q.visualConfig = enrichAiVisualConfig(q, cleanTopic, parsedGrade);
       });
     }
 
@@ -922,7 +1171,8 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
     const safeMsg = err?.message ? err.message.replace(/AIza[0-9A-Za-z-_]{35}/g, '***').replace(/key=[^&\s]+/g, 'key=***') : String(err);
     console.error('Gemini draft generation error (sanitized):', safeMsg);
     return res.status(500).json({
-      error: 'Không thể tạo bài nháp từ AI lúc này. Thầy/Cô có thể biên soạn câu hỏi thủ công hoặc thử lại sau.',
+      code: err?.code || 'AI_GENERATION_FAILED',
+      error: `Lỗi xử lý khi tạo bài nháp từ AI: ${safeMsg}`,
       detail: safeMsg
     });
   }
@@ -2021,7 +2271,7 @@ app.post('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin
       return res.status(404).json({ error: 'Bài học không tồn tại trong kho học liệu.' });
     }
     const lessonData: any = lessonDoc.data();
-    if (lessonData.isPublished === false) {
+    if (lessonData.status === 'draft' || lessonData.isPublished === false) {
       return res.status(400).json({ error: 'Bài học chưa được xuất bản. Vui lòng duyệt và xuất bản trước khi giao.' });
     }
     if (Number(lessonData.grade) !== Number(classData.grade)) {
@@ -2379,21 +2629,30 @@ app.get('/api/teacher/media', requireAuth, requireRole(['teacher', 'admin']), as
   try {
     const { category, search } = req.query;
 
-    let items = loadMediaLibrary();
+    let items: any[] = [];
 
-    // Query Cloud Firestore catalog index for Vercel production sync
+    // Authoritative source: Cloud Firestore catalog index for Vercel production sync
     try {
       const catSnap = await getDoc(doc(db, 'test', 'media_catalog_index'));
       if (catSnap.exists() && Array.isArray(catSnap.data().items)) {
-        const cloudItems = catSnap.data().items;
-        const itemMap = new Map<string, any>();
-        for (const it of cloudItems) itemMap.set(it.id, it);
-        for (const it of items) itemMap.set(it.id, it);
-        items = Array.from(itemMap.values());
+        items = catSnap.data().items;
       }
-    } catch {
-      // Fallback to local
+    } catch (cloudErr) {
+      console.warn('Notice: Failed reading media_catalog_index from Firestore:', cloudErr);
     }
+
+    // Fallback to local catalog if Firestore is empty or unreachable
+    if (items.length === 0) {
+      items = loadMediaLibrary();
+    }
+
+    // Strict sanity filter: Only keep healthy records with size >= 100 bytes and valid IDs
+    // Prevents broken 38B/68B test records or missing files from appearing in the UI
+    items = items.filter((item) => {
+      if (!item || !item.id) return false;
+      const size = Number(item.sizeBytes) || 0;
+      return size >= 100;
+    });
 
     if (category && typeof category === 'string' && category !== 'all') {
       items = items.filter((item) => item.category === category);
@@ -2562,7 +2821,7 @@ app.get('/api/media/file/:id', async (req: Request, res: Response) => {
 
     // 1. In-memory cache (Fastest, zero I/O)
     const cached = mediaMemoryCache.get(id);
-    if (cached) {
+    if (cached && cached.buffer.length >= 100) {
       res.setHeader('Content-Type', cached.mimeType);
       res.setHeader('Content-Length', cached.buffer.length);
       res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
@@ -2574,19 +2833,21 @@ app.get('/api/media/file/:id', async (req: Request, res: Response) => {
     const diskPath = path.join(MEDIA_STORAGE_DIR, id);
     if (fs.existsSync(diskPath)) {
       const buffer = fs.readFileSync(diskPath);
-      const items = loadMediaLibrary();
-      const meta = items.find((i) => i.id === id);
-      const mimeType = meta?.mimeType || 'image/webp';
+      if (buffer.length >= 100) {
+        const items = loadMediaLibrary();
+        const meta = items.find((i) => i.id === id);
+        const mimeType = meta?.mimeType || 'image/webp';
 
-      if (buffer.length < 2_000_000) {
-        mediaMemoryCache.set(id, { buffer, mimeType });
+        if (buffer.length < 2_000_000) {
+          mediaMemoryCache.set(id, { buffer, mimeType });
+        }
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Length', buffer.length);
+        res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.end(buffer);
       }
-
-      res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Length', buffer.length);
-      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      return res.end(buffer);
     }
 
     // 3. Persistent Cloud Firestore Chunks (For Vercel Production serverless lambdas)
@@ -2604,21 +2865,23 @@ app.get('/api/media/file/:id', async (req: Request, res: Response) => {
         }
         if (assembledBase64) {
           const buffer = Buffer.from(assembledBase64, 'base64');
-          const mimeType = meta.mimeType || 'image/webp';
-          mediaMemoryCache.set(id, { buffer, mimeType });
+          if (buffer.length >= 100) {
+            const mimeType = meta.mimeType || 'image/webp';
+            mediaMemoryCache.set(id, { buffer, mimeType });
 
-          res.setHeader('Content-Type', mimeType);
-          res.setHeader('Content-Length', buffer.length);
-          res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-          res.setHeader('X-Content-Type-Options', 'nosniff');
-          return res.end(buffer);
+            res.setHeader('Content-Type', mimeType);
+            res.setHeader('Content-Length', buffer.length);
+            res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            return res.end(buffer);
+          }
         }
       }
     } catch (cloudErr) {
       console.warn('Notice: Cloud Firestore chunk retrieval notice:', cloudErr);
     }
 
-    return res.status(404).send('Không tìm thấy hình ảnh.');
+    return res.status(404).send('Không tìm thấy hình ảnh hoặc tệp hình ảnh không hợp lệ.');
   } catch (err: any) {
     console.error('Serve media file error:', err);
     return res.status(500).send('Lỗi máy chủ khi tải hình ảnh.');
