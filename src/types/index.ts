@@ -143,6 +143,7 @@ export interface VisualAssetConfig {
   imageAlign?: 'center' | 'left' | 'right';
   caption?: string;
   isTeacherVerified?: boolean;
+  requiresTeacherIllustration?: boolean;
 }
 
 export interface Question {

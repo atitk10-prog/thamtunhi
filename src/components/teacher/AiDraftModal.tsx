@@ -429,7 +429,29 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
                 {draftQuestions.map((q, idx) => (
                   <div key={idx} className="p-3 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 space-y-1">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-sky-600 font-black">Câu {idx + 1} [{q.interactionType}]</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sky-600 font-black">Câu {idx + 1} [{q.interactionType}]</span>
+                        {q.visualConfig?.type === 'addition' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-extrabold">
+                            ➕ {q.visualConfig.leftCount} + {q.visualConfig.rightCount}
+                          </span>
+                        )}
+                        {q.visualConfig?.type === 'bundles' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-extrabold">
+                            🥢 {q.visualConfig.tens ?? 0} chục + {q.visualConfig.ones ?? 0} que
+                          </span>
+                        )}
+                        {q.visualConfig?.type === 'counters' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-extrabold">
+                            🍎 {q.visualConfig.count ?? 0} đồ vật
+                          </span>
+                        )}
+                        {(q.visualConfig?.type === 'none' || q.visualConfig?.requiresTeacherIllustration) && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-extrabold">
+                            💡 Cần bổ sung hình
+                          </span>
+                        )}
+                      </div>
                       <span className="text-emerald-700">Đáp án: <strong>{q.expectedAnswer}</strong></span>
                     </div>
                     <p className="text-slate-800">{q.prompt}</p>

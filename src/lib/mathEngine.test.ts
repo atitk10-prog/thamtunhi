@@ -104,5 +104,28 @@ export function runMathEngineTests(): { passed: number; failed: number; errors: 
   const resCorrect = evaluateAnswer(qOperator, '5');
   assert(resCorrect.isCorrect, 'evaluateAnswer: 5 is correct');
 
+  // Test 8: Zero evaluation and safe normalization
+  assert(safeIntegerEval('3 - 3') === 0, 'safeIntegerEval: 3 - 3 === 0');
+  assert(normalizeAnswer('0') === '0', 'normalizeAnswer: "0" stays "0"');
+  assert(normalizeAnswer(0 as any) === '0', 'normalizeAnswer: 0 stays "0"');
+
+  const qZero: Question = {
+    id: 'q-test-zero',
+    order: 5,
+    prompt: '5 - 5 = ?',
+    interactionType: 'number_input',
+    expectedAnswer: '0',
+    explanation: '5 - 5 = 0',
+    skillTag: 'Phép trừ',
+    difficulty: 'easy',
+    ruleHints: []
+  };
+
+  const resZeroCorrect = evaluateAnswer(qZero, '0');
+  assert(resZeroCorrect.isCorrect, 'evaluateAnswer: 0 is correct for expected 0');
+
+  const resZeroEmpty = evaluateAnswer(qZero, '');
+  assert(!resZeroEmpty.isCorrect, 'evaluateAnswer: empty string is NOT correct for expected 0');
+
   return { passed, failed, errors };
 }

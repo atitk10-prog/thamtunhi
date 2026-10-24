@@ -886,67 +886,35 @@ async function generateGeminiContent(promptText: string): Promise<string> {
   }
 }
 
+// Check whether a question genuinely represents zero quantity (Scenario 1)
+function isQuestionGenuinelyZero(prompt: string, expectedAnswer: any, rawText: string): boolean {
+  const ansStr = String(expectedAnswer ?? '').trim();
+  if (ansStr === '0' || ansStr === 'không') return true;
+
+  if (/\b0\s*(que|bó|quả|con|chú|viên|bông|củ|bút|khối|ngôi sao|cái|chiếc|chấm|vật)\b/i.test(prompt)) {
+    return true;
+  }
+  if (/\b(bằng 0|có 0|còn 0|kết quả là 0|số 0)\b/i.test(prompt)) {
+    return true;
+  }
+  if (rawText.includes('không có') || rawText.includes('không còn') || rawText.includes('khay rỗng') || rawText.includes('hộp rỗng')) {
+    return true;
+  }
+  return false;
+}
+
 // Mathematical integrity & visualConfig enrichment helper
 function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
-  // Auto-extract and enrich visual representation from question text
-  const rawText = ((q.prompt || '') + ' ' + (q.explanation || '') + ' ' + tTopic).toLowerCase();
+  const prompt = String(q.prompt || '').trim();
+  const rawText = ((prompt || '') + ' ' + (q.explanation || '') + ' ' + tTopic).toLowerCase();
+  const genuinelyZero = isQuestionGenuinelyZero(prompt, q.expectedAnswer, rawText);
 
-  // If Gemini provided visualConfig, sanitize and validate it
-  if (q.visualConfig && typeof q.visualConfig === 'object' && q.visualConfig.type) {
-    const vc = q.visualConfig;
-    if (vc.type === 'addition') {
-      const left = Number(vc.leftCount) || 1;
-      const right = Number(vc.rightCount) || 1;
-      return {
-        type: 'addition',
-        leftCount: Math.min(Math.max(1, left), 20),
-        rightCount: Math.min(Math.max(1, right), 20),
-        iconName: vc.iconName || 'apple',
-        leftLabel: vc.leftLabel,
-        rightLabel: vc.rightLabel,
-      };
-    }
-    if (vc.type === 'counters' && typeof vc.count === 'number' && vc.count > 0) {
-      if (!vc.iconName) vc.iconName = 'apple';
-      return vc;
-    }
-    if ((vc.type === 'ten_frame' || vc.type === 'five_frame') && typeof vc.count === 'number') {
-      vc.gridSize = vc.type === 'five_frame' || vc.gridSize === 5 ? 5 : 10;
-      vc.count = Math.min(vc.count, vc.gridSize);
-      return vc;
-    }
-    if (vc.type === 'bundles' || (vc.tens !== undefined && vc.ones !== undefined)) {
-      const tens = Number(vc.tens) || 0;
-      const ones = Number(vc.ones) || 0;
-      // Safeguard: If both are 0, do NOT accept blank bundle. Fall through to auto-detection from prompt
-      if (tens > 0 || ones > 0) {
-        return {
-          type: 'bundles',
-          tens,
-          ones,
-        };
-      }
-    }
-    if (vc.type === 'comparison' && (vc.leftCount !== undefined || vc.count !== undefined)) {
-      return vc;
-    }
-    if (vc.type === 'shapes' && vc.shapeType) {
-      return vc;
-    }
-    if (vc.type === 'money' || vc.moneyBills) {
-      return vc;
-    }
-    if (vc.type === 'clock' || vc.hours !== undefined) {
-      return vc;
-    }
-  }
-
-  // 0. Addition detection: e.g. "1 + 3 = ?", "2 + 5", "gộp... lại"
-  const addMatch = (q.prompt || '').match(/(\d+)\s*\+\s*(\d+)/);
+  // 1. Phép cộng a + b (Ưu tiên minh họa đúng a vật + b vật)
+  const addMatch = prompt.match(/(\d+)\s*\+\s*(\d+)/);
   if (addMatch) {
     const a = parseInt(addMatch[1], 10);
     const b = parseInt(addMatch[2], 10);
-    if (a > 0 && b > 0 && a <= 20 && b <= 20) {
+    if (!isNaN(a) && !isNaN(b) && a >= 0 && b >= 0 && a <= 20 && b <= 20) {
       let iconName = 'apple';
       if (rawText.includes('cá')) iconName = 'fish';
       else if (rawText.includes('sao')) iconName = 'star';
@@ -970,9 +938,167 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
     }
   }
 
-  // 1. Money detection
+  // 2. Nếu Gemini cung cấp visualConfig: kiểm tra tính hợp lệ, bảo toàn số 0 thật, không bịa số lượng
+  if (q.visualConfig && typeof q.visualConfig === 'object' && q.visualConfig.type) {
+    const vc = q.visualConfig;
+    if (vc.type === 'addition') {
+      const left = typeof vc.leftCount === 'number' ? Math.max(0, vc.leftCount) : (parseInt(String(vc.leftCount), 10) || 0);
+      const right = typeof vc.rightCount === 'number' ? Math.max(0, vc.rightCount) : (parseInt(String(vc.rightCount), 10) || 0);
+      return {
+        type: 'addition',
+        leftCount: Math.min(Math.max(0, left), 20),
+        rightCount: Math.min(Math.max(0, right), 20),
+        iconName: vc.iconName || 'apple',
+        leftLabel: vc.leftLabel,
+        rightLabel: vc.rightLabel,
+      };
+    }
+
+    if (vc.type === 'counters' && typeof vc.count === 'number') {
+      const count = Math.max(0, vc.count);
+      if (count > 0) {
+        return {
+          type: 'counters',
+          count: Math.min(count, 20),
+          iconName: vc.iconName || 'apple',
+        };
+      }
+      // count === 0: chỉ chấp nhận nếu bài toán thực sự là 0
+      if (genuinelyZero) {
+        return {
+          type: 'counters',
+          count: 0,
+          iconName: vc.iconName || 'apple',
+        };
+      }
+      // Nếu không phải 0 thật, cố gắng lấy số từ đề bài
+      const cntMatch = prompt.match(/(\d+)\s*(quả|con|chú|viên|bông|củ|bút|khối|ngôi sao|cái|chiếc)/i);
+      if (cntMatch) {
+        return {
+          type: 'counters',
+          count: parseInt(cntMatch[1], 10),
+          iconName: vc.iconName || 'apple',
+        };
+      }
+      return {
+        type: 'none',
+        requiresTeacherIllustration: true,
+        caption: 'Cần bổ sung hình minh họa: Chưa xác định được số lượng đồ vật.',
+      };
+    }
+
+    if ((vc.type === 'ten_frame' || vc.type === 'five_frame') && typeof vc.count === 'number') {
+      const gSize = vc.type === 'five_frame' || vc.gridSize === 5 ? 5 : 10;
+      const count = Math.max(0, vc.count);
+      if (count > 0) {
+        return {
+          type: vc.type,
+          gridSize: gSize,
+          count: Math.min(count, gSize),
+          dotColor: vc.dotColor || 'blue',
+        };
+      }
+      // count === 0: chỉ chấp nhận nếu bài toán thực sự là 0
+      if (genuinelyZero) {
+        return {
+          type: vc.type,
+          gridSize: gSize,
+          count: 0,
+          dotColor: vc.dotColor || 'blue',
+        };
+      }
+      const numMatch = prompt.match(/(\d+)/);
+      if (numMatch) {
+        return {
+          type: vc.type,
+          gridSize: gSize,
+          count: Math.min(parseInt(numMatch[1], 10), gSize),
+          dotColor: vc.dotColor || 'blue',
+        };
+      }
+      return {
+        type: 'none',
+        requiresTeacherIllustration: true,
+        caption: 'Cần bổ sung hình minh họa: Chưa có số chấm tròn phù hợp.',
+      };
+    }
+
+    if (vc.type === 'bundles') {
+      const tens = typeof vc.tens === 'number' ? vc.tens : (parseInt(String(vc.tens), 10) || 0);
+      const ones = typeof vc.ones === 'number' ? vc.ones : (parseInt(String(vc.ones), 10) || 0);
+      if (tens > 0 || ones > 0) {
+        return {
+          type: 'bundles',
+          tens: Math.min(Math.max(0, tens), 9),
+          ones: Math.min(Math.max(0, ones), 9),
+        };
+      }
+      // tens === 0 && ones === 0: chỉ chấp nhận nếu bài toán thực sự là 0
+      if (genuinelyZero) {
+        return {
+          type: 'bundles',
+          tens: 0,
+          ones: 0,
+        };
+      }
+      // Nếu không phải 0 thật, cố gắng trích xuất số lượng que tính từ đề bài
+      const numMatch = prompt.match(/(\d+)/);
+      if (numMatch && (rawText.includes('que tính') || rawText.includes('bó') || rawText.includes('chục'))) {
+        const total = parseInt(numMatch[1], 10);
+        if (!isNaN(total) && total > 0) {
+          return {
+            type: 'bundles',
+            tens: Math.floor(total / 10),
+            ones: total % 10,
+          };
+        }
+      }
+      return {
+        type: 'none',
+        requiresTeacherIllustration: true,
+        caption: 'Cần bổ sung hình minh họa: Chưa có dữ liệu que tính phù hợp cho câu hỏi này.',
+      };
+    }
+
+    if (vc.type === 'comparison' && (typeof vc.leftCount === 'number' || typeof vc.count === 'number')) {
+      return vc;
+    }
+    if (vc.type === 'shapes' && vc.shapeType) {
+      return vc;
+    }
+    if (vc.type === 'money' && vc.moneyBills && vc.moneyBills.length > 0) {
+      return vc;
+    }
+    if (vc.type === 'clock' && typeof vc.hours === 'number') {
+      return vc;
+    }
+    if (vc.type === 'image' && vc.imageUrl) {
+      return vc;
+    }
+    if (vc.type === 'none') {
+      return {
+        type: 'none',
+        requiresTeacherIllustration: true,
+        caption: vc.caption || 'Câu hỏi chưa có hình minh họa.',
+      };
+    }
+  }
+
+  // 3. Nếu là số lượng thực sự bằng 0 (mà Gemini không cung cấp visualConfig)
+  if (genuinelyZero) {
+    if (rawText.includes('que') || rawText.includes('bó')) {
+      return { type: 'bundles', tens: 0, ones: 0 };
+    }
+    if (rawText.includes('khung') || rawText.includes('chấm')) {
+      return { type: 'ten_frame', gridSize: 10, count: 0, dotColor: 'blue' };
+    }
+    return { type: 'counters', count: 0, iconName: 'apple' };
+  }
+
+  // 3. Phân tích ngữ cảnh rõ ràng từ đề bài
+  // Tiền tệ (VND)
   if (rawText.includes('đồng') || rawText.includes('tiền') || rawText.includes('mua') || rawText.includes('trả lại')) {
-    const billMatches = (q.prompt || '').match(/(\d[\d\s.,]*)\s*(đồng|đ)/gi);
+    const billMatches = prompt.match(/(\d[\d\s.,]*)\s*(đồng|đ)/gi);
     const bills: { denomination: number; count: number }[] = [];
     if (billMatches) {
       for (const m of billMatches) {
@@ -985,47 +1111,51 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
     if (bills.length > 0) {
       return { type: 'money', moneyBills: bills };
     }
-    return {
-      type: 'money',
-      moneyBills: [{ denomination: tGrade === 1 ? 2000 : 10000, count: 1 }]
-    };
   }
 
-  // 2. Clock detection
-  if (rawText.includes('đồng hồ') || rawText.includes('giờ') || rawText.includes('phút')) {
-    const hourMatch = (q.prompt || '').match(/(\d{1,2})\s*giờ/i);
-    const minuteMatch = (q.prompt || '').match(/(\d{1,2})\s*phút/i);
-    const hours = hourMatch ? parseInt(hourMatch[1], 10) % 12 : 8;
-    const minutes = minuteMatch ? parseInt(minuteMatch[1], 10) : 0;
-    return { type: 'clock', hours: hours || 12, minutes };
+  // Đồng hồ
+  if (rawText.includes('đồng hồ') || (rawText.includes('giờ') && !rawText.includes('bây giờ'))) {
+    const hourMatch = prompt.match(/(\d{1,2})\s*giờ/i);
+    const minuteMatch = prompt.match(/(\d{1,2})\s*phút/i);
+    if (hourMatch) {
+      const hours = parseInt(hourMatch[1], 10) % 12;
+      const minutes = minuteMatch ? parseInt(minuteMatch[1], 10) : 0;
+      return { type: 'clock', hours: hours || 12, minutes };
+    }
   }
 
-  // 3. Ten-frame / Five-frame detection
+  // Khung 10 / Khung 5
   if (rawText.includes('khung 10') || rawText.includes('khung 5') || rawText.includes('chấm tròn')) {
-    const numMatch = (q.prompt || '').match(/(\d+)/);
-    const count = numMatch ? parseInt(numMatch[1], 10) : 5;
-    const isFive = rawText.includes('khung 5');
-    const size = isFive ? 5 : 10;
-    return {
-      type: isFive ? 'five_frame' : 'ten_frame',
-      gridSize: size,
-      count: Math.min(count, size),
-      dotColor: 'blue'
-    };
+    const numMatch = prompt.match(/(\d+)/);
+    if (numMatch) {
+      const count = parseInt(numMatch[1], 10);
+      const isFive = rawText.includes('khung 5');
+      const size = isFive ? 5 : 10;
+      return {
+        type: isFive ? 'five_frame' : 'ten_frame',
+        gridSize: size,
+        count: Math.min(Math.max(0, count), size),
+        dotColor: 'blue',
+      };
+    }
   }
 
-  // 4. Bundles detection
+  // Que tính theo chục và đơn vị
   if (rawText.includes('que tính') || rawText.includes('bó que') || rawText.includes('chục và đơn vị')) {
-    const numMatch = (q.prompt || '').match(/(\d+)/);
-    const total = numMatch ? parseInt(numMatch[1], 10) : 15;
-    return {
-      type: 'bundles',
-      tens: Math.floor(total / 10),
-      ones: total % 10
-    };
+    const numMatch = prompt.match(/(\d+)/);
+    if (numMatch) {
+      const total = parseInt(numMatch[1], 10);
+      if (!isNaN(total) && total >= 0) {
+        return {
+          type: 'bundles',
+          tens: Math.floor(total / 10),
+          ones: total % 10,
+        };
+      }
+    }
   }
 
-  // 5. Shapes detection
+  // Hình học
   if (rawText.includes('hình tròn')) return { type: 'shapes', shapeType: 'circle' };
   if (rawText.includes('hình vuông')) return { type: 'shapes', shapeType: 'square' };
   if (rawText.includes('hình tam giác')) return { type: 'shapes', shapeType: 'triangle' };
@@ -1033,7 +1163,7 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
   if (rawText.includes('khối trụ')) return { type: 'shapes', shapeType: 'cylinder' };
   if (rawText.includes('khối cầu')) return { type: 'shapes', shapeType: 'sphere' };
 
-  // 6. Object counters
+  // Đếm đồ vật có danh từ chỉ loại rõ ràng
   let iconName = 'apple';
   if (rawText.includes('cá')) iconName = 'fish';
   else if (rawText.includes('sao')) iconName = 'star';
@@ -1046,9 +1176,9 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
   else if (rawText.includes('thỏ')) iconName = 'rabbit';
   else if (rawText.includes('cam')) iconName = 'orange';
 
-  // Comparison detection
+  // So sánh 2 nhóm
   if (rawText.includes('nhiều hơn') || rawText.includes('ít hơn') || rawText.includes('so sánh') || (rawText.includes(' và ') && rawText.includes('?'))) {
-    const nums = ((q.prompt || '').match(/\b\d+\b/g) || []).map(Number);
+    const nums = (prompt.match(/\b\d+\b/g) || []).map(Number);
     if (nums.length >= 2) {
       return {
         type: 'comparison',
@@ -1056,17 +1186,31 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
         rightCount: Math.min(nums[1], 10),
         leftLabel: 'Nhóm 1',
         rightLabel: 'Nhóm 2',
-        iconName
+        iconName,
       };
     }
   }
 
-  const nums = ((q.prompt || '').match(/\b\d+\b/g) || []).map(Number);
-  const count = nums.length > 0 ? Math.min(nums[0], 10) : 5;
+  // Chỉ gán counters nếu trong đề bài thực sự có số lượng đồ vật cụ thể
+  const counterMatch = prompt.match(/(\d+)\s*(quả|con|chú|viên|bông|củ|bút|khối|ngôi sao|cái|chiếc)\s*([a-zA-ZÀ-ỹ]+)?/i);
+  if (counterMatch) {
+    const count = parseInt(counterMatch[1], 10);
+    if (!isNaN(count) && count >= 0 && count <= 20) {
+      return {
+        type: 'counters',
+        count,
+        iconName,
+      };
+    }
+  }
+
+  // 4. Thiếu dữ liệu hoặc không phân tích được:
+  // TUYỆT ĐỐI KHÔNG TỰ TẠO SỐ LƯỢNG SAI (như 4 hay 5).
+  // Báo cần bổ sung hình minh họa cho giáo viên:
   return {
-    type: 'counters',
-    count,
-    iconName
+    type: 'none',
+    requiresTeacherIllustration: true,
+    caption: 'Chưa có mô hình minh họa tự động phù hợp. Giáo viên vui lòng chọn kiểu mô hình hoặc ảnh từ Thư viện.',
   };
 }
 
@@ -1269,10 +1413,10 @@ YÊU CẦU SƯ PHẠM VÀ DỮ LIỆU:
    - "expression_match": Nối cặp (cung cấp mảng "pairs" gồm ít nhất 3 cặp { left, right }, expectedAnswer là "MATCHED_ALL").
    - "operator_pick": Chọn dấu +, -, =, >, < (options: [">", "<", "="] hoặc ["+", "-"]).
 5. HÌNH MINH HỌA TRỰC QUAN (visualConfig): Mỗi câu hỏi BẮT BUỘC có cấu hình trực quan chuẩn xác:
-   - "addition": Dành cho phép cộng (ví dụ 1 + 3 = ?). Cấu hình: { "type": "addition", "leftCount": 1, "rightCount": 3, "iconName": "apple" }. Hiển thị Nhóm 1 + Nhóm 2. TUYỆT ĐỐI không để lộ kết quả tổng trên hình.
-   - "counters": Đếm đồ vật đơn { "type": "counters", "count": 4, "iconName": "apple" } (iconName: "apple", "fish", "star", "candy", "pencil", "carrot", "flower", "bird", "rabbit", "orange", "block").
+   - "addition": Dành cho phép cộng (ví dụ 1 + 3 = ? hoặc bài toán thêm/gộp). Cấu hình: { "type": "addition", "leftCount": 1, "rightCount": 3, "iconName": "apple" }. Hiển thị Nhóm 1 + Nhóm 2. TUYỆT ĐỐI không dùng bundles cho phép cộng, và TUYỆT ĐỐI không để lộ kết quả tổng trên hình.
+   - "counters": Đếm đồ vật đơn { "type": "counters", "count": 4, "iconName": "apple" } (iconName: "apple", "fish", "star", "candy", "pencil", "carrot", "flower", "bird", "rabbit", "orange", "block"). Nếu số lượng là 0 thì count: 0 (hiển thị khay rỗng).
    - "ten_frame" hoặc "five_frame": Khung 10 ô hoặc khung 5 ô { "type": "ten_frame", "gridSize": 10, "count": 6, "dotColor": "blue" }.
-   - "bundles": Bó que tính và que rời { "type": "bundles", "tens": 0, "ones": 4 }. Chú ý: Nếu số lượng nhỏ hơn 10 thì tens: 0 và ones: số que lẻ. Chỉ dùng tens >= 1 khi số lượng >= 10. TUYỆT ĐỐI KHÔNG để tens: 0 và ones: 0.
+   - "bundles": Bó que tính và que rời { "type": "bundles", "tens": 1, "ones": 5 }. Dành riêng cho dạng bài chục và đơn vị. Nếu nhỏ hơn 10 thì tens: 0 và ones là số que lẻ. Nếu số lượng thực sự bằng 0 thì tens: 0, ones: 0. TUYỆT ĐỐI không gán bundles cho phép cộng 2 nhóm rời rạc.
    - "comparison": So sánh 2 nhóm { "type": "comparison", "leftCount": 4, "rightCount": 2, "iconName": "star" }.
    - "shapes": Nhận biết hình { "type": "shapes", "shapeType": "circle" | "square" | "triangle" | "rectangle" | "cylinder" | "sphere" }.
    - "money": Tiền Việt Nam { "type": "money", "moneyBills": [{"denomination": 2000, "count": 2}] }.

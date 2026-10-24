@@ -3,10 +3,29 @@ import { VisualAssetConfig } from '../../types';
 
 interface VisualCountersProps {
   config?: VisualAssetConfig;
+  isTeacherView?: boolean;
 }
 
-export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
-  if (!config) return null;
+export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeacherView = false }) => {
+  // Scenario 3: Thiếu dữ liệu hoặc cần bổ sung hình minh họa
+  if (!config || config.type === 'none' || config.requiresTeacherIllustration) {
+    if (isTeacherView) {
+      return (
+        <div className="my-3 p-3.5 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 text-amber-900 text-xs font-semibold flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">💡</span>
+            <div>
+              <div className="font-black text-amber-800">Cần bổ sung hình minh họa</div>
+              <div className="text-[11px] text-amber-700 font-medium">
+                {config?.caption || 'Chưa có mô hình trực quan tự động phù hợp cho câu hỏi này. Thầy/Cô vui lòng chọn Kiểu mô hình hoặc Ảnh từ Thư viện.'}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   const icon = config.iconName || 'apple';
   const renderIcon = (index: number, keyPrefix = 'icon') => {
@@ -193,9 +212,14 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
 
     return (
       <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-md mx-auto">
-        <div className="text-xs font-black uppercase tracking-wider text-sky-700 text-center mb-3">
+        <div className="text-xs font-black uppercase tracking-wider text-sky-700 text-center mb-1">
           {isFive ? 'Khung 5 Ô Trực Quan' : 'Khung 10 Ô (Ten-Frame) Trực Quan'}
         </div>
+        {count === 0 && (
+          <div className="text-[11px] font-bold text-slate-500 text-center mb-2">
+            (0 chấm tròn – Khung rỗng)
+          </div>
+        )}
         <div
           className={`mx-auto grid gap-2 p-3 bg-white rounded-2xl border-3 border-sky-300 shadow-inner ${
             isFive ? 'max-w-[280px] grid-cols-5' : 'max-w-[280px] grid-cols-5'
@@ -244,20 +268,52 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
     );
   }
 
-  // 4. Bundles of Tens & Singles / Que tính (Zero-safe & Scope-safe)
+  // 4. Bundles of Tens & Singles / Que tính (Zero-safe & Exact Representation)
   if (config.type === 'bundles' || (config.tens !== undefined && config.ones !== undefined)) {
-    const rawTens = config.tens ?? 0;
-    const rawOnes = config.ones ?? 0;
-    // Safeguard: Never render 0 bundles and 0 sticks. Fallback to config.count or 4 single sticks.
-    const total = rawTens * 10 + rawOnes > 0 ? rawTens * 10 + rawOnes : (config.count && config.count > 0 ? config.count : 4);
-    const tens = Math.floor(total / 10);
-    const ones = total % 10;
+    const rawTens = config.tens;
+    const rawOnes = config.ones;
+
+    // Check if missing data:
+    if (rawTens === undefined && rawOnes === undefined && config.count === undefined) {
+      if (isTeacherView) {
+        return (
+          <div className="my-3 p-3.5 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 text-amber-900 text-xs font-semibold flex items-center gap-2">
+            <span>💡</span>
+            <span><strong>Cần bổ sung hình que tính:</strong> Chưa có số liệu bó chục hoặc que rời. Thầy/Cô vui lòng nhập số lượng cụ thể trong phần biên tập.</span>
+          </div>
+        );
+      }
+      return null;
+    }
+
+    const tens = Math.max(0, rawTens ?? 0);
+    const ones = Math.max(0, rawOnes ?? 0);
+    const isZero = tens === 0 && ones === 0;
+
+    // Scenario 1: Số lượng thực sự bằng 0: hiển thị đúng số 0, tuyệt đối không fallback 4 que
+    if (isZero) {
+      return (
+        <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-lg mx-auto">
+          <div className="text-xs font-black uppercase tracking-wider text-emerald-800 text-center mb-3">
+            🥢 Mô hình Que tính (0 que tính)
+          </div>
+          <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
+            <span className="text-2xl mb-1">🥢</span>
+            <span className="text-sm font-black text-slate-700">0 que tính</span>
+            <span className="text-xs font-semibold text-slate-400 mt-0.5">
+              0 bó chục &bull; 0 que lẻ (Khay rỗng – Số lượng: 0)
+            </span>
+          </div>
+        </div>
+      );
+    }
+
     const isSmallStick = tens === 0;
 
     return (
       <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-lg mx-auto">
         <div className="text-xs font-black uppercase tracking-wider text-emerald-800 text-center mb-3">
-          {isSmallStick ? `🥢 Mô hình Que tính (${ones} que lẻ)` : '🥢 Mô hình Bó Que tính & Que Lẻ'}
+          {isSmallStick ? `🥢 Mô hình Que tính (${ones} que lẻ)` : `🥢 Mô hình Bó Que tính & Que Lẻ (${tens} chục + ${ones} que lẻ)`}
         </div>
         <div className="flex flex-wrap items-center justify-center gap-6 p-4 bg-white/80 rounded-2xl border-2 border-sky-100">
           {/* Tens bundles (only show when tens > 0) */}
@@ -300,10 +356,10 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
     );
   }
 
-  // 5. Addition (Phép cộng 2 nhóm gộp lại: ví dụ 1 + 3 -> 1 vật + 3 vật)
+  // 5. Addition (Phép cộng a + b: Minh họa đúng a vật + b vật)
   if (config.type === 'addition') {
-    const left = Math.max(1, config.leftCount ?? 1);
-    const right = Math.max(1, config.rightCount ?? 1);
+    const left = Math.max(0, config.leftCount ?? 0);
+    const right = Math.max(0, config.rightCount ?? 0);
 
     const iconLabels: Record<string, string> = {
       apple: 'quả táo',
@@ -329,10 +385,16 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
           {/* Group 1 */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide text-center">
-              {config.leftLabel || `${left} ${unitName}`}
+              {config.leftLabel || (left === 0 ? `0 ${unitName}` : `${left} ${unitName}`)}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
-              {Array.from({ length: left }).map((_, i) => renderIcon(i, 'add-left'))}
+              {left > 0 ? (
+                Array.from({ length: left }).map((_, i) => renderIcon(i, 'add-left'))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-2 text-slate-400">
+                  <span className="text-xs font-semibold">(0 {unitName} – Khay rỗng)</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -344,10 +406,16 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
           {/* Group 2 */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-indigo-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-indigo-800 mb-2 uppercase tracking-wide text-center">
-              {config.rightLabel || `${right} ${unitName}`}
+              {config.rightLabel || (right === 0 ? `0 ${unitName}` : `${right} ${unitName}`)}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
-              {Array.from({ length: right }).map((_, i) => renderIcon(i, 'add-right'))}
+              {right > 0 ? (
+                Array.from({ length: right }).map((_, i) => renderIcon(i, 'add-right'))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-2 text-slate-400">
+                  <span className="text-xs font-semibold">(0 {unitName} – Khay rỗng)</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -422,23 +490,65 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
     );
   }
 
-  // 7. Single Counter Group
-  if (config.type === 'counters' && config.count) {
+  // 7. Single Counter Group (Zero-safe & Exact Representation)
+  if (config.type === 'counters' && typeof config.count === 'number') {
+    const count = Math.max(0, config.count);
+    const iconLabels: Record<string, string> = {
+      apple: 'quả táo',
+      fish: 'chú cá',
+      star: 'ngôi sao',
+      candy: 'viên kẹo',
+      pencil: 'bút chì',
+      carrot: 'củ cà rốt',
+      flower: 'bông hoa',
+      bird: 'chú chim',
+      rabbit: 'chú thỏ',
+      orange: 'quả cam',
+      block: 'khối vuông',
+    };
+    const unitName = iconLabels[icon] || 'vật thể';
+
+    // Scenario 1: Số lượng thực sự bằng 0: hiển thị đúng số 0
+    if (count === 0) {
+      return (
+        <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-md mx-auto">
+          <div className="text-xs font-black uppercase tracking-wider text-sky-800 text-center mb-2">
+            Mô hình đếm đồ vật (0 {unitName})
+          </div>
+          <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
+            <span className="text-2xl mb-1">🧺</span>
+            <span className="text-sm font-black text-slate-700">0 {unitName}</span>
+            <span className="text-xs font-semibold text-slate-400 mt-0.5">(Khay rỗng – Số lượng: 0)</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="my-5 p-5 bg-sky-50/80 rounded-2xl border-2 border-sky-100 max-w-md mx-auto">
         <div className="text-xs uppercase tracking-wider font-extrabold text-sky-600 mb-3 text-center">
-          Quan sát mô hình đếm
+          Quan sát mô hình đếm: {count} {unitName}
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          {Array.from({ length: config.count }).map((_, i) => renderIcon(i))}
+          {Array.from({ length: count }).map((_, i) => renderIcon(i))}
         </div>
       </div>
     );
   }
 
-  // 8. Vietnamese Currency (Banknotes & Coins - GDPT 2018)
   if (config.type === 'money' || (config.moneyBills && config.moneyBills.length > 0)) {
-    const bills = config.moneyBills || [{ denomination: 2000, count: 1 }];
+    if (!config.moneyBills || config.moneyBills.length === 0) {
+      if (isTeacherView) {
+        return (
+          <div className="my-3 p-3.5 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 text-amber-900 text-xs font-semibold flex items-center gap-2">
+            <span>💡</span>
+            <span><strong>Cần bổ sung mệnh giá tiền:</strong> Thầy/Cô vui lòng chọn các tờ tiền cụ thể trong phần biên tập.</span>
+          </div>
+        );
+      }
+      return null;
+    }
+    const bills = config.moneyBills;
 
     const getBanknoteStyle = (denom: number) => {
       switch (denom) {
@@ -512,7 +622,18 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
 
   // 9. Analog Clock (GDPT 2018 - Xem đồng hồ kim và thời gian)
   if (config.type === 'clock' || config.hours !== undefined) {
-    const hours = (config.hours ?? 8) % 12;
+    if (config.hours === undefined) {
+      if (isTeacherView) {
+        return (
+          <div className="my-3 p-3.5 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 text-amber-900 text-xs font-semibold flex items-center gap-2">
+            <span>💡</span>
+            <span><strong>Cần bổ sung thời gian đồng hồ:</strong> Thầy/Cô vui lòng thiết lập giờ và phút cụ thể trong phần biên tập.</span>
+          </div>
+        );
+      }
+      return null;
+    }
+    const hours = config.hours % 12;
     const minutes = config.minutes ?? 0;
     const hourAngle = (hours + minutes / 60) * 30;
     const minuteAngle = minutes * 6;
@@ -569,6 +690,23 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config }) => {
             {hours === 0 ? 12 : hours}:{minutes < 10 ? `0${minutes}` : minutes}
           </div>
         )}
+      </div>
+    );
+  }
+
+  // Scenario 3: Báo cần bổ sung hình minh họa cho giáo viên, tuyệt đối không tự tạo số lượng sai
+  if (isTeacherView) {
+    return (
+      <div className="my-3 p-3.5 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 text-amber-900 text-xs font-semibold flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="text-lg">💡</span>
+          <div>
+            <div className="font-black text-amber-800">Cần bổ sung hình minh họa</div>
+            <div className="text-[11px] text-amber-700 font-medium">
+              Chưa có mô hình trực quan tự động phù hợp cho câu hỏi này. Thầy/Cô vui lòng chọn Kiểu mô hình hoặc Ảnh từ Thư viện.
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
