@@ -2,6 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('patch_curriculum_defects.ts', 'Sửa dữ liệu kho học liệu trong Firestore');
 
 async function patchCurriculumDefects() {
   console.log('=== SỬA CÁC LỖI KHO HỌC LIỆU VÀ CÂU HỎI TRONG NAMED FIRESTORE ===');

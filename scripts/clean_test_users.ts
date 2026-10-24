@@ -2,6 +2,11 @@ import fs from 'fs';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('clean_test_users.ts', 'Xóa tài khoản học sinh thử nghiệm');
+
 const cfg = JSON.parse(fs.readFileSync('firebase-applet-config.json', 'utf8'));
 const app = getApps().length === 0 ? initializeApp(cfg) : getApp();
 const db = getFirestore(app, cfg.firestoreDatabaseId);

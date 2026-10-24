@@ -1,4 +1,8 @@
 import fetch from 'node-fetch';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('verify_prod_g1.ts', 'Kiểm thử khảo sát Production G1');
 
 const PROD_URL = 'https://thamtunhi.vercel.app';
 

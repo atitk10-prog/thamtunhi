@@ -1,5 +1,9 @@
 import fetch from 'node-fetch';
 import { makeToken } from './token_helper.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('test_teacher_g1.ts', 'Kiểm thử phân hệ Giáo viên G1 (Ghi/sửa dữ liệu lớp & học sinh)');
 
 const BASE_URL = 'http://localhost:3000';
 

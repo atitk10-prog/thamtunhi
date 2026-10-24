@@ -1,3 +1,8 @@
+import { assertSafeEnvironment } from './scripts/production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('test-suite.ts', 'Bộ kiểm thử tích hợp tổng thể (Ghi dữ liệu người dùng & bài tập)');
+
 process.env.NODE_ENV = 'test';
 import http from 'http';
 import { runMathEngineTests } from './src/lib/mathEngine.test.ts';
@@ -66,6 +71,7 @@ function request(
 }
 
 async function runTestSuite() {
+  assertSafeEnvironment('test-suite.ts', 'Bộ kiểm thử tích hợp tổng thể (Ghi dữ liệu người dùng & bài tập)');
   console.log('================================================================');
   console.log(' BỘ KIỂM THỬ TỔNG THỂ DỰ ÁN THÁM TỬ TOÁN NHÍ (LỚP 1–2 GDPT 2018)');
   console.log('================================================================\n');

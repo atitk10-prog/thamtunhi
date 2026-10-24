@@ -2,6 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('sync-lessons.ts', 'Đồng bộ version ID bài học vào Firestore');
 
 async function syncLessonVersionIds() {
   const cfgPath = path.resolve('./firebase-applet-config.json');

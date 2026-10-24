@@ -1,5 +1,9 @@
 import fetch from 'node-fetch';
 import { makeToken } from './token_helper.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('restore_hs1a01.ts', 'Khôi phục mật khẩu học sinh HS1A01');
 
 const teacher1Token = makeToken({ uid: 'teacher-1', role: 'teacher', displayName: 'Cô Mai Lan' });
 

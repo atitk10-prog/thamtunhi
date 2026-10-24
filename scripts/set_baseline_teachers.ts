@@ -1,5 +1,9 @@
 import fetch from 'node-fetch';
 import { makeToken } from './token_helper.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('set_baseline_teachers.ts', 'Tự động phân công giáo viên 4 lớp mặc định');
 
 const adminToken = makeToken({ uid: 'admin-1', email: 'admin@thamtunhi.edu.vn', role: 'admin', displayName: 'Quản Trị Viên' });
 
@@ -22,4 +26,7 @@ async function setBaseline() {
   }
 }
 
-setBaseline();
+// Neutralized: only run if explicitly called directly
+if (process.argv[1]?.includes('set_baseline_teachers')) {
+  setBaseline();
+}

@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import bcrypt from 'bcryptjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -28,18 +28,7 @@ async function check() {
 
   const isMatch = bcrypt.compareSync('AdminBaoMat@123', data?.passwordHash || '');
   console.log('Matches AdminBaoMat@123:', isMatch);
-
-  if (!isMatch) {
-    console.log('Resetting passwordHash to bcrypt of AdminBaoMat@123...');
-    const salt = bcrypt.genSaltSync(10);
-    const newHash = bcrypt.hashSync('AdminBaoMat@123', salt);
-    await updateDoc(doc(db, 'users', 'admin-demo'), {
-      passwordHash: newHash,
-      tokenVersion: (data?.tokenVersion || 0) + 1,
-      updatedAt: new Date().toISOString(),
-    });
-    console.log('Updated passwordHash to AdminBaoMat@123 successfully!');
-  }
+  // [SAFETY] Removed automatic password overwrite. Admin passwords must never be auto-mutated by scripts.
 }
 
 check().catch(console.error);

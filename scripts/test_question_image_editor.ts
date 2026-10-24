@@ -1,3 +1,8 @@
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('test_question_image_editor.ts', 'Kiểm thử biên tập hình ảnh & upload media (Ghi Firestore)');
+
 process.env.NODE_ENV = 'test';
 import assert from 'assert';
 import http from 'http';

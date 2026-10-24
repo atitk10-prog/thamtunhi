@@ -1,3 +1,8 @@
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('test_prod_smoke.ts', 'Kiểm thử đăng nhập 3 vai trò trên Production');
+
 async function fullProdSmoke() {
   console.log('--- TESTING 3 ROLES ON PRODUCTION (https://thamtunhi.vercel.app) ---');
   

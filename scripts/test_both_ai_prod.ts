@@ -1,4 +1,8 @@
 import { makeToken } from './token_helper.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('test_both_ai_prod.ts', 'Gọi cả 2 endpoint AI trực tiếp trên Production');
 
 async function testBothAi() {
   console.log('--- KIỂM TRA 2 ENDPOINT AI TRÊN PRODUCTION ---');

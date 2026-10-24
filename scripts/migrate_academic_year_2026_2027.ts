@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { assertSafeEnvironment } from './production_guard.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +15,9 @@ const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : get
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
 const isApply = process.argv.includes('--apply');
+if (isApply) {
+  assertSafeEnvironment('migrate_academic_year_2026_2027.ts', 'Thực thi migration ghi niên khóa');
+}
 
 async function runMigration() {
   console.log('================================================================');
@@ -76,6 +80,7 @@ async function runMigration() {
   }
 
   // --- APPLY WRITES ---
+  assertSafeEnvironment('migrate_academic_year_2026_2027.ts', 'Thực thi migration ghi niên khóa');
   console.log('\n--- THỰC THI GHI DỮ LIỆU CLOUD FIRESTORE ---');
   const batch = writeBatch(db);
 

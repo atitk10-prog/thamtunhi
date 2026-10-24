@@ -1,4 +1,8 @@
 import { makeToken } from './token_helper.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('verify_prod_g2.ts', 'Kiểm tra Production trực tuyến G2');
 
 const PROD_URL = 'https://thamtunhi.vercel.app';
 

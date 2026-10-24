@@ -1,5 +1,9 @@
 import fetch from 'node-fetch';
 import { makeToken } from './token_helper.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('test_g3_assignment_password.ts', 'Kiểm thử đổi mật khẩu & giao bài (Có ghi dữ liệu)');
 
 const BASE_URL = 'http://localhost:3000';
 

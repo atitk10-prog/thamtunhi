@@ -1,4 +1,8 @@
 import { makeToken } from './token_helper.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('test_gemini_prod.ts', 'Gọi Gemini API trực tiếp trên Production');
 
 async function testGeminiDraftOnProd() {
   console.log('--- TESTING GEMINI DRAFT GENERATION ON PRODUCTION ---');

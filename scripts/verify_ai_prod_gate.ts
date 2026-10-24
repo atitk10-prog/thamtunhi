@@ -3,6 +3,10 @@ import path from 'path';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, deleteDoc } from 'firebase/firestore';
 import { evaluateAnswer } from '../src/lib/mathEngine.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('verify_ai_prod_gate.ts', 'Kiểm thử Gemini AI trên Vercel Production');
 
 const cfgPath = path.resolve('./firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));

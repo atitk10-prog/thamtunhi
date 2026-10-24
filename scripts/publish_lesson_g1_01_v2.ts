@@ -2,6 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('publish_lesson_g1_01_v2.ts', 'Tạo và xuất bản phiên bản bài học v2');
 
 const cfgPath = path.resolve('./firebase-applet-config.json');
 const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));

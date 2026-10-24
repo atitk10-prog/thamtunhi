@@ -1,4 +1,8 @@
 import assert from 'node:assert';
+import { assertSafeEnvironment } from './scripts/production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('test-admin-a2-a3.ts', 'Kiểm toán CRUD người dùng & lớp học A2/A3 (Tạo/sửa/xóa tài khoản)');
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 

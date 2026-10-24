@@ -5,6 +5,10 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { makeToken } from './token_helper.ts';
 import { evaluateAnswer } from '../src/lib/mathEngine.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('test_teacher_g2.ts', 'Kiểm thử G2 Biên tập học liệu & Copy-on-Write (Ghi Firestore)');
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
@@ -29,6 +33,7 @@ function fail(msg: string, err: any) {
 }
 
 async function runG2Tests() {
+  assertSafeEnvironment('test_teacher_g2.ts', 'Kiểm thử G2 Biên tập học liệu & Copy-on-Write (Ghi Firestore)');
   console.log('================================================================');
   console.log(' BẮT ĐẦU KIỂM THỬ TOÀN DIỆN GIAI ĐOẠN G2 – KHO HỌC LIỆU & BIÊN TẬP');
   console.log(' Database ID:', firebaseConfig.firestoreDatabaseId);

@@ -10,6 +10,11 @@ const __dirname = path.dirname(__filename);
 const configPath = path.resolve(__dirname, '..', 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('archive_test6382.ts', 'Lưu trữ học sinh thử nghiệm TEST6382');
+
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 

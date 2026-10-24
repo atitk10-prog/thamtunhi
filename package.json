@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx test-suite.ts && tsx test-admin-closeout.ts && tsx test-admin-a2-a3.ts && tsx scripts/test_g3_assignment_password.ts && tsx scripts/test_question_image_editor.ts"
+    "test": "tsx test-unit.ts",
+    "test:emulator-only": "tsx test-suite.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

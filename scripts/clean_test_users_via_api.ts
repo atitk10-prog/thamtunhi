@@ -1,4 +1,8 @@
 import { makeToken } from './token_helper.ts';
+import { assertSafeEnvironment } from './production_guard.ts';
+
+// PRODUCTION GUARD: Strictly blocks execution against production database
+assertSafeEnvironment('clean_test_users_via_api.ts', 'Xóa tài khoản học sinh thử nghiệm qua Admin API');
 
 const adminToken = makeToken({ uid: 'admin-1', email: 'admin@thamtunhi.edu.vn', role: 'admin', displayName: 'Quản Trị Viên' });
 
