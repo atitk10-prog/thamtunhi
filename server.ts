@@ -111,15 +111,18 @@ export async function mintCustomToken(uid: string, claims: Record<string, any> =
   }
 }
 
-// Gemini AI client initialization
-let genAI: GoogleGenAI | null = null;
-if (process.env.GEMINI_API_KEY) {
+// Gemini AI client on-demand factory (guarantees dynamic env key loading & zero stale state)
+export function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) return null;
   try {
-    genAI = new GoogleGenAI();
+    return new GoogleGenAI({ apiKey });
   } catch (e) {
-    console.warn('Notice: Gemini client init:', e);
+    console.warn('Notice: Gemini client init error:', e);
+    return null;
   }
 }
+let genAI: GoogleGenAI | null = getGeminiClient();
 
 // Secret for stateless HMAC session tokens
 // Supports AUTH_SECRET as primary, with SESSION_SECRET and JWT_SECRET as recognized aliases
@@ -782,105 +785,378 @@ app.patch('/api/teacher/profile', requireAuth, requireRole(['teacher', 'admin'])
 });
 
 async function generateGeminiContent(promptText: string): Promise<string> {
-  if (!genAI) {
+  const client = getGeminiClient();
+  if (!client) {
     const err: any = new Error('Mô hình AI chưa được cấu hình. Thiếu GEMINI_API_KEY.');
     err.code = 'AI_NOT_CONFIGURED';
     throw err;
   }
   
-  // Use explicit environment model or stable 'gemini-2.5-flash' as primary.
-  // Deprecated models ('gemini-2.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-flash-latest') are strictly removed.
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  const fallbackModel = 'gemini-2.0-flash';
+  // Use single stable primary model 'gemini-2.5-flash' (or environment override).
+  // Strictly avoid model-looping retry cascades to conserve API quota and eliminate timeouts.
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   
-  const modelsToTry = [primaryModel];
-  if (primaryModel !== fallbackModel) {
-    modelsToTry.push(fallbackModel);
+  try {
+    const callPromise = client.models.generateContent({
+      model,
+      contents: promptText,
+      config: {
+        responseMimeType: 'application/json',
+        maxOutputTokens: 8192,
+        temperature: 0.7,
+      },
+    });
+
+    // 30s timeout per single controlled attempt
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => {
+        const timeoutErr: any = new Error(`Quá thời gian chờ phản hồi từ mô hình ${model} (quá 30 giây).`);
+        timeoutErr.code = 'GEMINI_TIMEOUT';
+        reject(timeoutErr);
+      }, 30000)
+    );
+
+    const response = await Promise.race([callPromise, timeoutPromise]);
+    if (response && response.text) {
+      return response.text;
+    }
+    throw new Error('Mô hình AI phản hồi rỗng.');
+  } catch (err: any) {
+    const rawMsg = err?.message || String(err);
+    const safeMsg = rawMsg
+      .replace(/AIza[0-9A-Za-z-_]{35}/g, '***')
+      .replace(/key=[^&\s]+/g, 'key=***');
+    
+    console.warn(`[Gemini] Lỗi gọi mô hình ${model}:`, safeMsg);
+
+    if (
+      rawMsg.includes('429') ||
+      rawMsg.includes('RESOURCE_EXHAUSTED') ||
+      rawMsg.toLowerCase().includes('quota') ||
+      rawMsg.toLowerCase().includes('rate limit')
+    ) {
+      const quotaErr: any = new Error('Tài khoản Gemini API đã vượt quá hạn mức yêu cầu (Quota Exceeded / Rate Limit). Vui lòng thử lại sau hoặc nâng hạn mức trên Google AI Studio.');
+      quotaErr.code = 'GEMINI_QUOTA_EXCEEDED';
+      quotaErr.detail = safeMsg;
+      throw quotaErr;
+    }
+
+    if (
+      rawMsg.includes('401') ||
+      rawMsg.includes('403') ||
+      rawMsg.includes('API_KEY_INVALID') ||
+      rawMsg.toLowerCase().includes('api key not valid')
+    ) {
+      const authErr: any = new Error('API Key Gemini không hợp lệ hoặc không có quyền truy cập vào mô hình.');
+      authErr.code = 'GEMINI_AUTH_INVALID';
+      authErr.detail = safeMsg;
+      throw authErr;
+    }
+
+    if (err.code === 'GEMINI_TIMEOUT') {
+      err.detail = safeMsg;
+      throw err;
+    }
+
+    const finalErr: any = new Error(`Dịch vụ AI không thể xử lý yêu cầu lúc này: ${safeMsg}`);
+    finalErr.code = 'AI_SERVICE_UNAVAILABLE';
+    finalErr.detail = safeMsg;
+    throw finalErr;
   }
+}
 
-  let lastError: any = null;
-
-  for (let i = 0; i < modelsToTry.length; i++) {
-    const model = modelsToTry[i];
-    try {
-      const callPromise = genAI.models.generateContent({
-        model,
-        contents: promptText,
-        config: {
-          responseMimeType: 'application/json',
-        },
-      });
-
-      // 25s timeout per attempt to fit safely within Vercel execution constraints
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => {
-          const timeoutErr: any = new Error(`Quá thời gian chờ phản hồi từ mô hình ${model} (quá 25 giây).`);
-          timeoutErr.code = 'GEMINI_TIMEOUT';
-          reject(timeoutErr);
-        }, 25000)
-      );
-
-      const response = await Promise.race([callPromise, timeoutPromise]);
-      if (response && response.text) {
-        return response.text;
-      }
-    } catch (err: any) {
-      lastError = err;
-      const rawMsg = err?.message || String(err);
-      const safeMsg = rawMsg
-        .replace(/AIza[0-9A-Za-z-_]{35}/g, '***')
-        .replace(/key=[^&\s]+/g, 'key=***');
-      
-      console.warn(`[Gemini] Thử nghiệm mô hình ${model} thất bại:`, safeMsg);
-
-      // Fast abort on non-retryable errors (Quota exceeded 429, Auth error 401/403)
-      if (
-        rawMsg.includes('429') ||
-        rawMsg.includes('RESOURCE_EXHAUSTED') ||
-        rawMsg.toLowerCase().includes('quota') ||
-        rawMsg.toLowerCase().includes('rate limit')
-      ) {
-        const quotaErr: any = new Error('Tài khoản Gemini API đã vượt quá hạn mức yêu cầu (Quota Exceeded / Rate Limit). Vui lòng thử lại sau hoặc nâng hạn mức trên Google AI Studio.');
-        quotaErr.code = 'GEMINI_QUOTA_EXCEEDED';
-        quotaErr.detail = safeMsg;
-        throw quotaErr;
-      }
-
-      if (
-        rawMsg.includes('401') ||
-        rawMsg.includes('403') ||
-        rawMsg.includes('API_KEY_INVALID') ||
-        rawMsg.toLowerCase().includes('api key not valid')
-      ) {
-        const authErr: any = new Error('API Key Gemini không hợp lệ hoặc không có quyền truy cập vào mô hình.');
-        authErr.code = 'GEMINI_AUTH_INVALID';
-        authErr.detail = safeMsg;
-        throw authErr;
-      }
-
-      if (err.code === 'GEMINI_TIMEOUT') {
-        err.detail = safeMsg;
-        throw err;
-      }
-
-      // If it's a 404 (model not found / deprecated) and we have a fallback, loop will try fallbackModel once
+// Mathematical integrity & visualConfig enrichment helper
+function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
+  if (q.visualConfig && typeof q.visualConfig === 'object' && q.visualConfig.type) {
+    const vc = q.visualConfig;
+    if (vc.type === 'counters' && typeof vc.count === 'number' && vc.count > 0) {
+      if (!vc.iconName) vc.iconName = 'apple';
+      return vc;
+    }
+    if ((vc.type === 'ten_frame' || vc.type === 'five_frame') && typeof vc.count === 'number') {
+      vc.gridSize = vc.type === 'five_frame' || vc.gridSize === 5 ? 5 : 10;
+      vc.count = Math.min(vc.count, vc.gridSize);
+      return vc;
+    }
+    if (vc.type === 'bundles' || (vc.tens !== undefined && vc.ones !== undefined)) {
+      return vc;
+    }
+    if (vc.type === 'comparison' && (vc.leftCount !== undefined || vc.count !== undefined)) {
+      return vc;
+    }
+    if (vc.type === 'shapes' && vc.shapeType) {
+      return vc;
+    }
+    if (vc.type === 'money' || vc.moneyBills) {
+      return vc;
+    }
+    if (vc.type === 'clock' || vc.hours !== undefined) {
+      return vc;
     }
   }
 
-  const rawMsg = lastError?.message || String(lastError);
-  const safeMsg = rawMsg
-    .replace(/AIza[0-9A-Za-z-_]{35}/g, '***')
-    .replace(/key=[^&\s]+/g, 'key=***');
+  // Auto-extract and enrich visual representation from question text
+  const rawText = ((q.prompt || '') + ' ' + (q.explanation || '') + ' ' + tTopic).toLowerCase();
 
-  const finalErr: any = new Error(`Dịch vụ AI không thể xử lý yêu cầu lúc này: ${safeMsg}`);
-  finalErr.code = 'AI_SERVICE_UNAVAILABLE';
-  finalErr.detail = safeMsg;
-  throw finalErr;
+  // 1. Money detection
+  if (rawText.includes('đồng') || rawText.includes('tiền') || rawText.includes('mua') || rawText.includes('trả lại')) {
+    const billMatches = (q.prompt || '').match(/(\d[\d\s.,]*)\s*(đồng|đ)/gi);
+    const bills: { denomination: number; count: number }[] = [];
+    if (billMatches) {
+      for (const m of billMatches) {
+        const num = parseInt(m.replace(/\D/g, ''), 10);
+        if ([1000, 2000, 5000, 10000, 20000, 50000, 100000].includes(num)) {
+          bills.push({ denomination: num, count: 1 });
+        }
+      }
+    }
+    if (bills.length > 0) {
+      return { type: 'money', moneyBills: bills };
+    }
+    return {
+      type: 'money',
+      moneyBills: [{ denomination: tGrade === 1 ? 2000 : 10000, count: 1 }]
+    };
+  }
+
+  // 2. Clock detection
+  if (rawText.includes('đồng hồ') || rawText.includes('giờ') || rawText.includes('phút')) {
+    const hourMatch = (q.prompt || '').match(/(\d{1,2})\s*giờ/i);
+    const minuteMatch = (q.prompt || '').match(/(\d{1,2})\s*phút/i);
+    const hours = hourMatch ? parseInt(hourMatch[1], 10) % 12 : 8;
+    const minutes = minuteMatch ? parseInt(minuteMatch[1], 10) : 0;
+    return { type: 'clock', hours: hours || 12, minutes };
+  }
+
+  // 3. Ten-frame / Five-frame detection
+  if (rawText.includes('khung 10') || rawText.includes('khung 5') || rawText.includes('chấm tròn')) {
+    const numMatch = (q.prompt || '').match(/(\d+)/);
+    const count = numMatch ? parseInt(numMatch[1], 10) : 5;
+    const isFive = rawText.includes('khung 5');
+    const size = isFive ? 5 : 10;
+    return {
+      type: isFive ? 'five_frame' : 'ten_frame',
+      gridSize: size,
+      count: Math.min(count, size),
+      dotColor: 'blue'
+    };
+  }
+
+  // 4. Bundles detection
+  if (rawText.includes('que tính') || rawText.includes('bó que') || rawText.includes('chục và đơn vị')) {
+    const numMatch = (q.prompt || '').match(/(\d+)/);
+    const total = numMatch ? parseInt(numMatch[1], 10) : 15;
+    return {
+      type: 'bundles',
+      tens: Math.floor(total / 10),
+      ones: total % 10
+    };
+  }
+
+  // 5. Shapes detection
+  if (rawText.includes('hình tròn')) return { type: 'shapes', shapeType: 'circle' };
+  if (rawText.includes('hình vuông')) return { type: 'shapes', shapeType: 'square' };
+  if (rawText.includes('hình tam giác')) return { type: 'shapes', shapeType: 'triangle' };
+  if (rawText.includes('hình chữ nhật')) return { type: 'shapes', shapeType: 'rectangle' };
+  if (rawText.includes('khối trụ')) return { type: 'shapes', shapeType: 'cylinder' };
+  if (rawText.includes('khối cầu')) return { type: 'shapes', shapeType: 'sphere' };
+
+  // 6. Object counters
+  let iconName = 'apple';
+  if (rawText.includes('cá')) iconName = 'fish';
+  else if (rawText.includes('sao')) iconName = 'star';
+  else if (rawText.includes('kẹo')) iconName = 'candy';
+  else if (rawText.includes('bút')) iconName = 'pencil';
+  else if (rawText.includes('khối') || rawText.includes('viên')) iconName = 'block';
+  else if (rawText.includes('cà rốt')) iconName = 'carrot';
+  else if (rawText.includes('hoa') || rawText.includes('bông')) iconName = 'flower';
+  else if (rawText.includes('chim')) iconName = 'bird';
+  else if (rawText.includes('thỏ')) iconName = 'rabbit';
+  else if (rawText.includes('cam')) iconName = 'orange';
+
+  // Comparison detection
+  if (rawText.includes('nhiều hơn') || rawText.includes('ít hơn') || rawText.includes('so sánh') || (rawText.includes(' và ') && rawText.includes('?'))) {
+    const nums = ((q.prompt || '').match(/\b\d+\b/g) || []).map(Number);
+    if (nums.length >= 2) {
+      return {
+        type: 'comparison',
+        leftCount: Math.min(nums[0], 10),
+        rightCount: Math.min(nums[1], 10),
+        leftLabel: 'Nhóm 1',
+        rightLabel: 'Nhóm 2',
+        iconName
+      };
+    }
+  }
+
+  const nums = ((q.prompt || '').match(/\b\d+\b/g) || []).map(Number);
+  const count = nums.length > 0 ? Math.min(nums[0], 10) : 5;
+  return {
+    type: 'counters',
+    count,
+    iconName
+  };
+}
+
+// Comprehensive Question Sanitization and Normalization Helper
+function sanitizeAiQuestions(
+  rawList: any[],
+  targetCount: number,
+  topic: string,
+  grade: number,
+  difficulty: 'easy' | 'medium' | 'hard',
+  targetPattern: string
+): any[] {
+  const sanitized: any[] = [];
+
+  for (let i = 0; i < rawList.length; i++) {
+    const raw = rawList[i];
+    if (!raw || typeof raw !== 'object') continue;
+
+    const order = sanitized.length + 1;
+    const id = raw.id && typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : `q-ai-${Date.now()}-${order}`;
+    const prompt = String(raw.prompt || `Câu hỏi số ${order} về ${topic}`).trim();
+    
+    // Normalize interactionType to 5 standard types
+    let interactionType = 'single_choice';
+    const rawType = String(raw.interactionType || '').toLowerCase();
+    if (rawType.includes('single') || rawType.includes('choice') || rawType.includes('select')) {
+      interactionType = 'single_choice';
+    } else if (rawType.includes('input') || rawType.includes('number') || rawType.includes('fill')) {
+      interactionType = 'number_input';
+    } else if (rawType.includes('match') || rawType.includes('pair')) {
+      interactionType = 'expression_match';
+    } else if (rawType.includes('operator') || rawType.includes('sign')) {
+      interactionType = 'operator_pick';
+    } else if (rawType.includes('ten_frame') || rawType.includes('bundle')) {
+      interactionType = 'ten_frame_bundle';
+    } else if (rawType.includes('order') || rawType.includes('sort') || rawType.includes('line')) {
+      interactionType = 'number_line_order';
+    }
+
+    // Expected answer ALWAYS coerced to string (prevents .trim() crashes on numbers)
+    let expectedAnswer = raw.expectedAnswer !== undefined && raw.expectedAnswer !== null
+      ? String(raw.expectedAnswer).trim()
+      : '';
+
+    // Options handling for single_choice / operator_pick / number_line_order
+    let options: string[] | undefined = undefined;
+    if (interactionType === 'single_choice') {
+      const rawOptions = Array.isArray(raw.options) ? raw.options : [];
+      let strOptions = rawOptions.map((opt: any) => String(opt).trim()).filter(Boolean);
+      
+      if (!expectedAnswer && strOptions.length > 0) {
+        expectedAnswer = strOptions[0];
+      } else if (!expectedAnswer) {
+        expectedAnswer = '5';
+      }
+
+      if (!strOptions.includes(expectedAnswer)) {
+        strOptions.unshift(expectedAnswer);
+      }
+
+      // Deduplicate options while preserving order
+      const uniqueOpts: string[] = Array.from(new Set(strOptions));
+      
+      // Ensure at least 4 distinct options if possible
+      const numVal = parseInt(expectedAnswer, 10);
+      if (!isNaN(numVal)) {
+        const fallbacks = [String(numVal + 1), String(Math.max(0, numVal - 1)), String(numVal + 2), String(numVal + 3)];
+        for (const fb of fallbacks) {
+          if (!uniqueOpts.includes(fb) && uniqueOpts.length < 4) {
+            uniqueOpts.push(fb);
+          }
+        }
+      }
+      options = uniqueOpts;
+    } else if (interactionType === 'operator_pick') {
+      options = ['+', '-', '=', '>', '<'];
+      if (!expectedAnswer) expectedAnswer = '+';
+    } else if (interactionType === 'number_line_order') {
+      const rawOptions = Array.isArray(raw.options) ? raw.options : [];
+      const lineOpts: string[] = rawOptions.map((opt: any) => String(opt).trim()).filter(Boolean);
+      const finalLineOpts = lineOpts.length > 0 ? lineOpts : ['3', '5', '7', '9'];
+      options = finalLineOpts;
+      if (!expectedAnswer) expectedAnswer = finalLineOpts.join(', ');
+    } else if (interactionType === 'expression_match') {
+      if (!expectedAnswer) expectedAnswer = 'MATCHED_ALL';
+    } else {
+      if (!expectedAnswer) expectedAnswer = '5';
+    }
+
+    // Pairs for expression_match
+    let pairs: { left: string; right: string }[] | undefined = undefined;
+    if (interactionType === 'expression_match') {
+      if (Array.isArray(raw.pairs) && raw.pairs.length >= 2) {
+        pairs = raw.pairs.map((p: any) => ({
+          left: String(p.left || '').trim(),
+          right: String(p.right || '').trim(),
+        })).filter((p: any) => p.left && p.right);
+      }
+      if (!pairs || pairs.length < 2) {
+        pairs = [
+          { left: '3 + 2', right: '5' },
+          { left: '4 + 1', right: '5' },
+          { left: '2 + 4', right: '6' },
+        ];
+      }
+    }
+
+    // Acceptable answers
+    let acceptableAnswers: string[] = [expectedAnswer];
+    if (Array.isArray(raw.acceptableAnswers) && raw.acceptableAnswers.length > 0) {
+      acceptableAnswers = Array.from(new Set([
+        expectedAnswer,
+        ...raw.acceptableAnswers.map((a: any) => String(a).trim()).filter(Boolean)
+      ]));
+    }
+
+    // Visual config enrichment
+    const visualConfig = enrichAiVisualConfig(raw, topic, grade);
+
+    // Rule hints
+    let ruleHints: any[] = [];
+    const defaultPattern = targetPattern === 'AUTO' || targetPattern === 'AI_DETECT' ? 'COUNTING_OFF_BY_ONE' : targetPattern;
+    if (Array.isArray(raw.ruleHints) && raw.ruleHints.length > 0) {
+      ruleHints = raw.ruleHints.map((rh: any) => ({
+        pattern: String(rh.pattern || defaultPattern).trim(),
+        hintText: String(rh.hintText || 'Bé hãy đọc kỹ đề và kiểm tra lại từng bước tính nhé!').trim(),
+        visualActionGuidance: String(rh.visualActionGuidance || 'Quan sát hình minh họa trực quan trên màn hình.').trim(),
+      }));
+    } else {
+      ruleHints = [
+        {
+          pattern: defaultPattern,
+          hintText: 'Bé hãy đọc kỹ đề và kiểm tra lại từng bước tính nhé!',
+          visualActionGuidance: 'Quan sát hình minh họa trực quan trên màn hình.',
+        },
+      ];
+    }
+
+    sanitized.push({
+      id,
+      order,
+      prompt,
+      interactionType,
+      options,
+      pairs,
+      expectedAnswer,
+      acceptableAnswers,
+      explanation: String(raw.explanation || `Đáp án đúng là ${expectedAnswer}.`).trim(),
+      skillTag: String(raw.skillTag || topic).trim(),
+      difficulty: ['easy', 'medium', 'hard'].includes(raw.difficulty) ? raw.difficulty : difficulty,
+      visualConfig,
+      ruleHints,
+    });
+  }
+
+  return sanitized;
 }
 
 // 5. Teacher AI Draft Generation (Protected: teacher or admin role required)
 app.post('/api/teacher/generate-draft', requireAuth, requireRole(['teacher', 'admin']), async (req: Request, res: Response) => {
-  if (!process.env.GEMINI_API_KEY || !genAI) {
+  const geminiClient = getGeminiClient();
+  if (!geminiClient) {
     return res.status(503).json({
       code: 'AI_NOT_CONFIGURED',
       error: 'AI chưa cấu hình: Chưa phát hiện GEMINI_API_KEY. Vui lòng cấu hình Secret trên Vercel hoặc Google AI Studio.',
@@ -895,41 +1171,57 @@ app.post('/api/teacher/generate-draft', requireAuth, requireRole(['teacher', 'ad
     return res.status(400).json({ error: 'Khối lớp chỉ hỗ trợ Toán lớp 1 hoặc lớp 2.' });
   }
 
-  const cleanCount = Math.min(Math.max(Number(questionCount) || 4, 1), 8);
-  const cleanTopic = String(topic || 'Số và Phép tính').substring(0, 100);
-  const cleanPattern = String(targetPattern || 'CROSS_TEN_ERROR').substring(0, 100);
+  const cleanCount = Math.min(Math.max(Number(questionCount) || 4, 1), 10);
+  const cleanTopic = String(topic || 'Số và Phép tính').trim().substring(0, 100);
+  const rawPattern = String(targetPattern || 'AUTO').trim().substring(0, 100);
+
+  let patternInstruction = '';
+  if (rawPattern === 'AUTO' || rawPattern === 'AI_DETECT') {
+    patternInstruction = `TẬP TRUNG PHÁT HIỆN MẪU LỖI: Hãy tự động phân tích và xác định các mẫu lỗi sư phạm điển hình nhất phù hợp lứa tuổi lớp ${parsedGrade} và chủ đề "${cleanTopic}" (ví dụ: đếm lệch 1 đơn vị, nhầm dấu cộng/trừ, sai bước qua 10, nhầm vị trí hàng chục và đơn vị, nhầm lẫn hình học, v.v.). Gắn đúng mã lỗi vào từng câu hỏi.`;
+  } else {
+    patternInstruction = `TẬP TRUNG PHÁT HIỆN MẪU LỖI: "${rawPattern}". Hãy xây dựng các câu hỏi, dữ liệu và gợi ý sư phạm xoay quanh mẫu lỗi này để chẩn đoán và khắc phục hiệu quả cho học sinh.`;
+  }
 
   try {
     const prompt = `
-Bạn là chuyên gia giáo dục Toán tiểu học theo Chương trình GDPT 2018 Việt Nam cho lớp ${parsedGrade}.
-Hãy tạo đúng ${cleanCount} câu hỏi môn Toán lớp ${parsedGrade} về chủ đề: "${cleanTopic}".
+Bạn là chuyên gia giáo dục Toán tiểu học theo Chương trình Giáo dục Phổ thông 2018 (GDPT 2018) Việt Nam cho học sinh Lớp ${parsedGrade}.
+Nhiệm vụ: Hãy tạo ĐÚNG CHÍNH XÁC ${cleanCount} câu hỏi môn Toán Lớp ${parsedGrade} về chủ đề: "${cleanTopic}".
 Độ khó: ${difficulty}.
-Tập trung phát hiện mẫu lỗi: "${cleanPattern}".
-Mỗi câu hỏi phải phù hợp tư duy trẻ 6-8 tuổi, văn phong sư phạm ấm áp, thân thiện.
+${patternInstruction}
 
-QUY TẮC BẮT BUỘC VỀ SƯ PHẠM VÀ HÌNH MINH HỌA:
-1. ĐƠN VỊ TIỀN TỆ: Nếu chủ đề hoặc câu hỏi nhắc tới tiền tệ, BẮT BUỘC dùng tiền Việt Nam: 1 000 đồng, 2 000 đồng, 5 000 đồng, 10 000 đồng, 20 000 đồng, 50 000 đồng, 100 000 đồng. TUYỆT ĐỐI KHÔNG dùng USD hay ký hiệu $.
-2. HÌNH MINH HỌA (visualConfig): Mỗi câu hỏi phải có cấu hình minh họa trực quan "visualConfig" phù hợp với bài toán:
-   - "counters": Đếm đồ vật (iconName: "apple", "fish", "star", "candy", "pencil", "carrot", "flower", "bird", "rabbit", "orange", "block"). Số lượng count phải khớp chính xác với đề bài.
+YÊU CẦU SƯ PHẠM VÀ DỮ LIỆU:
+1. SỐ LƯỢNG: Mảng "questions" BẮT BUỘC PHẢI CHỨA ĐÚNG ${cleanCount} PHẦN TỬ (từ câu 1 đến câu ${cleanCount}), không được thiếu hoặc thừa bất kỳ câu nào.
+2. VĂN PHONG: Ngắn gọn, ấm áp, ngôn ngữ tiếng Việt trong sáng, dễ hiểu với học sinh 6-8 tuổi.
+3. TIỀN TỆ: Nếu bài toán liên quan đến tiền bạc, BẮT BUỘC dùng tiền Việt Nam Đồng (VND): 1 000 đồng, 2 000 đồng, 5 000 đồng, 10 000 đồng, 20 000 đồng, 50 000 đồng, 100 000 đồng. TUYỆT ĐỐI KHÔNG dùng USD hay ký hiệu $.
+4. DẠNG BÀI TẬP (interactionType): Phân bổ các dạng câu hỏi đa dạng và phù hợp:
+   - "single_choice": Trắc nghiệm 4 lựa chọn (cung cấp mảng "options" gồm 4 chuỗi, trong đó có "expectedAnswer").
+   - "number_input": Điền số hoặc kết quả tính (expectedAnswer là chuỗi số).
+   - "expression_match": Nối cặp (cung cấp mảng "pairs" gồm ít nhất 3 cặp { left, right }, expectedAnswer là "MATCHED_ALL").
+   - "operator_pick": Chọn dấu +, -, =, >, < (options: [">", "<", "="] hoặc ["+", "-"]).
+5. HÌNH MINH HỌA TRỰC QUAN (visualConfig): Mỗi câu hỏi phải có cấu hình trực quan tương ứng:
+   - "counters": Đếm đồ vật (iconName: "apple", "fish", "star", "candy", "pencil", "carrot", "flower", "bird", "rabbit", "orange", "block"). Số lượng "count" phải KHỚP CHÍNH XÁC với dữ liệu câu hỏi.
    - "ten_frame" hoặc "five_frame": Khung 10 ô hoặc khung 5 ô (gridSize: 5 hoặc 10, count, dotColor: "blue" | "red" | "green" | "amber").
    - "bundles": Bó que tính và que rời (tens: số bó chục, ones: số que rời).
    - "comparison": So sánh 2 nhóm (leftCount, rightCount, leftLabel, rightLabel, iconName).
    - "shapes": Nhận biết hình (shapeType: "circle" | "square" | "triangle" | "rectangle" | "cylinder" | "sphere").
-   - "money": Tờ tiền Việt Nam (moneyBills: [{"denomination": 2000, "count": 2}, {"denomination": 5000, "count": 1}]).
+   - "money": Tiền Việt Nam (moneyBills: [{"denomination": 2000, "count": 2}]).
    - "clock": Xem đồng hồ kim (hours: 1-12, minutes: 0, 15, 30, 45).
-   - "word_story": Bài toán lời văn (storyText: tóm tắt ngắn gọn tình huống).
+6. GỢI Ý MANH MỐI (ruleHints): Mỗi câu hỏi có ít nhất 1 gợi ý thám tử chứa:
+   - "pattern": Mã lỗi (ví dụ COUNTING_OFF_BY_ONE, WRONG_OPERATOR, CROSS_TEN_ERROR, PLACE_VALUE_SWAP, COMPARISON_INVERSION, WORD_PROBLEM_WRONG_OPERATION, GEOMETRY_MISIDENTIFICATION...).
+   - "hintText": Lời nhắc nhở nhẹ nhàng, ấm áp không lộ ngay đáp án.
+   - "visualActionGuidance": Chỉ dẫn cụ thể hành động quan sát hoặc đếm trực quan.
 
-Yêu cầu định dạng JSON CHUẨN XÁC theo schema sau:
+ĐỊNH DẠNG JSON ĐẦU RA BẮT BUỘC:
 {
   "questions": [
     {
       "id": "q-ai-1",
       "order": 1,
-      "prompt": "Lời dẫn câu hỏi bằng tiếng Việt rõ ràng",
-      "interactionType": "number_input",
-      "options": ["3", "4", "5"],
+      "prompt": "Lời dẫn câu hỏi bằng tiếng Việt...",
+      "interactionType": "single_choice",
+      "options": ["3", "4", "5", "6"],
       "expectedAnswer": "5",
-      "explanation": "Lời giải thích cặn kẽ từng bước",
+      "explanation": "Giải thích từng bước vì sao đáp án là 5...",
       "skillTag": "${cleanTopic}",
       "difficulty": "${difficulty}",
       "visualConfig": {
@@ -939,15 +1231,15 @@ Yêu cầu định dạng JSON CHUẨN XÁC theo schema sau:
       },
       "ruleHints": [
         {
-          "pattern": "${cleanPattern}",
-          "hintText": "Lời khuyên sư phạm gợi ý cho bé",
-          "visualActionGuidance": "Chỉ dẫn thao tác đếm hoặc quan sát trực quan"
+          "pattern": "COUNTING_OFF_BY_ONE",
+          "hintText": "Bé hãy đếm chậm từng quả táo xem nào!",
+          "visualActionGuidance": "Chạm vào từng quả táo để đếm từ 1 đến hết."
         }
       ]
     }
   ]
 }
-Chỉ trả về JSON thuần túy, không có văn bản giải thích nào khác ngoài JSON.
+Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có văn bản nào bên ngoài.
 `;
 
     let text: string;
@@ -968,12 +1260,26 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
       return res.status(500).json({ code, error: aiErr.message, detail });
     }
 
-    // Sanitize JSON text in case of markdown code fences
+    // Robust JSON extraction
     let cleanJsonText = (text || '').trim();
-    if (cleanJsonText.startsWith('```json')) {
-      cleanJsonText = cleanJsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (cleanJsonText.startsWith('```')) {
-      cleanJsonText = cleanJsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    const jsonMatch = cleanJsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      cleanJsonText = jsonMatch[1].trim();
+    } else {
+      const firstBrace = cleanJsonText.indexOf('{');
+      const firstBracket = cleanJsonText.indexOf('[');
+      let startIdx = -1;
+      let endIdx = -1;
+      if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+        startIdx = firstBrace;
+        endIdx = cleanJsonText.lastIndexOf('}');
+      } else if (firstBracket !== -1) {
+        startIdx = firstBracket;
+        endIdx = cleanJsonText.lastIndexOf(']');
+      }
+      if (startIdx !== -1 && endIdx > startIdx) {
+        cleanJsonText = cleanJsonText.substring(startIdx, endIdx + 1);
+      }
     }
 
     let parsed: any;
@@ -988,7 +1294,6 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
       });
     }
 
-    // Normalize questions array from different possible wrappers
     let rawQuestions: any[] = [];
     if (Array.isArray(parsed)) {
       rawQuestions = parsed;
@@ -1001,6 +1306,7 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
     }
 
     if (rawQuestions.length === 0) {
+      // Strictly report error without silently replacing with mock questions (REQ 8)
       return res.status(502).json({
         code: 'AI_EMPTY_QUESTIONS',
         error: 'Mô hình AI phản hồi cấu trúc JSON nhưng không chứa danh sách câu hỏi hợp lệ.',
@@ -1008,165 +1314,25 @@ Chỉ trả về JSON thuần túy, không có văn bản giải thích nào kh�
       });
     }
 
-    parsed.questions = rawQuestions;
+    // Sanitize and standardize questions (REQ 2, 7)
+    const sanitizedQuestions = sanitizeAiQuestions(
+      rawQuestions,
+      cleanCount,
+      cleanTopic,
+      parsedGrade,
+      difficulty,
+      rawPattern
+    );
 
-    // Mathematical integrity & visualConfig enrichment helper
-    function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
-      if (q.visualConfig && typeof q.visualConfig === 'object' && q.visualConfig.type) {
-        const vc = q.visualConfig;
-        if (vc.type === 'counters' && typeof vc.count === 'number' && vc.count > 0) {
-          if (!vc.iconName) vc.iconName = 'apple';
-          return vc;
-        }
-        if ((vc.type === 'ten_frame' || vc.type === 'five_frame') && typeof vc.count === 'number') {
-          vc.gridSize = vc.type === 'five_frame' || vc.gridSize === 5 ? 5 : 10;
-          vc.count = Math.min(vc.count, vc.gridSize);
-          return vc;
-        }
-        if (vc.type === 'bundles' || (vc.tens !== undefined && vc.ones !== undefined)) {
-          return vc;
-        }
-        if (vc.type === 'comparison' && (vc.leftCount !== undefined || vc.count !== undefined)) {
-          return vc;
-        }
-        if (vc.type === 'shapes' && vc.shapeType) {
-          return vc;
-        }
-        if (vc.type === 'money' || vc.moneyBills) {
-          return vc;
-        }
-        if (vc.type === 'clock' || vc.hours !== undefined) {
-          return vc;
-        }
-      }
-
-      // Auto-extract and enrich visual representation from question text
-      const rawText = ((q.prompt || '') + ' ' + (q.explanation || '') + ' ' + tTopic).toLowerCase();
-
-      // 1. Money detection
-      if (rawText.includes('đồng') || rawText.includes('tiền') || rawText.includes('mua') || rawText.includes('trả lại')) {
-        const billMatches = (q.prompt || '').match(/(\d[\d\s.,]*)\s*(đồng|đ)/gi);
-        const bills: { denomination: number; count: number }[] = [];
-        if (billMatches) {
-          for (const m of billMatches) {
-            const num = parseInt(m.replace(/\D/g, ''), 10);
-            if ([1000, 2000, 5000, 10000, 20000, 50000, 100000].includes(num)) {
-              bills.push({ denomination: num, count: 1 });
-            }
-          }
-        }
-        if (bills.length > 0) {
-          return { type: 'money', moneyBills: bills };
-        }
-        return {
-          type: 'money',
-          moneyBills: [{ denomination: tGrade === 1 ? 2000 : 10000, count: 1 }]
-        };
-      }
-
-      // 2. Clock detection
-      if (rawText.includes('đồng hồ') || rawText.includes('giờ') || rawText.includes('phút')) {
-        const hourMatch = (q.prompt || '').match(/(\d{1,2})\s*giờ/i);
-        const minuteMatch = (q.prompt || '').match(/(\d{1,2})\s*phút/i);
-        const hours = hourMatch ? parseInt(hourMatch[1], 10) % 12 : 8;
-        const minutes = minuteMatch ? parseInt(minuteMatch[1], 10) : 0;
-        return { type: 'clock', hours: hours || 12, minutes };
-      }
-
-      // 3. Ten-frame / Five-frame detection
-      if (rawText.includes('khung 10') || rawText.includes('khung 5') || rawText.includes('chấm tròn')) {
-        const numMatch = (q.prompt || '').match(/(\d+)/);
-        const count = numMatch ? parseInt(numMatch[1], 10) : 5;
-        const isFive = rawText.includes('khung 5');
-        const size = isFive ? 5 : 10;
-        return {
-          type: isFive ? 'five_frame' : 'ten_frame',
-          gridSize: size,
-          count: Math.min(count, size),
-          dotColor: 'blue'
-        };
-      }
-
-      // 4. Bundles detection
-      if (rawText.includes('que tính') || rawText.includes('bó que') || rawText.includes('chục và đơn vị')) {
-        const numMatch = (q.prompt || '').match(/(\d+)/);
-        const total = numMatch ? parseInt(numMatch[1], 10) : 15;
-        return {
-          type: 'bundles',
-          tens: Math.floor(total / 10),
-          ones: total % 10
-        };
-      }
-
-      // 5. Shapes detection
-      if (rawText.includes('hình tròn')) return { type: 'shapes', shapeType: 'circle' };
-      if (rawText.includes('hình vuông')) return { type: 'shapes', shapeType: 'square' };
-      if (rawText.includes('hình tam giác')) return { type: 'shapes', shapeType: 'triangle' };
-      if (rawText.includes('hình chữ nhật')) return { type: 'shapes', shapeType: 'rectangle' };
-      if (rawText.includes('khối trụ')) return { type: 'shapes', shapeType: 'cylinder' };
-      if (rawText.includes('khối cầu')) return { type: 'shapes', shapeType: 'sphere' };
-
-      // 6. Object counters
-      let iconName = 'apple';
-      if (rawText.includes('cá')) iconName = 'fish';
-      else if (rawText.includes('sao')) iconName = 'star';
-      else if (rawText.includes('kẹo')) iconName = 'candy';
-      else if (rawText.includes('bút')) iconName = 'pencil';
-      else if (rawText.includes('khối') || rawText.includes('viên')) iconName = 'block';
-      else if (rawText.includes('cà rốt')) iconName = 'carrot';
-      else if (rawText.includes('hoa') || rawText.includes('bông')) iconName = 'flower';
-      else if (rawText.includes('chim')) iconName = 'bird';
-      else if (rawText.includes('thỏ')) iconName = 'rabbit';
-      else if (rawText.includes('cam')) iconName = 'orange';
-
-      // Comparison detection
-      if (rawText.includes('nhiều hơn') || rawText.includes('ít hơn') || rawText.includes('so sánh') || (rawText.includes(' và ') && rawText.includes('?'))) {
-        const nums = ((q.prompt || '').match(/\b\d+\b/g) || []).map(Number);
-        if (nums.length >= 2) {
-          return {
-            type: 'comparison',
-            leftCount: Math.min(nums[0], 10),
-            rightCount: Math.min(nums[1], 10),
-            leftLabel: 'Nhóm 1',
-            rightLabel: 'Nhóm 2',
-            iconName
-          };
-        }
-      }
-
-      const nums = ((q.prompt || '').match(/\b\d+\b/g) || []).map(Number);
-      const count = nums.length > 0 ? Math.min(nums[0], 10) : 5;
-      return {
-        type: 'counters',
-        count,
-        iconName
-      };
-    }
-
-    // Mathematical integrity validation for AI questions
-    if (Array.isArray(parsed.questions)) {
-      parsed.questions.forEach((q: any, idx: number) => {
-        q.id = q.id || `q-ai-${idx + 1}`;
-        q.order = idx + 1;
-        q.difficulty = q.difficulty || difficulty;
-        q.skillTag = q.skillTag || cleanTopic;
-        if (q.interactionType === 'multiple_choice') {
-          q.interactionType = 'single_choice';
-        }
-        if (q.interactionType === 'single_choice') {
-          if (!Array.isArray(q.options) || q.options.length < 2) {
-            q.options = [q.expectedAnswer, '3', '4', '5'];
-          }
-          if (!q.options.includes(q.expectedAnswer)) {
-            q.options[0] = q.expectedAnswer;
-          }
-        }
-        // Auto enrich visualConfig
-        q.visualConfig = enrichAiVisualConfig(q, cleanTopic, parsedGrade);
-      });
-    }
-
-    return res.json(parsed);
+    return res.json({
+      ok: true,
+      questions: sanitizedQuestions,
+      count: sanitizedQuestions.length,
+      grade: parsedGrade,
+      topic: cleanTopic,
+      targetPattern: rawPattern,
+      difficulty,
+    });
   } catch (err: any) {
     const safeMsg = err?.message ? err.message.replace(/AIza[0-9A-Za-z-_]{35}/g, '***').replace(/key=[^&\s]+/g, 'key=***') : String(err);
     console.error('Gemini draft generation error (sanitized):', safeMsg);

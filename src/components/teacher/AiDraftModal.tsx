@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, X, AlertTriangle, Check, Loader2 } from 'lucide-react';
+import { Sparkles, X, AlertTriangle, Check, Loader2, RefreshCw, PlusCircle, HelpCircle } from 'lucide-react';
 import { Question } from '../../types';
 import { getAuthHeaders } from '../../lib/authSession';
 
@@ -8,30 +8,39 @@ export interface AiDraftMeta {
   topic: string;
   targetPattern?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
+  applyMode?: 'replace' | 'append';
 }
 
 interface AiDraftModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApplyQuestions: (questions: Question[], meta?: AiDraftMeta) => void;
+  existingQuestionCount?: number;
 }
 
 export const AiDraftModal: React.FC<AiDraftModalProps> = ({
   isOpen,
   onClose,
   onApplyQuestions,
+  existingQuestionCount = 0,
 }) => {
   const [grade, setGrade] = useState<1 | 2>(1);
   const [topic, setTopic] = useState('Phép cộng trong phạm vi 10');
-  const [targetPattern, setTargetPattern] = useState('COUNTING_OFF_BY_ONE');
+  const [targetPattern, setTargetPattern] = useState<string>('AUTO');
+  const [customPattern, setCustomPattern] = useState<string>('');
   const [questionCount, setQuestionCount] = useState<number>(4);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [applyMode, setApplyMode] = useState<'replace' | 'append'>('replace');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [draftQuestions, setDraftQuestions] = useState<Question[]>([]);
 
   if (!isOpen) return null;
+
+  const effectivePattern = targetPattern === 'CUSTOM'
+    ? (customPattern.trim() || 'Lỗi học sinh tự nhập')
+    : targetPattern;
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -45,7 +54,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
         body: JSON.stringify({
           grade,
           topic,
-          targetPattern,
+          targetPattern: effectivePattern,
           questionCount,
           difficulty,
         }),
@@ -62,10 +71,10 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
         return;
       }
 
-      if (data.questions && Array.isArray(data.questions)) {
+      if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
         setDraftQuestions(data.questions);
       } else {
-        setErrorMsg('Dữ liệu AI trả về không đúng định dạng danh sách câu hỏi.');
+        setErrorMsg('Dữ liệu AI phản hồi nhưng không chứa danh sách câu hỏi hợp lệ.');
       }
     } catch (err: any) {
       setErrorMsg(`Không thể kết nối đến máy chủ AI: ${err?.message || 'Lỗi mạng hoặc máy chủ không phản hồi'}`);
@@ -79,28 +88,29 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
       onApplyQuestions(draftQuestions, {
         grade,
         topic,
-        targetPattern,
+        targetPattern: effectivePattern,
         difficulty,
+        applyMode,
       });
       onClose();
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-white rounded-3xl border-3 border-sky-300 shadow-2xl p-6 sm:p-8 flex flex-col max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl bg-white rounded-3xl border-3 border-sky-300 shadow-2xl p-5 sm:p-7 flex flex-col max-h-[92vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-sky-500 text-white flex items-center justify-center shadow">
               <Sparkles className="w-5 h-5 text-amber-300" />
             </div>
             <div>
               <h3 className="text-xl font-black text-slate-800">
-                AI Soạn Bài Nháp Toán (Gemini)
+                AI Soạn Đề Toán Nháp (Gemini)
               </h3>
               <p className="text-xs font-semibold text-slate-500">
-                Tạo câu hỏi bám sát GDPT 2018 với quy tắc chẩn đoán lỗi sai trực quan
+                Tạo chuẩn xác theo Chương trình GDPT 2018 với chẩn đoán mẫu lỗi sư phạm
               </p>
             </div>
           </div>
@@ -116,16 +126,16 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
         </div>
 
         {/* Form Controls */}
-        <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="flex-1 overflow-y-auto py-3.5 space-y-3.5 pr-1">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                Khối Lớp
+              <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1">
+                Khối Lớp *
               </label>
               <select
                 value={grade}
                 onChange={(e) => setGrade(Number(e.target.value) as 1 | 2)}
-                className="w-full h-12 px-4 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden"
+                className="w-full h-11 px-3.5 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden text-sm"
               >
                 <option value={1}>Toán Lớp 1 (GDPT 2018)</option>
                 <option value={2}>Toán Lớp 2 (GDPT 2018)</option>
@@ -133,13 +143,13 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                Độ Khó
+              <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1">
+                Độ Khó *
               </label>
               <select
                 value={difficulty}
                 onChange={(e) => setDifficulty(e.target.value as any)}
-                className="w-full h-12 px-4 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden"
+                className="w-full h-11 px-3.5 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden text-sm"
               >
                 <option value="easy">Cơ bản / Nhận biết (Dễ)</option>
                 <option value="medium">Thông hiểu / Luyện tập (Vừa)</option>
@@ -149,70 +159,132 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-              Chủ Đề Bài Học
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1">
+              Chủ Đề Bài Học *
             </label>
             <input
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="Ví dụ: Phép cộng có nhớ trong phạm vi 20, Khung 10 ô..."
-              className="w-full h-12 px-4 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden"
+              placeholder="Ví dụ: Phép cộng có nhớ trong phạm vi 20, Khung 10 ô, Đồng hồ..."
+              className="w-full h-11 px-3.5 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden text-sm"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                Tập trung mẫu lỗi
+              <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1 flex items-center justify-between">
+                <span>Tập trung mẫu lỗi</span>
+                <span className="text-[10px] font-bold text-sky-600 normal-case">Tùy chọn sư phạm</span>
               </label>
               <select
                 value={targetPattern}
                 onChange={(e) => setTargetPattern(e.target.value)}
-                className="w-full h-12 px-3 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden text-sm"
+                className="w-full h-11 px-3 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden text-xs"
               >
-                <option value="COUNTING_OFF_BY_ONE">Đếm lệch 1 đơn vị</option>
-                <option value="WRONG_OPERATOR">Nhầm dấu phép tính (+/-)</option>
-                <option value="CROSS_TEN_ERROR">Sai bước qua 10 (cộng/trừ có nhớ)</option>
-                <option value="PLACE_VALUE_SWAP">Đảo vị trí Chục và Đơn vị</option>
-                <option value="COMPARISON_INVERSION">Đảo chiều dấu so sánh (&gt; / &lt;)</option>
+                <option value="AUTO">✨ AI tự xác định mẫu lỗi phù hợp (Khuyến nghị)</option>
+                <option value="COUNTING_OFF_BY_ONE">Đếm lệch 1 đơn vị (COUNTING_OFF_BY_ONE)</option>
+                <option value="WRONG_OPERATOR">Nhầm dấu phép tính (+, -, =) (WRONG_OPERATOR)</option>
+                <option value="CROSS_TEN_ERROR">Sai bước qua 10 (cộng/trừ có nhớ) (CROSS_TEN_ERROR)</option>
+                <option value="PLACE_VALUE_SWAP">Đảo vị trí Chục và Đơn vị (PLACE_VALUE_SWAP)</option>
+                <option value="COMPARISON_INVERSION">Đảo chiều dấu so sánh (&gt; / &lt;) (COMPARISON_INVERSION)</option>
+                <option value="WORD_PROBLEM_WRONG_OPERATION">Chọn sai phép tính toán có lời văn (WORD_PROBLEM)</option>
+                <option value="GEOMETRY_MISIDENTIFICATION">Nhầm lẫn hình phẳng / hình khối (GEOMETRY)</option>
+                <option value="MEASUREMENT_UNIT_ERROR">Nhầm đơn vị đo lường (MEASUREMENT)</option>
+                <option value="CUSTOM">✏️ Khác – Tự nhập mẫu lỗi riêng...</option>
               </select>
+
+              {targetPattern === 'CUSTOM' && (
+                <div className="mt-2 animate-in fade-in duration-200">
+                  <input
+                    type="text"
+                    value={customPattern}
+                    onChange={(e) => setCustomPattern(e.target.value)}
+                    placeholder="Nhập mô tả lỗi (ví dụ: Quên trừ số mượn, nhầm lẫn số 6 và số 9)..."
+                    className="w-full h-10 px-3 rounded-xl border-2 border-indigo-300 bg-indigo-50/50 font-bold text-slate-800 focus:border-indigo-500 focus:outline-hidden text-xs"
+                  />
+                </div>
+              )}
             </div>
 
             <div>
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                Số lượng câu hỏi
+              <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1">
+                Số Lượng Câu Hỏi
               </label>
               <select
                 value={questionCount}
                 onChange={(e) => setQuestionCount(Number(e.target.value))}
-                className="w-full h-12 px-4 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden"
+                className="w-full h-11 px-3.5 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden text-sm"
               >
-                <option value={2}>2 câu mẫu</option>
-                <option value={4}>4 câu bài tập</option>
-                <option value={8}>8 câu trọn bộ</option>
+                <option value={2}>2 câu kiểm tra nhanh</option>
+                <option value={4}>4 câu bài tập chuẩn (Khuyến nghị)</option>
+                <option value={8}>8 câu trọn bộ bài giảng</option>
               </select>
             </div>
           </div>
 
           {/* Error Notice */}
           {errorMsg && (
-            <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 text-sm font-semibold flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 text-xs font-semibold flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>{errorMsg}</div>
             </div>
           )}
 
           {/* Generated Questions Preview */}
           {draftQuestions.length > 0 && (
-            <div className="mt-4 p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-3">
-              <div className="text-xs font-black uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
-                <Check className="w-4 h-4 text-emerald-600" /> Đã sinh {draftQuestions.length} câu hỏi hợp lệ:
+            <div className="mt-3 p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-black uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-emerald-600" /> Đã sinh thành công {draftQuestions.length} câu hỏi hợp lệ:
+                </div>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                  {draftQuestions.length}/{questionCount} câu
+                </span>
               </div>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+
+              {/* Mode choice if existing questions */}
+              {existingQuestionCount > 0 && (
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
+                  <span className="text-xs font-bold text-slate-700 block">Thao tác đưa vào bài học:</span>
+                  <div className="flex items-center gap-4 text-xs font-bold">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-800">
+                      <input
+                        type="radio"
+                        name="applyMode"
+                        checked={applyMode === 'replace'}
+                        onChange={() => setApplyMode('replace')}
+                        className="text-sky-600"
+                      />
+                      <span>Thay thế toàn bộ câu hỏi hiện tại ({existingQuestionCount} câu)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-800">
+                      <input
+                        type="radio"
+                        name="applyMode"
+                        checked={applyMode === 'append'}
+                        onChange={() => setApplyMode('append')}
+                        className="text-sky-600"
+                      />
+                      <span>Thêm {draftQuestions.length} câu vào cuối bài</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
                 {draftQuestions.map((q, idx) => (
-                  <div key={idx} className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800">
-                    <span className="text-sky-600">Câu {idx + 1}:</span> {q.prompt} (Đáp án: <strong className="text-emerald-600">{q.expectedAnswer}</strong>)
+                  <div key={idx} className="p-3 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-sky-600 font-black">Câu {idx + 1} [{q.interactionType}]</span>
+                      <span className="text-emerald-700">Đáp án: <strong>{q.expectedAnswer}</strong></span>
+                    </div>
+                    <p className="text-slate-800">{q.prompt}</p>
+                    {q.ruleHints && q.ruleHints[0] && (
+                      <p className="text-[11px] text-amber-700 font-medium">
+                        💡 Manh mối thám tử: {q.ruleHints[0].hintText}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -221,23 +293,35 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+        <div className="pt-3.5 border-t border-slate-100 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm cursor-pointer transition-colors"
+            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm cursor-pointer transition-colors"
           >
             Đóng
           </button>
 
           {draftQuestions.length > 0 ? (
-            <button
-              type="button"
-              onClick={handleApply}
-              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95"
-            >
-              <Check className="w-4 h-4" /> Đưa vào bài giảng
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={loading}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                title="Tạo lại bộ câu hỏi khác"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Tạo lại
+              </button>
+
+              <button
+                type="button"
+                onClick={handleApply}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95"
+              >
+                <Check className="w-4 h-4" /> Đưa vào bài giảng
+              </button>
+            </div>
           ) : (
             <button
               type="button"
@@ -261,3 +345,4 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
     </div>
   );
 };
+

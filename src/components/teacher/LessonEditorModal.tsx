@@ -382,14 +382,16 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       return;
     }
 
-    // Validation
+    // Validation with type safety
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (!q.prompt.trim()) {
+      const safePrompt = String(q.prompt || '').trim();
+      const safeAnswer = String(q.expectedAnswer !== undefined && q.expectedAnswer !== null ? q.expectedAnswer : '').trim();
+      if (!safePrompt) {
         setErrorMsg(`Câu hỏi số ${i + 1} chưa có nội dung câu hỏi.`);
         return;
       }
-      if (!q.expectedAnswer.trim()) {
+      if (!safeAnswer) {
         setErrorMsg(`Câu hỏi số ${i + 1} chưa có đáp án chuẩn.`);
         return;
       }
@@ -398,14 +400,14 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
           setErrorMsg(`Câu hỏi số ${i + 1} (trắc nghiệm) cần ít nhất 2 phương án lựa chọn.`);
           return;
         }
-        const trimmedOpts = q.options.map((o) => o.trim()).filter(Boolean);
+        const trimmedOpts = q.options.map((o) => String(o || '').trim()).filter(Boolean);
         const uniqueOpts = new Set(trimmedOpts);
         if (uniqueOpts.size < trimmedOpts.length) {
           setErrorMsg(`Câu hỏi số ${i + 1} (trắc nghiệm): Các phương án lựa chọn không được trùng lặp.`);
           return;
         }
-        if (!trimmedOpts.includes(q.expectedAnswer.trim())) {
-          setErrorMsg(`Câu hỏi số ${i + 1} (trắc nghiệm): Đáp án đúng ("${q.expectedAnswer}") phải nằm trong danh sách các phương án.`);
+        if (!trimmedOpts.includes(safeAnswer)) {
+          setErrorMsg(`Câu hỏi số ${i + 1} (trắc nghiệm): Đáp án đúng ("${safeAnswer}") phải nằm trong danh sách các phương án.`);
           return;
         }
       }
@@ -1581,14 +1583,23 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
         <AiDraftModal
           isOpen={isAiDraftOpen}
           onClose={() => setIsAiDraftOpen(false)}
+          existingQuestionCount={questions.length}
           onApplyQuestions={(newAiQuestions, meta) => {
-            if (meta?.topic && !topic) setTopic(meta.topic);
-            if (meta?.grade) setGrade(meta.grade);
-            if (!title && meta?.topic) setTitle(`Bài tập Toán: ${meta.topic}`);
+            const chosenTopic = meta?.topic || topic;
+            const chosenGrade = meta?.grade || grade;
+            if (chosenTopic) setTopic(chosenTopic);
+            if (chosenGrade) setGrade(chosenGrade);
 
-            // If only 1 placeholder question exists, replace it cleanly; otherwise append
-            if (questions.length === 1 && questions[0].prompt.includes('Thám tử Cáo có 3 quả táo')) {
-              setQuestions(newAiQuestions);
+            const isReplace = meta?.applyMode === 'replace' || questions.length === 0 || (questions.length === 1 && questions[0].prompt.includes('Thám tử Cáo có 3 quả táo'));
+
+            if (isReplace) {
+              setQuestions(newAiQuestions.map((q, i) => ({ ...q, order: i + 1 })));
+              if (chosenTopic) {
+                setTitle(`Bài tập Toán: ${chosenTopic}`);
+                if (!learningStandard || learningStandard.includes('Thám tử Cáo')) {
+                  setLearningStandard(`Rèn luyện kỹ năng và chẩn đoán mẫu lỗi chủ đề ${chosenTopic} theo chuẩn GDPT 2018`);
+                }
+              }
             } else {
               const startOrder = questions.length;
               const reindexed = newAiQuestions.map((q, i) => ({
