@@ -69,9 +69,19 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
       const data = await res.json();
 
       if (!res.ok) {
-        let msg = data.error || 'Có lỗi khi tạo bài nháp từ AI.';
-        if (data.detail && data.detail !== data.error) {
-          msg += ` (Chi tiết: ${data.detail})`;
+        let msg = '';
+        if (res.status === 404 || data.code === 'GEMINI_MODEL_NOT_FOUND') {
+          msg = data.error || `Mô hình AI (${data.model || 'Gemini'}) chưa khả dụng với API key hiện tại (Lỗi 404). Vui lòng cấu hình biến GEMINI_MODEL (ví dụ: gemini-3.5-flash-lite hoặc gemini-3.8-flash).`;
+        } else if (res.status === 429 || data.code === 'GEMINI_QUOTA_EXCEEDED') {
+          msg = data.error || 'Tài khoản Gemini API tạm thời hết hạn mức yêu cầu (Lỗi 429). Thầy/Cô vui lòng thử lại sau ít phút hoặc nâng hạn mức API key.';
+        } else if (res.status === 504 || data.code === 'GEMINI_TIMEOUT') {
+          msg = data.error || 'Quá thời gian chờ phản hồi từ mô hình AI (quá 30 giây). Thầy/Cô vui lòng thử lại hoặc giảm bớt số lượng câu hỏi.';
+        } else if (res.status === 401 || data.code === 'GEMINI_AUTH_INVALID') {
+          msg = data.error || 'Khóa bí mật GEMINI_API_KEY không hợp lệ hoặc chưa được cấp quyền truy cập mô hình này.';
+        } else if (res.status === 502 || data.code === 'AI_NETWORK_ERROR') {
+          msg = data.error || 'Không thể kết nối đến máy chủ Google Gemini. Vui lòng kiểm tra lại kết nối mạng.';
+        } else {
+          msg = data.error || 'Có lỗi khi tạo bài nháp từ AI. Thầy/Cô vui lòng thử lại sau.';
         }
         setErrorMsg(msg);
         return;
@@ -83,7 +93,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
         setErrorMsg('Dữ liệu AI phản hồi nhưng không chứa danh sách câu hỏi hợp lệ.');
       }
     } catch (err: any) {
-      setErrorMsg(`Không thể kết nối đến máy chủ AI: ${err?.message || 'Lỗi mạng hoặc máy chủ không phản hồi'}`);
+      setErrorMsg('Không thể kết nối đến máy chủ hệ thống. Vui lòng kiểm tra kết nối mạng của bạn và thử lại.');
     } finally {
       setLoading(false);
     }

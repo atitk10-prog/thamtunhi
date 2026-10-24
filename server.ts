@@ -280,20 +280,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     errorDetail = err?.message || String(err);
   }
 
-  let availableModels: string[] = [];
-  if (genAI) {
-    try {
-      const pager = await (genAI.models as any).list();
-      for await (const m of pager) {
-        if (m.name) {
-          availableModels.push(m.name.replace('models/', ''));
-        }
-      }
-    } catch (e: any) {
-      console.warn('List models probe failed:', e?.message || e);
-    }
-  }
-
+  const configuredGeminiModel = (process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim();
   const isHealthy = firestoreConnected;
 
   res.status(isHealthy ? 200 : 503).json({
@@ -303,7 +290,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     firestoreConnected,
     lessonsCount,
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
-    availableModels: availableModels.slice(0, 10),
+    geminiModel: configuredGeminiModel,
     authSecretConfigured: Boolean(CONFIGURED_SECRET),
     authSecretStatus: CONFIGURED_SECRET ? 'CONFIGURED' : (isProdEnvironment ? 'BLOCKED' : 'DEV_FALLBACK'),
     buildVersion: '1.1.0-prod',
@@ -792,9 +779,10 @@ async function generateGeminiContent(promptText: string): Promise<string> {
     throw err;
   }
   
-  // Use single stable primary model 'gemini-2.5-flash' (or environment override).
-  // Strictly avoid model-looping retry cascades to conserve API quota and eliminate timeouts.
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  // Primary model from GEMINI_MODEL env var (default: 'gemini-3.5-flash-lite').
+  // Can be easily swapped to 'gemini-3.8-flash' or any other model in Vercel environment variables without touching source code.
+  // Strictly single call per teacher request to conserve API quota.
+  const model = (process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim();
   
   try {
     const callPromise = client.models.generateContent({
@@ -812,6 +800,7 @@ async function generateGeminiContent(promptText: string): Promise<string> {
       setTimeout(() => {
         const timeoutErr: any = new Error(`Quá thời gian chờ phản hồi từ mô hình ${model} (quá 30 giây).`);
         timeoutErr.code = 'GEMINI_TIMEOUT';
+        timeoutErr.model = model;
         reject(timeoutErr);
       }, 30000)
     );
@@ -830,14 +819,28 @@ async function generateGeminiContent(promptText: string): Promise<string> {
     console.warn(`[Gemini] Lỗi gọi mô hình ${model}:`, safeMsg);
 
     if (
+      rawMsg.includes('404') ||
+      rawMsg.includes('NOT_FOUND') ||
+      rawMsg.toLowerCase().includes('not found') ||
+      rawMsg.toLowerCase().includes('is not supported')
+    ) {
+      const notFoundErr: any = new Error(`Mô hình AI (${model}) hiện không khả dụng với API Key này (Lỗi 404). Vui lòng đổi biến môi trường GEMINI_MODEL (ví dụ: gemini-3.5-flash-lite hoặc gemini-3.8-flash).`);
+      notFoundErr.code = 'GEMINI_MODEL_NOT_FOUND';
+      notFoundErr.detail = safeMsg;
+      notFoundErr.model = model;
+      throw notFoundErr;
+    }
+
+    if (
       rawMsg.includes('429') ||
       rawMsg.includes('RESOURCE_EXHAUSTED') ||
       rawMsg.toLowerCase().includes('quota') ||
       rawMsg.toLowerCase().includes('rate limit')
     ) {
-      const quotaErr: any = new Error('Tài khoản Gemini API đã vượt quá hạn mức yêu cầu (Quota Exceeded / Rate Limit). Vui lòng thử lại sau hoặc nâng hạn mức trên Google AI Studio.');
+      const quotaErr: any = new Error('Tài khoản Gemini API đã vượt quá hạn mức yêu cầu (Quota / Rate Limit). Vui lòng thử lại sau ít phút hoặc nâng hạn mức trên Google AI Studio.');
       quotaErr.code = 'GEMINI_QUOTA_EXCEEDED';
       quotaErr.detail = safeMsg;
+      quotaErr.model = model;
       throw quotaErr;
     }
 
@@ -850,17 +853,35 @@ async function generateGeminiContent(promptText: string): Promise<string> {
       const authErr: any = new Error('API Key Gemini không hợp lệ hoặc không có quyền truy cập vào mô hình.');
       authErr.code = 'GEMINI_AUTH_INVALID';
       authErr.detail = safeMsg;
+      authErr.model = model;
       throw authErr;
     }
 
-    if (err.code === 'GEMINI_TIMEOUT') {
-      err.detail = safeMsg;
-      throw err;
+    if (err.code === 'GEMINI_TIMEOUT' || rawMsg.includes('timeout') || rawMsg.includes('ETIMEDOUT')) {
+      const timeoutErr: any = new Error(`Quá thời gian chờ phản hồi từ mô hình AI ${model} (quá 30 giây). Vui lòng thử lại.`);
+      timeoutErr.code = 'GEMINI_TIMEOUT';
+      timeoutErr.detail = safeMsg;
+      timeoutErr.model = model;
+      throw timeoutErr;
     }
 
-    const finalErr: any = new Error(`Dịch vụ AI không thể xử lý yêu cầu lúc này: ${safeMsg}`);
+    if (
+      rawMsg.includes('fetch failed') ||
+      rawMsg.includes('ENOTFOUND') ||
+      rawMsg.includes('ECONNREFUSED') ||
+      rawMsg.includes('NetworkError')
+    ) {
+      const netErr: any = new Error('Không thể kết nối đến máy chủ Google Gemini. Vui lòng kiểm tra lại kết nối mạng của hệ thống.');
+      netErr.code = 'AI_NETWORK_ERROR';
+      netErr.detail = safeMsg;
+      netErr.model = model;
+      throw netErr;
+    }
+
+    const finalErr: any = new Error('Dịch vụ AI tạm thời không thể xử lý yêu cầu. Vui lòng thử lại sau.');
     finalErr.code = 'AI_SERVICE_UNAVAILABLE';
     finalErr.detail = safeMsg;
+    finalErr.model = model;
     throw finalErr;
   }
 }
@@ -1245,17 +1266,25 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có văn bản nào 
       text = await generateGeminiContent(prompt);
     } catch (aiErr: any) {
       const code = aiErr.code || 'AI_SERVICE_ERROR';
-      const detail = aiErr.detail || aiErr.message || 'Lỗi khi gọi API Gemini';
+      const error = aiErr.message || 'Lỗi khi gọi API Gemini';
+      const model = aiErr.model || (process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim();
+
+      if (code === 'GEMINI_MODEL_NOT_FOUND') {
+        return res.status(404).json({ code, error, model });
+      }
       if (code === 'GEMINI_QUOTA_EXCEEDED') {
-        return res.status(429).json({ code, error: aiErr.message, detail });
+        return res.status(429).json({ code, error, model });
       }
       if (code === 'GEMINI_AUTH_INVALID') {
-        return res.status(401).json({ code, error: aiErr.message, detail });
+        return res.status(401).json({ code, error, model });
       }
       if (code === 'GEMINI_TIMEOUT') {
-        return res.status(504).json({ code, error: aiErr.message, detail });
+        return res.status(504).json({ code, error, model });
       }
-      return res.status(500).json({ code, error: aiErr.message, detail });
+      if (code === 'AI_NETWORK_ERROR') {
+        return res.status(502).json({ code, error, model });
+      }
+      return res.status(500).json({ code, error, model });
     }
 
     // Robust JSON extraction
