@@ -80,10 +80,11 @@ async function auditAll24Lessons() {
         visualTypes.push(q.visualConfig.type);
         totalVisualsCount++;
       }
-      sampleAnswers.push(String(q.expectedAnswer || ''));
+      const safeExpAns = String(q.expectedAnswer ?? '').trim();
+      sampleAnswers.push(safeExpAns);
 
       // Pedagogical checks
-      if (!q.expectedAnswer) {
+      if (safeExpAns === '') {
         hasPedagogicalIssue = true;
         issueNotes.push(`Q${q.order} thiếu expectedAnswer`);
       }

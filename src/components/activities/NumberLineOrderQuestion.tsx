@@ -15,12 +15,12 @@ export const NumberLineOrderQuestion: React.FC<NumberLineOrderQuestionProps> = (
   onAnswerChange,
   disabled = false,
 }) => {
-  const isOrdering = (question.options || []).length > 2 && question.expectedAnswer.includes(',');
+  const isOrdering = (question.options || []).length > 2 && String(question.expectedAnswer ?? '').includes(',');
 
   // Scramble available tiles so they are NEVER presented in the sorted answer order
   const availableTiles = React.useMemo(() => {
     const raw = question.options || ['1', '2', '3', '4'];
-    const expected = (question.expectedAnswer || '').split(',').map((s) => s.trim());
+    const expected = String(question.expectedAnswer ?? '').split(',').map((s) => s.trim());
 
     // Make a copy and scramble deterministically
     const scrambled = [...raw];

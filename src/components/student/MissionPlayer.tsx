@@ -199,7 +199,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
   const isAnswerProvided = (): boolean => {
     const ans = getCurrentAnswer();
-    return Boolean(ans && ans !== 'INCOMPLETE');
+    return String(ans ?? '').trim() !== '' && ans !== 'INCOMPLETE';
   };
 
   // Submit current question

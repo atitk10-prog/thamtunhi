@@ -80,7 +80,8 @@ async function auditCurriculum() {
       }
 
       // Check expectedAnswer
-      if (!q.expectedAnswer || !q.expectedAnswer.trim()) {
+      const safeExpAns = String(q.expectedAnswer ?? '').trim();
+      if (safeExpAns === '') {
         issues.push(`Câu ${qNum}: thiếu expectedAnswer`);
       }
 
@@ -90,8 +91,8 @@ async function auditCurriculum() {
           issues.push(`Câu ${qNum} (single_choice): ít hơn 2 lựa chọn`);
         } else if (!q.options.includes(q.expectedAnswer)) {
           // Check if expectedAnswer matches any option (case / format)
-          const trimmedOptions = q.options.map((o: string) => o.trim());
-          if (!trimmedOptions.includes(q.expectedAnswer.trim())) {
+          const trimmedOptions = q.options.map((o: any) => String(o ?? '').trim());
+          if (!trimmedOptions.includes(safeExpAns)) {
             issues.push(`Câu ${qNum} (single_choice): expectedAnswer '${q.expectedAnswer}' không nằm trong options [${q.options.join(', ')}]`);
             mathIssues.push(`[${lesson.id} C${qNum}] Option mismatch: expected '${q.expectedAnswer}', options: [${q.options.join(', ')}]`);
           }

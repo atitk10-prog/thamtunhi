@@ -1034,20 +1034,18 @@ function sanitizeAiQuestions(
       interactionType = 'number_line_order';
     }
 
-    // Expected answer ALWAYS coerced to string (prevents .trim() crashes on numbers)
-    let expectedAnswer = raw.expectedAnswer !== undefined && raw.expectedAnswer !== null
-      ? String(raw.expectedAnswer).trim()
-      : '';
+    // Expected answer ALWAYS coerced to string safely with ?? (preserving numeric 0)
+    let expectedAnswer = String(raw.expectedAnswer ?? '').trim();
 
     // Options handling for single_choice / operator_pick / number_line_order
     let options: string[] | undefined = undefined;
     if (interactionType === 'single_choice') {
       const rawOptions = Array.isArray(raw.options) ? raw.options : [];
-      let strOptions = rawOptions.map((opt: any) => String(opt).trim()).filter(Boolean);
+      let strOptions = rawOptions.map((opt: any) => String(opt ?? '').trim()).filter((s: string) => s !== '');
       
-      if (!expectedAnswer && strOptions.length > 0) {
+      if (expectedAnswer === '' && strOptions.length > 0) {
         expectedAnswer = strOptions[0];
-      } else if (!expectedAnswer) {
+      } else if (expectedAnswer === '') {
         expectedAnswer = '5';
       }
 
@@ -1071,17 +1069,17 @@ function sanitizeAiQuestions(
       options = uniqueOpts;
     } else if (interactionType === 'operator_pick') {
       options = ['+', '-', '=', '>', '<'];
-      if (!expectedAnswer) expectedAnswer = '+';
+      if (expectedAnswer === '') expectedAnswer = '+';
     } else if (interactionType === 'number_line_order') {
       const rawOptions = Array.isArray(raw.options) ? raw.options : [];
-      const lineOpts: string[] = rawOptions.map((opt: any) => String(opt).trim()).filter(Boolean);
+      const lineOpts: string[] = rawOptions.map((opt: any) => String(opt ?? '').trim()).filter((s: string) => s !== '');
       const finalLineOpts = lineOpts.length > 0 ? lineOpts : ['3', '5', '7', '9'];
       options = finalLineOpts;
-      if (!expectedAnswer) expectedAnswer = finalLineOpts.join(', ');
+      if (expectedAnswer === '') expectedAnswer = finalLineOpts.join(', ');
     } else if (interactionType === 'expression_match') {
-      if (!expectedAnswer) expectedAnswer = 'MATCHED_ALL';
+      if (expectedAnswer === '') expectedAnswer = 'MATCHED_ALL';
     } else {
-      if (!expectedAnswer) expectedAnswer = '5';
+      if (expectedAnswer === '') expectedAnswer = '5';
     }
 
     // Pairs for expression_match
@@ -1089,9 +1087,9 @@ function sanitizeAiQuestions(
     if (interactionType === 'expression_match') {
       if (Array.isArray(raw.pairs) && raw.pairs.length >= 2) {
         pairs = raw.pairs.map((p: any) => ({
-          left: String(p.left || '').trim(),
-          right: String(p.right || '').trim(),
-        })).filter((p: any) => p.left && p.right);
+          left: String(p.left ?? '').trim(),
+          right: String(p.right ?? '').trim(),
+        })).filter((p: any) => p.left !== '' && p.right !== '');
       }
       if (!pairs || pairs.length < 2) {
         pairs = [
@@ -1692,8 +1690,8 @@ app.post('/api/student/attempts/:id/answer', requireAuth, requireRole(['student'
           const questions: any[] = vSnap.data()?.questions || [];
           const q = questions.find((item: any) => item.id === questionId || item.order === Number(questionOrder));
           if (q) {
-            expectedAnswer = q.expectedAnswer || '';
-            const normalize = (s: any) => String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+            expectedAnswer = String(q.expectedAnswer ?? '').trim();
+            const normalize = (s: any) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, '');
             const normUser = normalize(userAnswer);
             const allAcceptables = [normalize(q.expectedAnswer), ...(q.acceptableAnswers || []).map(normalize)];
             evaluatedCorrect = allAcceptables.includes(normUser);
@@ -1714,7 +1712,7 @@ app.post('/api/student/attempts/:id/answer', requireAuth, requireRole(['student'
       studentId: req.user!.uid,
       questionId,
       questionOrder: Number(questionOrder || 1),
-      userAnswer: String(userAnswer || ''),
+      userAnswer: String(userAnswer ?? ''),
       expectedAnswer,
       isCorrect: evaluatedCorrect,
       attemptNumber: Number(attemptNumber || 1),
@@ -2551,13 +2549,13 @@ app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']),
 
     const safeLesson = {
       ...lessonDoc,
-      createdBy: req.user?.uid,
+      createdBy: lessonDoc.createdBy || req.user?.uid,
       dataOrigin: 'real',
       environmentTag: 'production',
     };
     const safeVersion = {
       ...versionDoc,
-      createdBy: req.user?.uid,
+      createdBy: versionDoc.createdBy || req.user?.uid,
       dataOrigin: 'real',
       environmentTag: 'production',
     };

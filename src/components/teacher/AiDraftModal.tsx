@@ -9,6 +9,7 @@ export interface AiDraftMeta {
   targetPattern?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
   applyMode?: 'replace' | 'append';
+  updateMetadata?: boolean;
 }
 
 interface AiDraftModalProps {
@@ -16,6 +17,8 @@ interface AiDraftModalProps {
   onClose: () => void;
   onApplyQuestions: (questions: Question[], meta?: AiDraftMeta) => void;
   existingQuestionCount?: number;
+  isExistingLesson?: boolean;
+  currentTitle?: string;
 }
 
 export const AiDraftModal: React.FC<AiDraftModalProps> = ({
@@ -23,6 +26,8 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
   onClose,
   onApplyQuestions,
   existingQuestionCount = 0,
+  isExistingLesson = false,
+  currentTitle = '',
 }) => {
   const [grade, setGrade] = useState<1 | 2>(1);
   const [topic, setTopic] = useState('Phép cộng trong phạm vi 10');
@@ -31,6 +36,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
   const [questionCount, setQuestionCount] = useState<number>(4);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [applyMode, setApplyMode] = useState<'replace' | 'append'>('replace');
+  const [updateMetadata, setUpdateMetadata] = useState<boolean>(false);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -91,6 +97,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
         targetPattern: effectivePattern,
         difficulty,
         applyMode,
+        updateMetadata,
       });
       onClose();
     }
@@ -269,6 +276,28 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
                       <span>Thêm {draftQuestions.length} câu vào cuối bài</span>
                     </label>
                   </div>
+                </div>
+              )}
+
+              {/* Safeguard: Do not overwrite existing lesson title/grade without explicit teacher confirmation */}
+              {isExistingLesson && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-1.5">
+                  <div className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>Đang chỉnh sửa bài học hiện có: &ldquo;{currentTitle || 'Bài học đã lưu'}&rdquo;</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                    Hệ thống sẽ <strong>giữ nguyên Tiêu đề bài học, Khối lớp và Tác giả giáo viên</strong> đã thiết lập.
+                  </p>
+                  <label className="flex items-center gap-2 cursor-pointer pt-1 text-xs font-bold text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={updateMetadata}
+                      onChange={(e) => setUpdateMetadata(e.target.checked)}
+                      className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500"
+                    />
+                    <span>Xác nhận cập nhật Tiêu đề và Khối lớp theo chủ đề AI vừa chọn (&ldquo;{topic}&rdquo;)</span>
+                  </label>
                 </div>
               )}
 

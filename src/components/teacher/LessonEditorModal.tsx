@@ -382,16 +382,16 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       return;
     }
 
-    // Validation with type safety
+    // Validation with type safety (zero-safe nullish coalescing)
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      const safePrompt = String(q.prompt || '').trim();
-      const safeAnswer = String(q.expectedAnswer !== undefined && q.expectedAnswer !== null ? q.expectedAnswer : '').trim();
-      if (!safePrompt) {
+      const safePrompt = String(q.prompt ?? '').trim();
+      const safeAnswer = String(q.expectedAnswer ?? '').trim();
+      if (safePrompt === '') {
         setErrorMsg(`Câu hỏi số ${i + 1} chưa có nội dung câu hỏi.`);
         return;
       }
-      if (!safeAnswer) {
+      if (safeAnswer === '') {
         setErrorMsg(`Câu hỏi số ${i + 1} chưa có đáp án chuẩn.`);
         return;
       }
@@ -400,7 +400,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
           setErrorMsg(`Câu hỏi số ${i + 1} (trắc nghiệm) cần ít nhất 2 phương án lựa chọn.`);
           return;
         }
-        const trimmedOpts = q.options.map((o) => String(o || '').trim()).filter(Boolean);
+        const trimmedOpts = q.options.map((o) => String(o ?? '').trim()).filter((s) => s !== '');
         const uniqueOpts = new Set(trimmedOpts);
         if (uniqueOpts.size < trimmedOpts.length) {
           setErrorMsg(`Câu hỏi số ${i + 1} (trắc nghiệm): Các phương án lựa chọn không được trùng lặp.`);
@@ -884,7 +884,8 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                       const currentMode: 'auto' | 'image' | 'none' = hasImage ? 'image' : (hasAuto ? 'auto' : 'none');
 
                       // Pedagogical check
-                      const numericAnswer = parseInt(q.expectedAnswer.trim(), 10);
+                      const safeAnswerStr = String(q.expectedAnswer ?? '').trim();
+                      const numericAnswer = parseInt(safeAnswerStr, 10);
                       const countWarning =
                         !isNaN(numericAnswer) &&
                         hasAuto &&
@@ -903,8 +904,8 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                       const captionLeaksAnswer =
                         hasImage &&
                         vc?.caption &&
-                        q.expectedAnswer.trim() &&
-                        vc.caption.toLowerCase().includes(q.expectedAnswer.trim().toLowerCase());
+                        safeAnswerStr !== '' &&
+                        vc.caption.toLowerCase().includes(safeAnswerStr.toLowerCase());
 
                       const isLivePreviewOpen = previewOpenIdxs[idx] ?? true;
 
@@ -1584,22 +1585,27 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
           isOpen={isAiDraftOpen}
           onClose={() => setIsAiDraftOpen(false)}
           existingQuestionCount={questions.length}
+          isExistingLesson={isEditing}
+          currentTitle={title}
           onApplyQuestions={(newAiQuestions, meta) => {
-            const chosenTopic = meta?.topic || topic;
-            const chosenGrade = meta?.grade || grade;
-            if (chosenTopic) setTopic(chosenTopic);
-            if (chosenGrade) setGrade(chosenGrade);
+            // Safeguard: Only update title, topic, and grade if brand new lesson (not isEditing) OR teacher explicitly confirmed updateMetadata
+            const shouldUpdateMeta = !isEditing || meta?.updateMetadata === true;
 
-            const isReplace = meta?.applyMode === 'replace' || questions.length === 0 || (questions.length === 1 && questions[0].prompt.includes('Thám tử Cáo có 3 quả táo'));
+            if (shouldUpdateMeta) {
+              if (meta?.topic) setTopic(meta.topic);
+              if (meta?.grade) setGrade(meta.grade);
+              if (meta?.topic) {
+                setTitle(`Bài tập Toán: ${meta.topic}`);
+                if (!learningStandard || learningStandard.includes('Thám tử Cáo')) {
+                  setLearningStandard(`Rèn luyện kỹ năng và chẩn đoán mẫu lỗi chủ đề ${meta.topic} theo chuẩn GDPT 2018`);
+                }
+              }
+            }
+
+            const isReplace = meta?.applyMode === 'replace' || questions.length === 0 || (!isEditing && questions.length === 1 && questions[0].prompt.includes('Thám tử Cáo có 3 quả táo'));
 
             if (isReplace) {
               setQuestions(newAiQuestions.map((q, i) => ({ ...q, order: i + 1 })));
-              if (chosenTopic) {
-                setTitle(`Bài tập Toán: ${chosenTopic}`);
-                if (!learningStandard || learningStandard.includes('Thám tử Cáo')) {
-                  setLearningStandard(`Rèn luyện kỹ năng và chẩn đoán mẫu lỗi chủ đề ${chosenTopic} theo chuẩn GDPT 2018`);
-                }
-              }
             } else {
               const startOrder = questions.length;
               const reindexed = newAiQuestions.map((q, i) => ({

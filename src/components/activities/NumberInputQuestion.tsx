@@ -41,7 +41,7 @@ export const NumberInputQuestion: React.FC<NumberInputQuestionProps> = ({
           Đáp án của em:
         </label>
         <div className="h-20 bg-white rounded-3xl border-4 border-sky-400 shadow-inner flex items-center justify-center text-4xl sm:text-5xl font-black text-sky-800 tracking-wider">
-          {value || <span className="text-slate-300 font-normal text-3xl">?</span>}
+          {(value !== undefined && value !== null && value !== '') ? value : <span className="text-slate-300 font-normal text-3xl">?</span>}
         </div>
       </div>
 
