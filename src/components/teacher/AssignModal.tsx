@@ -53,6 +53,7 @@ export const AssignModal: React.FC<AssignModalProps> = ({
   const [dueDate, setDueDate] = useState<string>(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
+  const [instructions, setInstructions] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -67,6 +68,7 @@ export const AssignModal: React.FC<AssignModalProps> = ({
       setDuplicateWarning(null);
       setAllowReassign(false);
       setSearchQuery('');
+      setInstructions('');
 
       if (initialLesson) {
         setSelectedLesson(initialLesson);
@@ -177,6 +179,8 @@ export const AssignModal: React.FC<AssignModalProps> = ({
   };
 
   const handleAssign = async () => {
+    if (isSubmitting) return;
+
     if (!selectedLesson) {
       setErrorMsg('Vui lòng chọn bài học cần giao từ danh sách.');
       setIsBrowsingLessons(true);
@@ -215,6 +219,7 @@ export const AssignModal: React.FC<AssignModalProps> = ({
           studentId: targetStudent.id,
           studentName: targetStudent.displayName,
           dueDate,
+          instructions: instructions.trim() || undefined,
           allowReassign,
         };
 
@@ -230,6 +235,7 @@ export const AssignModal: React.FC<AssignModalProps> = ({
             classId,
             className: cls?.name || '',
             dueDate,
+            instructions: instructions.trim() || undefined,
             allowReassign,
           };
           await dataService.saveAssignment(assignmentPayload as any);
@@ -590,6 +596,20 @@ export const AssignModal: React.FC<AssignModalProps> = ({
               min={new Date().toISOString().split('T')[0]}
               onChange={(e) => setDueDate(e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 text-sm focus:border-sky-500 focus:outline-hidden"
+            />
+          </div>
+
+          {/* SECTION 4: INSTRUCTIONS */}
+          <div>
+            <label className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5 mb-1.5">
+              <span className="text-sky-600 font-bold">💬</span> 4. Lời dặn của thầy cô (Tùy chọn)
+            </label>
+            <textarea
+              rows={2}
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Ví dụ: Các em nhớ đếm kỹ que tính và đọc kỹ gợi ý của Thám tử Cáo trước khi chọn đáp án nhé!"
+              className="w-full p-3 rounded-xl border-2 border-slate-200 bg-white font-semibold text-slate-800 text-xs focus:border-sky-500 focus:outline-hidden resize-none"
             />
           </div>
         </div>

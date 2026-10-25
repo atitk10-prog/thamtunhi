@@ -234,13 +234,48 @@ export interface Assignment {
   studentName?: string;
   grade: 1 | 2;
   teacherId: string;
+  teacherName?: string;
   dueDate: string;
-  status: 'open' | 'closed' | 'archived';
+  status: 'open' | 'closed' | 'archived' | 'cancelled';
+  instructions?: string;
+  assignedAt?: string;
+  allowRetake?: boolean;
   academicYearId?: string;
   idempotencyKey?: string;
   createdAt: string;
+  updatedAt?: string;
+  totalStudents?: number;
+  submittedCount?: number;
+  notStartedCount?: number;
+  totalAttemptsCount?: number;
   dataOrigin: DataOrigin;
   environmentTag: EnvironmentTag;
+}
+
+export interface AssignmentStudentProgress {
+  studentId: string;
+  studentName: string;
+  studentCode?: string;
+  status: 'not_started' | 'in_progress' | 'completed';
+  attemptsCount: number;
+  bestScore: number | null;
+  lastScore?: number | null;
+  maxScore: number;
+  lastSubmittedAt?: string | null;
+}
+
+export interface AssignmentProgress {
+  assignmentId?: string;
+  assignment?: Assignment;
+  classroom?: any;
+  totalStudents: number;
+  submittedStudentsCount: number;
+  inProgressStudentsCount: number;
+  notStartedStudentsCount: number;
+  totalAttemptsCount: number;
+  averageScore: number;
+  status?: string;
+  studentProgressList: AssignmentStudentProgress[];
 }
 
 export interface Attempt {

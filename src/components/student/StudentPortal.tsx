@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle, Clock, Award, LogOut, Sparkles, BookOpen, Key, RefreshCw, AlertCircle } from 'lucide-react';
+import { Play, CheckCircle, Clock, Award, LogOut, Sparkles, BookOpen, Key, RefreshCw, AlertCircle, Calendar } from 'lucide-react';
 import { Assignment, LessonVersion, Attempt, UserProfile } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
 import { MissionPlayer } from './MissionPlayer';
@@ -16,7 +16,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   onLogout,
 }) => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [attempts, setAttempts] = useState<Record<string, Attempt>>({});
+  const [attempts, setAttempts] = useState<Record<string, Attempt[]>>({});
   const [loading, setLoading] = useState(true);
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
@@ -56,17 +56,30 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       // 1. Fetch assignments strictly for student's class and own private assignments
       const list = await dataService.fetchStudentAssignments(currentUser.classId, currentUser.id);
 
-      // 2. Fetch attempts for current student
-      const attList = await dataService.fetchStudentAttempts(currentUser.id);
-      const attMap: Record<string, Attempt> = {};
-      attList.forEach((att) => {
-        attMap[att.assignmentId] = att;
+      // Exclude cancelled and archived assignments (Requirement A6)
+      const visibleList = list.filter((a) => a.status !== 'cancelled' && a.status !== 'archived');
+
+      // Sort strictly by assignedAt DESC, fallback to createdAt DESC (Requirement A1 & A2)
+      visibleList.sort((a, b) => {
+        const timeA = new Date(a.assignedAt || a.createdAt || 0).getTime();
+        const timeB = new Date(b.assignedAt || b.createdAt || 0).getTime();
+        return timeB - timeA;
       });
 
-      setAssignments(list);
+      // 2. Fetch attempts for current student and group into arrays per assignment
+      const attList = await dataService.fetchStudentAttempts(currentUser.id);
+      const attMap: Record<string, Attempt[]> = {};
+      attList.forEach((att) => {
+        if (!attMap[att.assignmentId]) {
+          attMap[att.assignmentId] = [];
+        }
+        attMap[att.assignmentId].push(att);
+      });
+
+      setAssignments(visibleList);
       setAttempts(attMap);
 
-      if (list.length === 0) {
+      if (visibleList.length === 0) {
         setEmptyReason(
           `Thầy cô lớp ${currentUser.className || ''} chưa giao bài luyện tập mới. Em hãy quay lại sau nhé!`
         );
@@ -229,24 +242,56 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {assignments.map((assignment) => {
-              const attempt = attempts[assignment.id];
-              const isFinished = attempt?.status === 'completed';
-              const isStarted = attempt?.status === 'in_progress';
+              const assignmentAttempts = attempts[assignment.id] || [];
+              const completedAttempts = assignmentAttempts.filter((a) => a.status === 'completed');
+              const inProgressAttempt = assignmentAttempts.find((a) => a.status === 'in_progress');
+              const completedCount = completedAttempts.length;
+
+              // Check if assignment is overdue
+              const isOverdue = Boolean(
+                assignment.dueDate && new Date(assignment.dueDate).getTime() < Date.now()
+              );
+
+              // 4 Distinct States (Requirement A3):
+              // - Đã hoàn thành (completedCount > 0)
+              // - Quá hạn (isOverdue && completedCount === 0)
+              // - Đang làm (inProgressAttempt && completedCount === 0)
+              // - Chưa làm (completedCount === 0 && !inProgressAttempt && !isOverdue)
+              const isFinished = completedCount > 0;
+              const isStarted = !isFinished && Boolean(inProgressAttempt);
+              const isDueExpired = !isFinished && isOverdue;
+
+              const bestAttempt = completedAttempts.reduce<Attempt | null>((best, cur) => {
+                if (!best) return cur;
+                return (cur.score ?? 0) > (best.score ?? 0) ? cur : best;
+              }, null);
 
               return (
                 <div
                   key={assignment.id}
-                  className="bg-white rounded-3xl border-3 border-slate-200 hover:border-sky-400 p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                  className={`bg-white rounded-3xl border-3 p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between ${
+                    isDueExpired
+                      ? 'border-rose-200 hover:border-rose-400'
+                      : isFinished
+                      ? 'border-emerald-200 hover:border-emerald-400'
+                      : 'border-slate-200 hover:border-sky-400'
+                  }`}
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-3">
+                    {/* Top status bar */}
+                    <div className="flex items-center justify-between gap-2 mb-3">
                       <span className="text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
                         Toán Lớp {assignment.grade || currentUser.grade || 1}
                       </span>
 
+                      {/* 4 Distinct Badges */}
                       {isFinished ? (
                         <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Đã xong
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Đã hoàn thành
+                        </span>
+                      ) : isDueExpired ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Quá hạn
                         </span>
                       ) : isStarted ? (
                         <span className="inline-flex items-center gap-1 text-xs font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
@@ -254,27 +299,57 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                          Chưa làm
+                          <BookOpen className="w-3.5 h-3.5 text-slate-400" /> Chưa làm
                         </span>
                       )}
                     </div>
+
+                    {/* Submission count tag (Requirement A4) */}
+                    {completedCount > 0 && (
+                      <div className="mb-2">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black">
+                          <Sparkles className="w-3 h-3 text-indigo-500" /> Đã làm {completedCount} lần
+                        </span>
+                      </div>
+                    )}
 
                     <h4 className="text-lg font-black text-slate-800 mb-2 leading-snug">
                       {assignment.title}
                     </h4>
 
-                    {isFinished && (
+                    {/* Teacher instructions */}
+                    {assignment.instructions && (
+                      <div className="my-2.5 p-2.5 rounded-2xl bg-sky-50/70 border border-sky-100 text-xs text-sky-950 flex items-start gap-1.5">
+                        <span className="font-extrabold text-sky-700 shrink-0">💬 Lời dặn:</span>
+                        <span className="font-semibold text-slate-700">{assignment.instructions}</span>
+                      </div>
+                    )}
+
+                    {/* Best score display */}
+                    {isFinished && bestAttempt && (
                       <div className="my-3 p-3 rounded-2xl bg-amber-50/80 border border-amber-200 flex items-center justify-between">
                         <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-sm">
-                          <Award className="w-4 h-4 text-amber-600" /> Điểm số:
+                          <Award className="w-4 h-4 text-amber-600" /> Điểm cao nhất:
                         </div>
                         <span className="text-lg font-black text-amber-900">
-                          {attempt.score ?? 0}/{(attempt.maxScore && attempt.maxScore > 0) ? attempt.maxScore : (attempt.totalQuestions ? attempt.totalQuestions * 10 : 80)}
+                          {bestAttempt.score ?? 0}/{bestAttempt.maxScore && bestAttempt.maxScore > 0 ? bestAttempt.maxScore : (bestAttempt.totalQuestions ? bestAttempt.totalQuestions * 10 : 80)}
                         </span>
                       </div>
                     )}
+
+                    {/* Due date info */}
+                    <div className="mt-2.5 flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      <span>
+                        {assignment.dueDate ? `Hạn nộp: ${assignment.dueDate}` : 'Không giới hạn thời gian'}
+                      </span>
+                      {isDueExpired && (
+                        <span className="text-rose-600 font-extrabold text-[11px]">(Hết hạn nộp)</span>
+                      )}
+                    </div>
                   </div>
 
+                  {/* Action button */}
                   <div className="mt-6 pt-4 border-t border-slate-100">
                     <button
                       type="button"
@@ -283,11 +358,21 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       className={`w-full py-3.5 px-4 rounded-2xl text-base font-black flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shadow-md ${
                         isFinished
                           ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                          : isDueExpired
+                          ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300'
                           : 'bg-amber-400 hover:bg-amber-500 text-slate-900 shadow-amber-200 ring-2 ring-amber-300'
                       }`}
                     >
                       <Play className="w-4 h-4 fill-current" />
-                      <span>{isFinished ? 'Luyện tập lại' : isStarted ? 'Tiếp tục làm' : 'Bắt đầu phá án'}</span>
+                      <span>
+                        {isFinished
+                          ? (inProgressAttempt ? `Tiếp tục làm lượt ${completedCount + 1}` : 'Luyện tập lại')
+                          : isStarted
+                          ? 'Tiếp tục làm'
+                          : isDueExpired
+                          ? 'Làm bài quá hạn'
+                          : 'Bắt đầu phá án'}
+                      </span>
                     </button>
                   </div>
                 </div>

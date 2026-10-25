@@ -1814,13 +1814,21 @@ app.get('/api/student/assignments', requireAuth, requireRole(['student', 'teache
 
     // ABAC Enforced:
     // A student MUST only see assignments for their whole class OR targeted specifically to them
+    // Requirement A6: Bài đã hủy/lưu trữ không được xuất hiện như một nhiệm vụ đang chờ học sinh làm
     if (user.role === 'student') {
-      assignments = assignments.filter((a) => !a.studentId || a.studentId === user.uid);
+      assignments = assignments.filter((a) => (!a.studentId || a.studentId === user.uid) && a.status !== 'cancelled' && a.status !== 'archived');
     } else if (req.query.studentId) {
       // Teacher/Admin viewing assignments for a specific student in this class
       const targetStudentId = String(req.query.studentId);
       assignments = assignments.filter((a) => !a.studentId || a.studentId === targetStudentId);
     }
+
+    // Requirement A1 & A2: Bài tập được giao mới nhất nằm đầu danh sách, sắp xếp theo assignedAt DESC
+    assignments.sort((a, b) => {
+      const timeA = new Date(a.assignedAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.assignedAt || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
 
     return res.json({ ok: true, assignments });
   } catch (err: any) {
@@ -1998,6 +2006,11 @@ app.post('/api/student/attempts/:id/complete', requireAuth, requireRole(['studen
     const attData: any = attSnap.data();
     if (attData.studentId !== req.user!.uid) {
       return res.status(403).json({ error: 'Từ chối: Không thể sửa bài làm của người khác.' });
+    }
+
+    // Chống nộp trùng do bấm nút liên tục hoặc gửi lại mạng
+    if (attData.status === 'completed') {
+      return res.json({ ok: true, attempt: attData, isDuplicateSubmission: true });
     }
 
     // Preserve or determine actual maxScore
@@ -2642,8 +2655,52 @@ app.get('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']), 
 
 app.get('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const snap = await getDocs(collection(db, 'assignments'));
-    const allAssignments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const [snap, attSnap, usersSnap, classSnap] = await Promise.all([
+      getDocs(collection(db, 'assignments')),
+      getDocs(collection(db, 'attempts')),
+      getDocs(query(collection(db, 'users'), where('role', '==', 'student'))),
+      getDocs(collection(db, 'classes')),
+    ]);
+
+    const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+    const allStudents = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any)).filter((u) => !u.isDeleted);
+    const allClasses = classSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+    const classMap = new Map(allClasses.map((c) => [c.id, c]));
+
+    const allAssignments = snap.docs.map((d) => {
+      const aData: any = { id: d.id, ...d.data() };
+      const assignAttempts = allAttempts.filter((att) => att.assignmentId === d.id);
+      const completedAttempts = assignAttempts.filter((att) => att.status === 'completed');
+      const submittedStudentIds = new Set(completedAttempts.map((att) => att.studentId));
+      const submittedCount = submittedStudentIds.size;
+      const totalAttemptsCount = completedAttempts.length;
+
+      let totalStudents = 0;
+      if (aData.studentId) {
+        totalStudents = 1;
+      } else {
+        const clsStudents = allStudents.filter((s) => s.classId === aData.classId);
+        const cls = classMap.get(aData.classId);
+        totalStudents = clsStudents.length > 0 ? clsStudents.length : (cls?.studentCount || 0);
+      }
+      const notStartedCount = Math.max(0, totalStudents - submittedCount);
+
+      return {
+        ...aData,
+        totalStudents,
+        submittedCount,
+        notStartedCount,
+        totalAttemptsCount,
+      };
+    });
+
+    // Sort strictly by assignedAt DESC (fallback to createdAt DESC)
+    allAssignments.sort((a, b) => {
+      const timeA = new Date(a.assignedAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.assignedAt || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
+
     const filtered = req.user?.role === 'admin'
       ? allAssignments
       : allAssignments.filter((a: any) => a.teacherId === req.user?.uid);
@@ -2737,6 +2794,7 @@ app.post('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin
       ? req.body.id
       : `assign-${lessonId}-${classId}${studentId ? '-' + studentId : ''}-${timestamp.toString().slice(-6)}`;
 
+    const nowIso = new Date().toISOString();
     const assignmentPayload: any = {
       id: assignmentId,
       title: title || `[Toán ${lessonData.grade}] ${lessonData.title}`,
@@ -2748,9 +2806,11 @@ app.post('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin
       teacherId: req.user?.uid,
       teacherName: req.user?.displayName || 'Giáo viên',
       dueDate: cleanDueDate,
+      instructions: typeof req.body.instructions === 'string' ? req.body.instructions.trim() : '',
       status: 'open',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      assignedAt: nowIso,
+      createdAt: nowIso,
+      updatedAt: nowIso,
       dataOrigin: 'real',
       environmentTag: 'production',
     };
@@ -2821,6 +2881,383 @@ app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']),
   } catch (err: any) {
     console.error('Save lesson version error:', err);
     return res.status(500).json({ error: 'Lỗi lưu bài học: ' + err.message });
+  }
+});
+
+// 2b. Edit Assignment Endpoint (Teacher & Admin)
+app.put('/api/teacher/assignments/:id', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { dueDate, instructions, status, classId, lessonId } = req.body;
+
+    const assignRef = doc(db, 'assignments', id);
+    const assignSnap = await getDoc(assignRef);
+    if (!assignSnap.exists()) {
+      return res.status(404).json({ error: 'Đợt giao bài không tồn tại trong hệ thống.' });
+    }
+    const assignData: any = assignSnap.data();
+
+    // Permission check
+    if (req.user?.role !== 'admin' && assignData.teacherId !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền chỉnh sửa bài giao của giáo viên khác.' });
+    }
+
+    // Check if attempts already exist when attempting to alter class or lesson
+    const attSnap = await getDocs(query(collection(db, 'attempts'), where('assignmentId', '==', id)));
+    const hasAttempts = !attSnap.empty;
+
+    if (hasAttempts) {
+      if ((classId && classId !== assignData.classId) || (lessonId && lessonId !== assignData.lessonId)) {
+        return res.status(400).json({
+          code: 'ASSIGNMENT_IN_PROGRESS_RESTRICTED',
+          error: 'Học sinh đã bắt đầu làm bài cho đợt giao này. Để bảo vệ kết quả và điểm số của học sinh, không thể đổi lớp nhận hoặc bài học. Thầy/Cô có thể điều chỉnh hạn nộp và hướng dẫn.',
+        });
+      }
+    }
+
+    const updates: any = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (dueDate !== undefined) updates.dueDate = String(dueDate).trim();
+    if (instructions !== undefined) updates.instructions = String(instructions).trim();
+    if (status !== undefined && ['open', 'closed', 'cancelled', 'archived'].includes(status)) {
+      updates.status = status;
+    }
+    if (classId && !hasAttempts) updates.classId = classId;
+    if (lessonId && !hasAttempts) updates.lessonId = lessonId;
+
+    await setDoc(assignRef, updates, { merge: true });
+
+    await writeAuditLog({
+      action: 'UPDATE_ASSIGNMENT',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'assignments',
+      targetId: id,
+      targetName: assignData.title,
+      details: `Cập nhật đợt giao bài "${assignData.title}": hạn nộp ${updates.dueDate || assignData.dueDate}, trạng thái ${updates.status || assignData.status}.`,
+    });
+
+    return res.json({ ok: true, assignment: { ...assignData, ...updates } });
+  } catch (err: any) {
+    console.error('Update assignment error:', err);
+    return res.status(500).json({ error: 'Lỗi cập nhật bài giao: ' + err.message });
+  }
+});
+
+// 2c. Cancel Assignment Endpoint (Teacher & Admin)
+app.post('/api/teacher/assignments/:id/cancel', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const assignRef = doc(db, 'assignments', id);
+    const assignSnap = await getDoc(assignRef);
+    if (!assignSnap.exists()) {
+      return res.status(404).json({ error: 'Đợt giao bài không tồn tại trong hệ thống.' });
+    }
+    const assignData: any = assignSnap.data();
+
+    // Permission check
+    if (req.user?.role !== 'admin' && assignData.teacherId !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền hủy bài giao của giáo viên khác.' });
+    }
+
+    const updates = {
+      status: 'cancelled',
+      updatedAt: new Date().toISOString(),
+    };
+    await setDoc(assignRef, updates, { merge: true });
+
+    await writeAuditLog({
+      action: 'CANCEL_ASSIGNMENT',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'assignments',
+      targetId: id,
+      targetName: assignData.title,
+      details: `Hủy đợt giao bài "${assignData.title}". Bài tập sẽ ẩn khỏi danh sách học sinh nhưng dữ liệu làm bài cũ được bảo toàn.`,
+    });
+
+    return res.json({
+      ok: true,
+      message: 'Đã hủy đợt giao bài thành công. Học sinh sẽ không còn thấy bài tập này trong danh sách chờ làm.',
+    });
+  } catch (err: any) {
+    console.error('Cancel assignment error:', err);
+    return res.status(500).json({ error: 'Lỗi hủy đợt giao bài: ' + err.message });
+  }
+});
+
+// 2d. Delete Assignment Endpoint (Strict Rule: Only if 0 attempts exist)
+app.delete('/api/teacher/assignments/:id', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const assignRef = doc(db, 'assignments', id);
+    const assignSnap = await getDoc(assignRef);
+    if (!assignSnap.exists()) {
+      return res.status(404).json({ error: 'Đợt giao bài không tồn tại trong hệ thống.' });
+    }
+    const assignData: any = assignSnap.data();
+
+    // Permission check
+    if (req.user?.role !== 'admin' && assignData.teacherId !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền xóa bài giao của giáo viên khác.' });
+    }
+
+    // Protection rule: Check if any attempts exist
+    const attSnap = await getDocs(query(collection(db, 'attempts'), where('assignmentId', '==', id)));
+    if (!attSnap.empty) {
+      return res.status(400).json({
+        code: 'CANNOT_DELETE_ASSIGNMENT_WITH_ATTEMPTS',
+        error: `Đợt giao bài này đã có ${attSnap.size} lượt làm bài của học sinh. Để bảo toàn lịch sử học tập và điểm số, hệ thống không cho phép xóa vĩnh viễn. Thầy/Cô vui lòng chọn "Hủy giao bài" để ẩn bài tập khỏi học sinh.`,
+        attemptsCount: attSnap.size,
+      });
+    }
+
+    await deleteDoc(assignRef);
+
+    await writeAuditLog({
+      action: 'DELETE_ASSIGNMENT',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'assignments',
+      targetId: id,
+      targetName: assignData.title,
+      details: `Xóa hoàn toàn đợt giao bài chưa có lượt làm: "${assignData.title}".`,
+    });
+
+    return res.json({ ok: true, deletedId: id });
+  } catch (err: any) {
+    console.error('Delete assignment error:', err);
+    return res.status(500).json({ error: 'Lỗi xóa đợt giao bài: ' + err.message });
+  }
+});
+
+// 2e. Assignment Progress & Detailed Roster Tracking Endpoint
+app.get('/api/teacher/assignments/:id/progress', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const assignSnap = await getDoc(doc(db, 'assignments', id));
+    if (!assignSnap.exists()) {
+      return res.status(404).json({ error: 'Đợt giao bài không tồn tại.' });
+    }
+    const assignment: any = { id: assignSnap.id, ...assignSnap.data() };
+
+    // Permission check
+    if (req.user?.role !== 'admin' && assignment.teacherId !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền xem tiến độ của bài giao này.' });
+    }
+
+    // 1. Fetch class students
+    const [classDoc, usersSnap, attSnap] = await Promise.all([
+      getDoc(doc(db, 'classes', assignment.classId)),
+      getDocs(query(collection(db, 'users'), where('classId', '==', assignment.classId), where('role', '==', 'student'))),
+      getDocs(query(collection(db, 'attempts'), where('assignmentId', '==', id))),
+    ]);
+
+    const classroom: any = classDoc.exists() ? { id: classDoc.id, ...classDoc.data() } : null;
+    let targetStudents = usersSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as any))
+      .filter((u) => !u.isDeleted);
+
+    // If targeted to a single student
+    if (assignment.studentId) {
+      targetStudents = targetStudents.filter((u) => u.id === assignment.studentId);
+    }
+
+    const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+
+    // Map each student's attempts and submission count
+    const studentProgress = targetStudents.map((student) => {
+      const studentAttempts = allAttempts.filter((a) => a.studentId === student.id);
+      const completedAttempts = studentAttempts.filter((a) => a.status === 'completed');
+      const inProgressAttempts = studentAttempts.filter((a) => a.status === 'in_progress');
+
+      // Sort attempts descending by completion or start time
+      studentAttempts.sort((a, b) => new Date(b.completedAt || b.startedAt || 0).getTime() - new Date(a.completedAt || a.startedAt || 0).getTime());
+
+      const latestAttempt = studentAttempts[0] || null;
+      const bestScore = completedAttempts.length > 0
+        ? Math.max(...completedAttempts.map((a) => Number(a.score) || 0))
+        : null;
+
+      let studentStatus: 'completed' | 'in_progress' | 'not_started' = 'not_started';
+      if (completedAttempts.length > 0) studentStatus = 'completed';
+      else if (inProgressAttempts.length > 0) studentStatus = 'in_progress';
+
+      return {
+        id: student.id,
+        displayName: student.displayName || 'Học sinh',
+        studentCode: student.studentCode || '',
+        classId: student.classId,
+        className: classroom?.name || assignment.className || '',
+        status: studentStatus,
+        submissionsCount: completedAttempts.length,
+        bestScore,
+        maxScore: latestAttempt?.maxScore || 80,
+        latestSubmittedAt: completedAttempts[0]?.completedAt || null,
+        attempts: studentAttempts,
+      };
+    });
+
+    const submittedStudentsCount = studentProgress.filter((s) => s.status === 'completed').length;
+    const inProgressStudentsCount = studentProgress.filter((s) => s.status === 'in_progress').length;
+    const notStartedStudentsCount = studentProgress.filter((s) => s.status === 'not_started').length;
+    const totalSubmissionsCount = allAttempts.filter((a) => a.status === 'completed').length;
+
+    const scoresList = studentProgress.map((s) => s.bestScore).filter((sc): sc is number => sc !== null);
+    const avgScore = scoresList.length > 0
+      ? Math.round((scoresList.reduce((sum, s) => sum + s, 0) / scoresList.length) * 10) / 10
+      : null;
+
+    const stats = {
+      totalStudents: targetStudents.length,
+      submittedStudentsCount,
+      inProgressStudentsCount,
+      notStartedStudentsCount,
+      totalSubmissionsCount,
+      avgScore,
+      highestScore: scoresList.length > 0 ? Math.max(...scoresList) : null,
+    };
+
+    return res.json({
+      ok: true,
+      assignment,
+      classroom,
+      stats,
+      students: studentProgress,
+    });
+  } catch (err: any) {
+    console.error('Fetch assignment progress error:', err);
+    return res.status(500).json({ error: 'Lỗi tải tiến độ bài giao: ' + err.message });
+  }
+});
+
+// 2f. Delete Lesson Endpoint (Strict Rule: Only if 0 assignments and 0 attempts exist)
+app.delete('/api/teacher/lessons/:id', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lessonRef = doc(db, 'lessons', id);
+    const lessonSnap = await getDoc(lessonRef);
+    if (!lessonSnap.exists()) {
+      return res.status(404).json({ error: 'Bài học không tồn tại trong kho học liệu.' });
+    }
+    const lessonData: any = lessonSnap.data();
+
+    // Permission check
+    if (req.user?.role !== 'admin' && lessonData.createdBy !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền xóa bài học của giáo viên khác.' });
+    }
+
+    // In-use Protection Check
+    const [aSnap, attSnap] = await Promise.all([
+      getDocs(query(collection(db, 'assignments'), where('lessonId', '==', id))),
+      getDocs(query(collection(db, 'attempts'), where('lessonId', '==', id))),
+    ]);
+
+    if (!aSnap.empty || !attSnap.empty) {
+      return res.status(400).json({
+        code: 'LESSON_IN_USE',
+        error: `Bài học "${lessonData.title}" đã được giao (${aSnap.size} đợt giao) hoặc đã phát sinh kết quả làm bài (${attSnap.size} lượt làm). Để bảo toàn lịch sử học tập của học sinh, Thầy/Cô không thể xóa vĩnh viễn. Vui lòng chọn "Lưu trữ bài học".`,
+        assignmentsCount: aSnap.size,
+        attemptsCount: attSnap.size,
+      });
+    }
+
+    // Delete versions
+    const versionsSnap = await getDocs(query(collection(db, 'lessonVersions'), where('lessonId', '==', id)));
+    for (const vDoc of versionsSnap.docs) {
+      await deleteDoc(doc(db, 'lessonVersions', vDoc.id));
+    }
+
+    await deleteDoc(lessonRef);
+
+    await writeAuditLog({
+      action: 'DELETE_LESSON',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'lessons',
+      targetId: id,
+      targetName: lessonData.title,
+      details: `Xóa hoàn toàn bài học chưa sử dụng: "${lessonData.title}".`,
+    });
+
+    return res.json({ ok: true, deletedId: id });
+  } catch (err: any) {
+    console.error('Delete lesson error:', err);
+    return res.status(500).json({ error: 'Lỗi xóa bài học: ' + err.message });
+  }
+});
+
+// 2g. Archive & Unarchive Lesson Endpoints
+app.post('/api/teacher/lessons/:id/archive', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lessonRef = doc(db, 'lessons', id);
+    const lessonSnap = await getDoc(lessonRef);
+    if (!lessonSnap.exists()) {
+      return res.status(404).json({ error: 'Bài học không tồn tại.' });
+    }
+    const lessonData: any = lessonSnap.data();
+
+    if (req.user?.role !== 'admin' && lessonData.createdBy !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền lưu trữ bài học của giáo viên khác.' });
+    }
+
+    await setDoc(lessonRef, { status: 'archived', updatedAt: new Date().toISOString() }, { merge: true });
+
+    await writeAuditLog({
+      action: 'ARCHIVE_LESSON',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'lessons',
+      targetId: id,
+      targetName: lessonData.title,
+      details: `Lưu trữ bài học "${lessonData.title}". Giữ nguyên toàn bộ lịch sử điểm và kết quả bài làm.`,
+    });
+
+    return res.json({ ok: true, message: `Đã lưu trữ bài học "${lessonData.title}" thành công.` });
+  } catch (err: any) {
+    console.error('Archive lesson error:', err);
+    return res.status(500).json({ error: 'Lỗi lưu trữ bài học: ' + err.message });
+  }
+});
+
+app.post('/api/teacher/lessons/:id/unarchive', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lessonRef = doc(db, 'lessons', id);
+    const lessonSnap = await getDoc(lessonRef);
+    if (!lessonSnap.exists()) {
+      return res.status(404).json({ error: 'Bài học không tồn tại.' });
+    }
+    const lessonData: any = lessonSnap.data();
+
+    if (req.user?.role !== 'admin' && lessonData.createdBy !== req.user?.uid) {
+      return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền khôi phục bài học của giáo viên khác.' });
+    }
+
+    await setDoc(lessonRef, { status: 'published', updatedAt: new Date().toISOString() }, { merge: true });
+
+    await writeAuditLog({
+      action: 'UNARCHIVE_LESSON',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'lessons',
+      targetId: id,
+      targetName: lessonData.title,
+      details: `Khôi phục bài học "${lessonData.title}" từ trạng thái lưu trữ sang xuất bản.`,
+    });
+
+    return res.json({ ok: true, message: `Đã khôi phục bài học "${lessonData.title}" thành công.` });
+  } catch (err: any) {
+    console.error('Unarchive lesson error:', err);
+    return res.status(500).json({ error: 'Lỗi khôi phục bài học: ' + err.message });
   }
 });
 

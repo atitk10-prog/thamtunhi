@@ -99,11 +99,9 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         // Fallback to fresh attempt initialization
       }
 
-      // 2. Deterministic attempt ID for idempotency: attempt-{assignmentId}-{studentId}
-      const newAttemptId = `att-${assignment.id}-${currentUser.id}`;
-      setAttemptId(newAttemptId);
-
-      // Do NOT create real attempt doc in preview mode
+      // 2. Fetch student attempts to check if an in-progress or completed attempt exists
+      let newAttemptId = `att-${assignment.id}-${currentUser.id}`;
+      
       const isPreview = Boolean(
         assignment.id === 'preview-assignment' ||
         assignment.id.startsWith('preview') ||
@@ -114,6 +112,33 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
       if (!isPreview) {
         try {
+          const studentAttempts = await dataService.fetchStudentAttempts(currentUser.id).catch(() => []);
+          const existingInProgress = studentAttempts.find(
+            (a) => a.assignmentId === assignment.id && a.status === 'in_progress'
+          );
+
+          if (existingInProgress) {
+            setAttemptId(existingInProgress.id);
+            if (typeof existingInProgress.currentQuestionIndex === 'number' && existingInProgress.currentQuestionIndex < questions.length) {
+              setCurrentIndex(existingInProgress.currentQuestionIndex);
+            }
+            if (typeof existingInProgress.score === 'number') {
+              setScore(existingInProgress.score);
+            }
+            return;
+          }
+
+          const completedCount = studentAttempts.filter(
+            (a) => a.assignmentId === assignment.id && a.status === 'completed'
+          ).length;
+
+          // If student has already completed before, generate a distinct new attempt ID
+          if (completedCount > 0) {
+            newAttemptId = `att-${assignment.id}-${currentUser.id}-${Date.now()}`;
+          }
+
+          setAttemptId(newAttemptId);
+
           const attemptDoc: Attempt = {
             id: newAttemptId,
             assignmentId: assignment.id,
@@ -139,7 +164,10 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
           await dataService.createAttempt(attemptDoc);
         } catch (err) {
           console.error('Failed to init attempt:', err);
+          setAttemptId(newAttemptId);
         }
+      } else {
+        setAttemptId(newAttemptId);
       }
     }
 

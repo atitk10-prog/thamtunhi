@@ -17,6 +17,11 @@ import {
   AlertCircle,
   RefreshCw,
   User,
+  Trash2,
+  Archive,
+  ArchiveRestore,
+  Ban,
+  MessageSquare,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { Lesson, LessonVersion, Classroom, UserProfile, Assignment } from '../../types';
@@ -28,6 +33,8 @@ import { MisconceptionAnalytics } from './MisconceptionAnalytics';
 import { ClassRosterView } from './ClassRosterView';
 import { MissionPlayer } from '../student/MissionPlayer';
 import { TeacherAccountModal } from './TeacherAccountModal';
+import { EditAssignmentModal } from './EditAssignmentModal';
+import { AssignmentProgressModal } from './AssignmentProgressModal';
 
 interface TeacherPortalProps {
   currentUser: UserProfile;
@@ -55,6 +62,19 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const [teacherProfile, setTeacherProfile] = useState<UserProfile>(currentUser);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
+  // Assignment Management Modals
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  const [progressAssignment, setProgressAssignment] = useState<Assignment | null>(null);
+
+  // Confirmation Modal
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    actionLabel: string;
+    danger?: boolean;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
+
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
@@ -62,6 +82,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
   // Filters
   const [gradeFilter, setGradeFilter] = useState<'all' | 1 | 2>('all');
+  const [lessonStatusFilter, setLessonStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals
@@ -145,6 +166,99 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
     }
   };
 
+  // Lesson Management Handlers (Requirements B & C)
+  const handleArchiveLesson = (lesson: Lesson) => {
+    setConfirmModal({
+      title: 'Lưu trữ bài học',
+      message: `Bạn có muốn lưu trữ bài học "${lesson.title}"? Bài học sẽ được cất giữ an toàn, bảo vệ toàn bộ điểm số của các đợt làm bài trước đó và ẩn khỏi danh sách giao bài mới.`,
+      actionLabel: 'Lưu trữ bài học',
+      danger: false,
+      onConfirm: async () => {
+        try {
+          await dataService.archiveLesson(lesson.id);
+          await fetchData();
+          showToast('Đã lưu trữ bài học thành công.', 'success');
+        } catch (err: any) {
+          showToast(err.message || 'Lỗi khi lưu trữ bài học.', 'error');
+        }
+      },
+    });
+  };
+
+  const handleUnarchiveLesson = async (lesson: Lesson) => {
+    try {
+      await dataService.unarchiveLesson(lesson.id);
+      await fetchData();
+      showToast('Đã khôi phục bài học về trạng thái hoạt động.', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Lỗi khi khôi phục bài học.', 'error');
+    }
+  };
+
+  const handleDeleteLesson = (lesson: Lesson) => {
+    setConfirmModal({
+      title: 'Xóa bài học chưa sử dụng',
+      message: `Bạn có chắc chắn muốn xóa bài học "${lesson.title}"? Quy tắc an toàn: Hệ thống sẽ từ chối xóa nếu bài học đã được giao hoặc đã có học sinh làm bài.`,
+      actionLabel: 'Xác nhận xóa',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await dataService.deleteLesson(lesson.id);
+          await fetchData();
+          showToast('Đã xóa bài học thành công.', 'success');
+        } catch (err: any) {
+          showToast(err.message || 'Không thể xóa bài học đã phát sinh kết quả. Vui lòng chọn Lưu trữ để bảo toàn dữ liệu.', 'error');
+        }
+      },
+    });
+  };
+
+  // Assignment Management Handlers (Requirement B)
+  const handleCancelAssignment = (a: Assignment) => {
+    if (a.status === 'cancelled') {
+      showToast('Bài giao này đã ở trạng thái hủy.', 'info');
+      return;
+    }
+    setConfirmModal({
+      title: 'Hủy đợt giao bài',
+      message: `Bạn có chắc chắn muốn hủy đợt giao bài "${a.title}"? Bài tập sẽ lập tức biến mất khỏi danh sách nhiệm vụ của học sinh. Toàn bộ điểm số và lịch sử làm bài đã có vẫn được bảo toàn nguyên vẹn trong hệ thống.`,
+      actionLabel: 'Xác nhận hủy bài',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await dataService.cancelAssignment(a.id);
+          await fetchData();
+          showToast('Đã hủy đợt giao bài thành công.', 'success');
+        } catch (err: any) {
+          showToast(err.message || 'Lỗi khi hủy bài giao.', 'error');
+        }
+      },
+    });
+  };
+
+  const handleDeleteAssignment = (a: Assignment) => {
+    const hasAttempts = (a.totalAttemptsCount && a.totalAttemptsCount > 0) || (a.submittedCount && a.submittedCount > 0);
+    if (hasAttempts) {
+      showToast('Bài giao này đã phát sinh lượt làm bài. Vui lòng chọn "Hủy giao bài" thay vì xóa để bảo toàn lịch sử và điểm số của học sinh.', 'error');
+      return;
+    }
+    setConfirmModal({
+      title: 'Xóa đợt giao bài',
+      message: `Bạn có chắc chắn muốn xóa vĩnh viễn đợt giao bài "${a.title}"? Do chưa có học sinh nào làm bài, đợt giao này sẽ được xóa hoàn toàn.`,
+      actionLabel: 'Xóa vĩnh viễn',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await dataService.deleteAssignment(a.id);
+          await fetchData();
+          showToast('Đã xóa đợt giao bài thành công.', 'success');
+        } catch (err: any) {
+          showToast(err.message || 'Lỗi khi xóa bài giao.', 'error');
+        }
+      },
+    });
+  };
+
   // Filter lessons
   const filteredLessons = lessons.filter((l) => {
     const matchesGrade = gradeFilter === 'all' || l.grade === gradeFilter;
@@ -152,7 +266,13 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
       !searchQuery.trim() ||
       l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       l.topic.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesGrade && matchesQuery;
+    const matchesStatus =
+      lessonStatusFilter === 'all'
+        ? true
+        : lessonStatusFilter === 'archived'
+        ? l.status === 'archived'
+        : l.status !== 'archived';
+    return matchesGrade && matchesQuery && matchesStatus;
   });
 
   // If in Preview as Student mode
@@ -328,6 +448,36 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                     Lớp 2
                   </button>
                 </div>
+
+                <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setLessonStatusFilter('active')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      lessonStatusFilter === 'active' ? 'bg-white shadow-xs text-sky-800' : 'text-slate-600'
+                    }`}
+                  >
+                    Đang dùng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLessonStatusFilter('archived')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      lessonStatusFilter === 'archived' ? 'bg-white shadow-xs text-sky-800' : 'text-slate-600'
+                    }`}
+                  >
+                    Đã lưu trữ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLessonStatusFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      lessonStatusFilter === 'all' ? 'bg-white shadow-xs text-sky-800' : 'text-slate-600'
+                    }`}
+                  >
+                    Tất cả ({lessons.length})
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-3">
@@ -406,15 +556,48 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                         >
                           <Edit3 className="w-3.5 h-3.5" /> Biên tập
                         </button>
+                        {lesson.status === 'archived' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleUnarchiveLesson(lesson)}
+                            title="Khôi phục bài học về trạng thái hoạt động"
+                            className="p-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 cursor-pointer transition-colors"
+                          >
+                            <ArchiveRestore className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleArchiveLesson(lesson)}
+                            title="Lưu trữ bài học (bảo vệ lịch sử và ẩn khỏi danh sách giao bài)"
+                            className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 cursor-pointer transition-colors"
+                          >
+                            <Archive className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteLesson(lesson)}
+                          title="Xóa bài học chưa sử dụng"
+                          className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleOpenAssign(lesson, null, null)}
-                        className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
-                      >
-                        <Send className="w-3.5 h-3.5" /> Giao bài
-                      </button>
+                      {lesson.status === 'archived' ? (
+                        <span className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 font-extrabold text-xs">
+                          Đã lưu trữ
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAssign(lesson, null, null)}
+                          className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Giao bài
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -545,50 +728,152 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-500 uppercase text-[11px] font-black border-b border-slate-200">
                       <tr>
-                        <th className="px-6 py-4">Tên bài giao</th>
-                        <th className="px-6 py-4">Lớp nhận</th>
-                        <th className="px-6 py-4">Khối</th>
-                        <th className="px-6 py-4">Hạn nộp</th>
-                        <th className="px-6 py-4">Trạng thái</th>
+                        <th className="px-5 py-4">Tên bài giao & Lời dặn</th>
+                        <th className="px-4 py-4">Lớp nhận</th>
+                        <th className="px-4 py-4">Khối</th>
+                        <th className="px-5 py-4">Tiến độ nộp bài</th>
+                        <th className="px-4 py-4">Hạn nộp</th>
+                        <th className="px-4 py-4">Trạng thái</th>
+                        <th className="px-4 py-4 text-right">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
                       {assignments.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                          <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
                             Chưa có đợt giao bài nào.
                           </td>
                         </tr>
                       ) : (
-                        assignments.map((a) => (
-                          <tr key={a.id} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="px-6 py-4 font-bold text-slate-900">
-                              {a.title}
-                              {a.studentName && (
-                                <span className="ml-2 text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                                  Riêng: {a.studentName}
+                        assignments.map((a) => {
+                          const isCancelled = a.status === 'cancelled';
+                          const isClosed = a.status === 'closed';
+                          const isOverdue = a.dueDate ? new Date(a.dueDate).getTime() < Date.now() : false;
+                          const totalStudents = a.totalStudents ?? 0;
+                          const submittedCount = a.submittedCount ?? 0;
+                          const notStartedCount = a.notStartedCount ?? Math.max(0, totalStudents - submittedCount);
+                          const totalAttempts = a.totalAttemptsCount ?? 0;
+                          const isCreatorOrAdmin = currentUser.role === 'admin' || a.teacherId === currentUser.id;
+
+                          return (
+                            <tr key={a.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-5 py-4 max-w-xs">
+                                <div className="font-bold text-slate-900 leading-snug">
+                                  {a.title}
+                                  {a.studentName && (
+                                    <span className="ml-2 text-[11px] font-extrabold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                      Riêng: {a.studentName}
+                                    </span>
+                                  )}
+                                </div>
+                                {a.instructions && (
+                                  <div className="mt-1 text-[11px] text-slate-500 line-clamp-1 flex items-center gap-1 font-medium">
+                                    <MessageSquare className="w-3 h-3 text-sky-500 shrink-0" />
+                                    <span>{a.instructions}</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-4">
+                                <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 font-extrabold text-xs border border-sky-100">
+                                  Lớp {a.className || a.classId}
                                 </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 font-extrabold text-xs">
-                                Lớp {a.className || a.classId}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">Lớp {a.grade || 1}</td>
-                            <td className="px-6 py-4 text-xs font-bold text-slate-600">
-                              {a.dueDate || 'Không giới hạn'}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Đang mở
-                              </span>
-                            </td>
-                          </tr>
-                        ))
+                              </td>
+                              <td className="px-4 py-4 font-bold text-slate-600">Lớp {a.grade || 1}</td>
+                              <td className="px-5 py-4">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-slate-800 text-xs">
+                                      {submittedCount} / {totalStudents} HS
+                                    </span>
+                                    <span className="text-[11px] text-emerald-600 font-bold">
+                                      ({totalStudents > 0 ? Math.round((submittedCount / totalStudents) * 100) : 0}%)
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                                    <span>Chưa làm: <strong className="text-slate-700">{notStartedCount}</strong></span>
+                                    <span>•</span>
+                                    <span>Tổng lượt: <strong className="text-indigo-600">{totalAttempts}</strong></span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 text-xs font-bold text-slate-600">
+                                {a.dueDate ? (
+                                  <div>
+                                    <div>{a.dueDate}</div>
+                                    {isOverdue && !isCancelled && (
+                                      <span className="text-[10px] text-rose-500 font-extrabold">(Quá hạn)</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400">Không giới hạn</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-4">
+                                {isCancelled ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">
+                                    <Ban className="w-3.5 h-3.5" /> Đã hủy
+                                  </span>
+                                ) : isClosed ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-700 border border-slate-200">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" /> Đã đóng
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Đang mở
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setProgressAssignment(a)}
+                                    title="Xem tiến độ làm bài chi tiết"
+                                    className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 cursor-pointer transition-colors border border-sky-200"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+
+                                  {isCreatorOrAdmin && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingAssignment(a)}
+                                        title="Sửa hạn nộp & lời dặn"
+                                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-colors border border-slate-200"
+                                      >
+                                        <Edit3 className="w-4 h-4" />
+                                      </button>
+
+                                      {!isCancelled && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCancelAssignment(a)}
+                                          title="Hủy giao bài (giữ nguyên điểm và lịch sử)"
+                                          className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 cursor-pointer transition-colors border border-amber-200"
+                                        >
+                                          <Ban className="w-4 h-4" />
+                                        </button>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteAssignment(a)}
+                                        title="Xóa bài giao (chỉ xóa được nếu chưa có lượt làm)"
+                                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 cursor-pointer transition-colors border border-rose-200"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -701,6 +986,71 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
           showToast('Đã cập nhật thông tin thành công!', 'success');
         }}
       />
+
+      {/* Edit Assignment Modal */}
+      <EditAssignmentModal
+        isOpen={Boolean(editingAssignment)}
+        assignment={editingAssignment}
+        onClose={() => setEditingAssignment(null)}
+        onUpdated={() => {
+          fetchData();
+          showToast('Đã cập nhật đợt giao bài thành công!', 'success');
+        }}
+      />
+
+      {/* Assignment Progress Modal */}
+      <AssignmentProgressModal
+        isOpen={Boolean(progressAssignment)}
+        assignment={progressAssignment}
+        onClose={() => setProgressAssignment(null)}
+      />
+
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-2xl p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-3">
+              {confirmModal.danger ? (
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+              )}
+              <h4 className="text-lg font-black text-slate-800">{confirmModal.title}</h4>
+            </div>
+            <p className="text-sm font-semibold text-slate-600 mb-6 leading-relaxed">
+              {confirmModal.message}
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const action = confirmModal.onConfirm;
+                  setConfirmModal(null);
+                  await action();
+                }}
+                className={`px-5 py-2 rounded-xl text-white text-xs font-black cursor-pointer shadow-sm transition-all active:scale-95 ${
+                  confirmModal.danger
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-amber-500 hover:bg-amber-600'
+                }`}
+              >
+                {confirmModal.actionLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Toast Notification */}
       {toast && (

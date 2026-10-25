@@ -307,6 +307,118 @@ export const dataService = {
     return data.assignment;
   },
 
+  async updateAssignment(id: string, updates: { dueDate?: string; instructions?: string; status?: 'open' | 'closed' | 'cancelled' | 'archived'; classId?: string; lessonId?: string }): Promise<Assignment> {
+    const res = await fetch(`/api/teacher/assignments/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi cập nhật đợt giao bài.');
+    }
+    const data = await res.json();
+    return data.assignment;
+  },
+
+  async cancelAssignment(id: string): Promise<any> {
+    const res = await fetch(`/api/teacher/assignments/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi hủy đợt giao bài.');
+    }
+    return res.json();
+  },
+
+  async deleteAssignment(id: string): Promise<any> {
+    const res = await fetch(`/api/teacher/assignments/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const errorObj = new Error(err.error || 'Lỗi xóa đợt giao bài.');
+      (errorObj as any).code = err.code;
+      (errorObj as any).attemptsCount = err.attemptsCount;
+      throw errorObj;
+    }
+    return res.json();
+  },
+
+  async fetchAssignmentProgress(id: string): Promise<any> {
+    const res = await fetch(`/api/teacher/assignments/${encodeURIComponent(id)}/progress`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi tải tiến độ bài giao.');
+    }
+    const resData = await res.json();
+    return {
+      assignment: resData.assignment,
+      classroom: resData.classroom,
+      totalStudents: resData.stats?.totalStudents || 0,
+      submittedStudentsCount: resData.stats?.submittedStudentsCount || 0,
+      inProgressStudentsCount: resData.stats?.inProgressStudentsCount || 0,
+      notStartedStudentsCount: resData.stats?.notStartedStudentsCount || 0,
+      totalAttemptsCount: resData.stats?.totalSubmissionsCount || 0,
+      averageScore: resData.stats?.avgScore || 0,
+      studentProgressList: (resData.students || []).map((s: any) => ({
+        studentId: s.id,
+        studentName: s.displayName,
+        studentCode: s.studentCode,
+        status: s.status,
+        attemptsCount: s.submissionsCount || 0,
+        bestScore: s.bestScore,
+        maxScore: s.maxScore || 80,
+        lastSubmittedAt: s.latestSubmittedAt,
+      })),
+    };
+  },
+
+  async deleteLesson(id: string): Promise<any> {
+    const res = await fetch(`/api/teacher/lessons/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const errorObj = new Error(err.error || 'Lỗi xóa bài học.');
+      (errorObj as any).code = err.code;
+      (errorObj as any).assignmentsCount = err.assignmentsCount;
+      (errorObj as any).attemptsCount = err.attemptsCount;
+      throw errorObj;
+    }
+    return res.json();
+  },
+
+  async archiveLesson(id: string): Promise<any> {
+    const res = await fetch(`/api/teacher/lessons/${encodeURIComponent(id)}/archive`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi lưu trữ bài học.');
+    }
+    return res.json();
+  },
+
+  async unarchiveLesson(id: string): Promise<any> {
+    const res = await fetch(`/api/teacher/lessons/${encodeURIComponent(id)}/unarchive`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi khôi phục bài học.');
+    }
+    return res.json();
+  },
+
   async updateTeacherProfile(displayName: string, phone?: string): Promise<any> {
     const res = await fetch('/api/teacher/profile', {
       method: 'PATCH',
@@ -1008,3 +1120,4 @@ export const dataService = {
     return res.json();
   },
 };
+
