@@ -357,15 +357,27 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       </div>
                     )}
 
-                    {/* Best score display */}
+                    {/* Best and Latest score display */}
                     {isFinished && bestAttempt && (
-                      <div className="my-3 p-3 rounded-2xl bg-amber-50/80 border border-amber-200 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-sm">
-                          <Award className="w-4 h-4 text-amber-600" /> Điểm cao nhất:
+                      <div className="my-3 p-3 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
+                            <Award className="w-4 h-4 text-amber-600" /> Điểm cao nhất:
+                          </div>
+                          <span className="text-sm font-black text-amber-900">
+                            {bestAttempt.score ?? 0}/{bestAttempt.maxScore && bestAttempt.maxScore > 0 ? bestAttempt.maxScore : (bestAttempt.totalQuestions ? bestAttempt.totalQuestions * 10 : 80)}
+                          </span>
                         </div>
-                        <span className="text-lg font-black text-amber-900">
-                          {bestAttempt.score ?? 0}/{bestAttempt.maxScore && bestAttempt.maxScore > 0 ? bestAttempt.maxScore : (bestAttempt.totalQuestions ? bestAttempt.totalQuestions * 10 : 80)}
-                        </span>
+                        {latestCompletedAttempt && completedCount > 1 && (
+                          <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-xs">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-bold">
+                              <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> Điểm gần nhất:
+                            </div>
+                            <span className="font-black text-slate-800">
+                              {latestCompletedAttempt.score ?? 0}/{latestCompletedAttempt.maxScore && latestCompletedAttempt.maxScore > 0 ? latestCompletedAttempt.maxScore : (latestCompletedAttempt.totalQuestions ? latestCompletedAttempt.totalQuestions * 10 : 80)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
 

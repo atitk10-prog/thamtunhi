@@ -2419,7 +2419,7 @@ app.get('/api/student/lesson-version/:versionId', requireAuth, async (req: Reque
 
 app.post('/api/student/attempts', requireAuth, requireRole(['student']), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id, assignmentId, lessonVersionId, classId, studentId, totalQuestions, maxScore } = req.body;
+    const { id, assignmentId, lessonId: rawLessonId, lessonVersionId, classId, studentId, totalQuestions, maxScore } = req.body;
     if (studentId && studentId !== req.user!.uid) {
       return res.status(403).json({ error: 'Từ chối truy cập: Không thể mạo danh tài khoản học sinh khác.' });
     }
@@ -2430,12 +2430,18 @@ app.post('/api/student/attempts', requireAuth, requireRole(['student']), async (
     // Determine actual questions count and maxScore from lesson version or payload
     let computedTotalQuestions = Number(totalQuestions || 0);
     let computedMaxScore = Number(maxScore || 0);
+    let resolvedLessonId = rawLessonId || '';
+    let resolvedClassId = classId || req.user!.classId || '';
 
     if (lessonVersionId) {
       try {
         const vSnap = await getDoc(doc(db, 'lessonVersions', lessonVersionId));
         if (vSnap.exists()) {
-          const qList: any[] = vSnap.data()?.questions || [];
+          const vData = vSnap.data();
+          if (!resolvedLessonId && vData?.lessonId) {
+            resolvedLessonId = vData.lessonId;
+          }
+          const qList: any[] = vData?.questions || [];
           if (qList.length > 0) {
             computedTotalQuestions = qList.length;
             computedMaxScore = qList.reduce((sum: number, q: any) => sum + (Number(q.points) || 10), 0);
@@ -2445,6 +2451,20 @@ app.post('/api/student/attempts', requireAuth, requireRole(['student']), async (
         console.warn('Notice: Failed to fetch lesson version for maxScore:', err);
       }
     }
+
+    if (!resolvedLessonId && assignmentId) {
+      try {
+        const assSnap = await getDoc(doc(db, 'assignments', assignmentId));
+        if (assSnap.exists()) {
+          const assData = assSnap.data();
+          if (assData.lessonId) resolvedLessonId = assData.lessonId;
+          if (!resolvedClassId && assData.classId) resolvedClassId = assData.classId;
+        }
+      } catch (err) {
+        console.warn('Notice: Failed to fetch assignment for lessonId:', err);
+      }
+    }
+
     if (!computedMaxScore) {
       computedMaxScore = computedTotalQuestions > 0 ? computedTotalQuestions * 10 : 80;
     }
@@ -2452,8 +2472,9 @@ app.post('/api/student/attempts', requireAuth, requireRole(['student']), async (
     const attemptDoc = {
       id,
       assignmentId,
+      lessonId: resolvedLessonId,
       lessonVersionId,
-      classId: classId || req.user!.classId || '',
+      classId: resolvedClassId,
       studentId: req.user!.uid, // Strictly enforced caller UID
       studentName: req.user!.displayName,
       studentCode: req.user!.studentCode || '',
@@ -3802,6 +3823,8 @@ app.get('/api/teacher/assignments/:id/progress', requireAuth, requireRole(['teac
         submissionsCount: completedAttempts.length,
         attemptsCount: completedAttempts.length,
         bestScore,
+        latestScore: latestCompleted ? Number(latestCompleted.score ?? 0) : null,
+        lastScore: latestCompleted ? Number(latestCompleted.score ?? 0) : null,
         maxScore: latestCompleted?.maxScore || latestAttempt?.maxScore || 80,
         latestSubmittedAt: latestCompleted?.completedAt || null,
         lastSubmittedAt: latestCompleted?.completedAt || null,
@@ -3978,7 +4001,7 @@ const MEDIA_LIBRARY_FILE = path.resolve(__dirname, 'data', 'media_library.json')
 const CUSTOM_CATEGORIES_FILE = path.resolve(__dirname, 'data', 'custom_categories.json');
 const ASSETS_MANIFEST_FILE = path.resolve(__dirname, 'public', 'assets', 'toan-nhi', 'assets_manifest.json');
 
-// Map legacy media IDs to standard 60 asset filenames to eliminate legacy 404s
+// Map legacy media IDs to standard asset filenames to eliminate legacy 404s
 const LEGACY_MEDIA_MAP: Record<string, string> = {
   'media-fruit-apple-red': 'apple-red.png',
   'media-fruit-orange': 'orange-fruit.png',
@@ -3991,19 +4014,19 @@ const LEGACY_MEDIA_MAP: Record<string, string> = {
   'media-item-ruler': 'ruler-wood.png',
   'media-frame-five': 'math-tenframe-empty.svg',
   'media-frame-ten': 'math-tenframe-empty.svg',
-  'media-stick-single': 'math-counting-stick-single.svg',
-  'media-stick-bundle-10': 'math-counting-stick-bundle10.svg',
-  'media-geo-square': 'math-shape-circle-blue.svg',
+  'media-stick-single': 'counting-stick-single.png',
+  'media-stick-bundle-10': 'counting-stick-bundle10.png',
+  'media-geo-square': 'math-shape-square-red.svg',
   'media-geo-circle': 'math-shape-circle-blue.svg',
   'media-geo-triangle': 'math-shape-triangle-yellow.svg',
-  'media-clock-8am': 'math-clock-face-blank.svg',
-  'media-money-1000': 'math-number-card-blank.svg',
-  'media-money-2000': 'math-number-card-blank.svg',
-  'media-money-5000': 'math-number-card-blank.svg',
-  'media-money-10000': 'math-number-card-blank.svg',
-  'media-money-20000': 'math-number-card-blank.svg',
-  'media-money-50000': 'math-number-card-blank.svg',
-  'media-money-100000': 'math-number-card-blank.svg',
+  'media-clock-8am': 'clock-8h.png',
+  'media-money-1000': 'money-1000-front.png',
+  'media-money-2000': 'money-2000.png',
+  'media-money-5000': 'money-5000.png',
+  'media-money-10000': 'money-10000.png',
+  'media-money-20000': 'money-20000.png',
+  'media-money-50000': 'money-50000.png',
+  'media-money-100000': 'money-100000.png',
 };
 
 // Cache for loaded standard manifest items
@@ -4014,10 +4037,12 @@ function getStandardManifestAssets(): any[] {
     return cachedStandardAssets;
   }
   try {
+    const list: any[] = [];
+    const basePath = '/assets/toan-nhi/';
+
+    // 1. Basic manifest (60 primary assets)
     if (fs.existsSync(ASSETS_MANIFEST_FILE)) {
       const manifest = JSON.parse(fs.readFileSync(ASSETS_MANIFEST_FILE, 'utf8'));
-      const list: any[] = [];
-      const basePath = manifest.assetBasePath || '/assets/toan-nhi/';
       for (const group of manifest.groups || []) {
         for (const item of group.items || []) {
           const isSvg = item.file.endsWith('.svg');
@@ -4048,11 +4073,66 @@ function getStandardManifestAssets(): any[] {
           });
         }
       }
-      cachedStandardAssets = list;
-      return list;
     }
+
+    // 2. Math manifest (29 items: clocks, counting sticks, dots, polymer money)
+    const mathManifestFile = path.resolve(__dirname, 'public', 'assets', 'toan-nhi', 'assets_manifest_math.json');
+    if (fs.existsSync(mathManifestFile)) {
+      const mathManifest = JSON.parse(fs.readFileSync(mathManifestFile, 'utf8'));
+      for (const item of mathManifest.assets || []) {
+        if (!list.some(it => it.url === item.url || it.url.endsWith(item.file))) {
+          list.push({
+            id: `std-${item.group}-${item.file.replace(/\.[^/.]+$/, '')}`,
+            title: item.label,
+            category: item.group,
+            url: `${basePath}${item.file}`,
+            mimeType: item.format === 'svg' ? 'image/svg+xml' : 'image/png',
+            sizeBytes: 88000,
+            width: 256,
+            height: 256,
+            uploadedBy: 'system',
+            uploadedAt: '2026-03-01T00:00:00.000Z',
+            isStandardAsset: true,
+            countable: item.kind === 'repeatable-sprite',
+            countUnit: item.group === 'counting_sticks' ? 'que' : (item.group === 'money_measurement' ? 'tờ' : 'chiếc'),
+            aliases: [item.label],
+            description: `Tài nguyên đồ họa chuẩn môn Toán tiểu học: ${item.label}`,
+          });
+        }
+      }
+    }
+
+    // 3. Money SGK manifest (8 items: 100, 200, 500, 1000 front & back)
+    const sgkMoneyManifestFile = path.resolve(__dirname, 'public', 'assets', 'toan-nhi', 'assets_manifest_money_sgk.json');
+    if (fs.existsSync(sgkMoneyManifestFile)) {
+      const sgkMoneyManifest = JSON.parse(fs.readFileSync(sgkMoneyManifestFile, 'utf8'));
+      for (const item of sgkMoneyManifest.assets || []) {
+        if (!list.some(it => it.url.endsWith(item.file))) {
+          list.push({
+            id: `std-money-${item.file.replace(/\.[^/.]+$/, '')}`,
+            title: item.label,
+            category: 'money_measurement',
+            url: `${basePath}${item.file}`,
+            mimeType: 'image/png',
+            sizeBytes: 450000,
+            width: 320,
+            height: 160,
+            uploadedBy: 'system',
+            uploadedAt: '2026-03-01T00:00:00.000Z',
+            isStandardAsset: true,
+            countable: Boolean(item.preferredForCounting),
+            countUnit: 'tờ',
+            aliases: [`${item.denomination} đồng`],
+            description: `Tài nguyên tiền tệ chuẩn SGK Toán 2: ${item.label}`,
+          });
+        }
+      }
+    }
+
+    cachedStandardAssets = list;
+    return list;
   } catch (err) {
-    console.warn('Notice: Failed reading assets_manifest.json in server:', err);
+    console.warn('Notice: Failed reading assets manifests in server:', err);
   }
   return [];
 }

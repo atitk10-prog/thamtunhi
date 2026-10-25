@@ -33,10 +33,10 @@ export const MEDIA_CATEGORIES: CategoryDef[] = [
   { id: 'animals', label: 'Động vật', icon: '🐶', standardCount: 12 },
   { id: 'school', label: 'Đồ dùng học tập', icon: '🎒', standardCount: 10 },
   { id: 'nature', label: 'Thiên nhiên', icon: '🌿', standardCount: 8 },
-  { id: 'counting_sticks', label: 'Que tính', icon: '🥢', standardCount: 2 },
-  { id: 'geometry', label: 'Hình học', icon: '📐', standardCount: 7 },
-  { id: 'clock_time', label: 'Đồng hồ – Thời gian', icon: '⏰', standardCount: 1 },
-  { id: 'money_measurement', label: 'Tiền tệ', icon: '💵', standardCount: 0 },
+  { id: 'counting_sticks', label: 'Que tính', icon: '🥢', standardCount: 4 },
+  { id: 'geometry', label: 'Hình học', icon: '📐', standardCount: 9 },
+  { id: 'clock_time', label: 'Đồng hồ – Thời gian', icon: '⏰', standardCount: 18 },
+  { id: 'money_measurement', label: 'Tiền Việt Nam', icon: '💵', standardCount: 14 },
   { id: 'backgrounds', label: 'Phông cảnh', icon: '🏞️', standardCount: 5 },
 ];
 

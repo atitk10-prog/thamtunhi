@@ -361,9 +361,16 @@ export const AssignmentProgressModal: React.FC<AssignmentProgressModalProps> = (
                             </td>
                             <td className="px-4 py-3 text-right">
                               {s.status === 'completed' ? (
-                                <span className="font-black text-sm text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-xl border border-amber-200">
-                                  {s.bestScore} / {s.maxScore || 80}
-                                </span>
+                                <div className="inline-flex flex-col items-end">
+                                  <span className="font-black text-xs text-amber-900 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                                    Cao nhất: {s.bestScore} / {s.maxScore || 80}
+                                  </span>
+                                  {s.attemptsCount > 1 && s.lastScore !== undefined && s.lastScore !== null && (
+                                    <span className="text-[10px] text-slate-500 font-bold mt-0.5">
+                                      Gần nhất: {s.lastScore}đ
+                                    </span>
+                                  )}
+                                </div>
                               ) : (
                                 <span className="text-slate-300 font-bold">—</span>
                               )}

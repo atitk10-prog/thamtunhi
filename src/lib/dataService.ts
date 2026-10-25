@@ -442,6 +442,7 @@ export const dataService = {
         status: s.status,
         attemptsCount: s.attemptsCount ?? (s.submissionsCount || 0),
         bestScore: s.bestScore,
+        lastScore: s.lastScore ?? s.latestScore ?? null,
         maxScore: s.maxScore || 80,
         lastSubmittedAt: s.lastSubmittedAt || s.latestSubmittedAt,
       })),
