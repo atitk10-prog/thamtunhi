@@ -1,0 +1,282 @@
+{
+  "version": "2.0.0",
+  "description": "29 ảnh PNG Toán tiểu học; tên tệp khớp các tên hệ thống Thám Tử Toán Nhí đang tìm; không có khung 5/10 ô",
+  "assets": [
+    {
+      "file": "money-1000.png",
+      "label": "Thẻ tiền 1.000 đồng",
+      "group": "money_measurement",
+      "value": 1000,
+      "format": "png",
+      "kind": "learning-card",
+      "url": "/assets/toan-nhi/money-1000.png"
+    },
+    {
+      "file": "money-2000.png",
+      "label": "Thẻ tiền 2.000 đồng",
+      "group": "money_measurement",
+      "value": 2000,
+      "format": "png",
+      "kind": "learning-card",
+      "url": "/assets/toan-nhi/money-2000.png"
+    },
+    {
+      "file": "money-5000.png",
+      "label": "Thẻ tiền 5.000 đồng",
+      "group": "money_measurement",
+      "value": 5000,
+      "format": "png",
+      "kind": "learning-card",
+      "url": "/assets/toan-nhi/money-5000.png"
+    },
+    {
+      "file": "money-10000.png",
+      "label": "Thẻ tiền 10.000 đồng",
+      "group": "money_measurement",
+      "value": 10000,
+      "format": "png",
+      "kind": "learning-card",
+      "url": "/assets/toan-nhi/money-10000.png"
+    },
+    {
+      "file": "money-20000.png",
+      "label": "Thẻ tiền 20.000 đồng",
+      "group": "money_measurement",
+      "value": 20000,
+      "format": "png",
+      "kind": "learning-card",
+      "url": "/assets/toan-nhi/money-20000.png"
+    },
+    {
+      "file": "money-50000.png",
+      "label": "Thẻ tiền 50.000 đồng",
+      "group": "money_measurement",
+      "value": 50000,
+      "format": "png",
+      "kind": "learning-card",
+      "url": "/assets/toan-nhi/money-50000.png"
+    },
+    {
+      "file": "money-100000.png",
+      "label": "Thẻ tiền 100.000 đồng",
+      "group": "money_measurement",
+      "value": 100000,
+      "format": "png",
+      "kind": "learning-card",
+      "url": "/assets/toan-nhi/money-100000.png"
+    },
+    {
+      "file": "money-200000.png",
+      "label": "Thẻ tiền 200.000 đồng",
+      "group": "money_measurement",
+      "value": 200000,
+      "format": "png",
+      "kind": "learning-card",
+      "url": "/assets/toan-nhi/money-200000.png"
+    },
+    {
+      "file": "money-500000.png",
+      "label": "Thẻ tiền 500.000 đồng",
+      "group": "money_measurement",
+      "value": 500000,
+      "format": "png",
+      "kind": "learning-card",
+      "url": "/assets/toan-nhi/money-500000.png"
+    },
+    {
+      "file": "clock-1h.png",
+      "label": "Đồng hồ 1 giờ đúng",
+      "group": "clock_time",
+      "hour": 1,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-1h.png"
+    },
+    {
+      "file": "clock-2h.png",
+      "label": "Đồng hồ 2 giờ đúng",
+      "group": "clock_time",
+      "hour": 2,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-2h.png"
+    },
+    {
+      "file": "clock-3h.png",
+      "label": "Đồng hồ 3 giờ đúng",
+      "group": "clock_time",
+      "hour": 3,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-3h.png"
+    },
+    {
+      "file": "clock-4h.png",
+      "label": "Đồng hồ 4 giờ đúng",
+      "group": "clock_time",
+      "hour": 4,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-4h.png"
+    },
+    {
+      "file": "clock-5h.png",
+      "label": "Đồng hồ 5 giờ đúng",
+      "group": "clock_time",
+      "hour": 5,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-5h.png"
+    },
+    {
+      "file": "clock-6h.png",
+      "label": "Đồng hồ 6 giờ đúng",
+      "group": "clock_time",
+      "hour": 6,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-6h.png"
+    },
+    {
+      "file": "clock-7h.png",
+      "label": "Đồng hồ 7 giờ đúng",
+      "group": "clock_time",
+      "hour": 7,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-7h.png"
+    },
+    {
+      "file": "clock-8h.png",
+      "label": "Đồng hồ 8 giờ đúng",
+      "group": "clock_time",
+      "hour": 8,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-8h.png"
+    },
+    {
+      "file": "clock-9h.png",
+      "label": "Đồng hồ 9 giờ đúng",
+      "group": "clock_time",
+      "hour": 9,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-9h.png"
+    },
+    {
+      "file": "clock-10h.png",
+      "label": "Đồng hồ 10 giờ đúng",
+      "group": "clock_time",
+      "hour": 10,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-10h.png"
+    },
+    {
+      "file": "clock-11h.png",
+      "label": "Đồng hồ 11 giờ đúng",
+      "group": "clock_time",
+      "hour": 11,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-11h.png"
+    },
+    {
+      "file": "clock-12h.png",
+      "label": "Đồng hồ 12 giờ đúng",
+      "group": "clock_time",
+      "hour": 12,
+      "minute": 0,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-12h.png"
+    },
+    {
+      "file": "clock-1h30.png",
+      "label": "Đồng hồ 1 giờ 30 phút",
+      "group": "clock_time",
+      "hour": 1,
+      "minute": 30,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-1h30.png"
+    },
+    {
+      "file": "clock-3h30.png",
+      "label": "Đồng hồ 3 giờ 30 phút",
+      "group": "clock_time",
+      "hour": 3,
+      "minute": 30,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-3h30.png"
+    },
+    {
+      "file": "clock-6h30.png",
+      "label": "Đồng hồ 6 giờ 30 phút",
+      "group": "clock_time",
+      "hour": 6,
+      "minute": 30,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-6h30.png"
+    },
+    {
+      "file": "clock-9h30.png",
+      "label": "Đồng hồ 9 giờ 30 phút",
+      "group": "clock_time",
+      "hour": 9,
+      "minute": 30,
+      "format": "png",
+      "kind": "clock-face",
+      "url": "/assets/toan-nhi/clock-9h30.png"
+    },
+    {
+      "file": "clock-face-blank.png",
+      "label": "Mặt đồng hồ trống",
+      "group": "clock_time",
+      "format": "png",
+      "kind": "dynamic-clock-template",
+      "url": "/assets/toan-nhi/clock-face-blank.png"
+    },
+    {
+      "file": "counting-stick-single.png",
+      "label": "Một que tính",
+      "group": "counting_sticks",
+      "format": "png",
+      "kind": "repeatable-sprite",
+      "countUnit": 1,
+      "url": "/assets/toan-nhi/counting-stick-single.png"
+    },
+    {
+      "file": "counting-stick-bundle10.png",
+      "label": "Một bó mười que tính",
+      "group": "counting_sticks",
+      "format": "png",
+      "kind": "repeatable-sprite",
+      "countUnit": 10,
+      "url": "/assets/toan-nhi/counting-stick-bundle10.png"
+    },
+    {
+      "file": "counting-dot-blue.png",
+      "label": "Một chấm tròn xanh (không có khung)",
+      "group": "geometry",
+      "format": "png",
+      "kind": "repeatable-sprite",
+      "countUnit": 1,
+      "url": "/assets/toan-nhi/counting-dot-blue.png"
+    }
+  ]
+}

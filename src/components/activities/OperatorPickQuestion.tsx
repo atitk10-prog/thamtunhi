@@ -19,7 +19,7 @@ export const OperatorPickQuestion: React.FC<OperatorPickQuestionProps> = ({
 
   return (
     <div className="w-full flex flex-col items-center">
-      <VisualCounters config={question.visualConfig} />
+      <VisualCounters config={question.visualConfig} questionPrompt={question.prompt} />
 
       <div className="text-center text-sm font-bold text-slate-500 mb-4 uppercase tracking-wider">
         Chạm chọn dấu thích hợp:

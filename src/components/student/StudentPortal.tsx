@@ -66,7 +66,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         return timeB - timeA;
       });
 
-      // 2. Fetch attempts for current student and group into arrays per assignment
+      // 2. Fetch attempts for current student and index by assignmentId AND lessonId
       const attList = await dataService.fetchStudentAttempts(currentUser.id);
       const attMap: Record<string, Attempt[]> = {};
       attList.forEach((att) => {
@@ -74,6 +74,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           attMap[att.assignmentId] = [];
         }
         attMap[att.assignmentId].push(att);
+        if (att.lessonId && att.lessonId !== att.assignmentId) {
+          const lessonKey = `lesson:${att.lessonId}`;
+          if (!attMap[lessonKey]) {
+            attMap[lessonKey] = [];
+          }
+          attMap[lessonKey].push(att);
+        }
       });
 
       setAssignments(visibleList);
@@ -242,10 +249,25 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {assignments.map((assignment) => {
-              const assignmentAttempts = attempts[assignment.id] || [];
-              const completedAttempts = assignmentAttempts.filter((a) => a.status === 'completed');
+              const directAttempts = attempts[assignment.id] || [];
+              const lessonAttempts = assignment.lessonId ? (attempts[`lesson:${assignment.lessonId}`] || []) : [];
+              const seenAttIds = new Set<string>();
+              const assignmentAttempts: Attempt[] = [];
+              [...directAttempts, ...lessonAttempts].forEach((a) => {
+                if (!seenAttIds.has(a.id)) {
+                  seenAttIds.add(a.id);
+                  assignmentAttempts.push(a);
+                }
+              });
+
+              // Requirement 3: Only count completed attempts with completion timestamp. In-progress / F5 / abandon are excluded.
+              const completedAttempts = assignmentAttempts.filter((a) => a.status === 'completed' && Boolean(a.completedAt));
               const inProgressAttempt = assignmentAttempts.find((a) => a.status === 'in_progress');
               const completedCount = completedAttempts.length;
+
+              // Sort completed attempts to get latest submission time
+              completedAttempts.sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime());
+              const latestCompletedAttempt = completedAttempts[0] || null;
 
               // Check if assignment is overdue
               const isOverdue = Boolean(
@@ -309,6 +331,16 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       <div className="mb-2">
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black">
                           <Sparkles className="w-3 h-3 text-indigo-500" /> Đã làm {completedCount} lần
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Latest attempt timestamp (Requirement 2) */}
+                    {isFinished && latestCompletedAttempt?.completedAt && (
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                        <Clock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        <span>
+                          Lần làm gần nhất: <strong className="text-slate-700">{new Date(latestCompletedAttempt.completedAt).toLocaleDateString('vi-VN')} {new Date(latestCompletedAttempt.completedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</strong>
                         </span>
                       </div>
                     )}

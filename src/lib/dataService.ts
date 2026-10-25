@@ -245,11 +245,79 @@ export const dataService = {
     return [];
   },
 
-  async fetchTeacherLessons(): Promise<Lesson[]> {
+  async fetchTeacherLessons(dataOrigin: 'real' | 'simulation' | 'all' = 'real'): Promise<Lesson[]> {
+    const originParam = `?dataOrigin=${dataOrigin}`;
+    try {
+      const res = await fetch(`/api/teacher/lessons${originParam}`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.lessons || [];
+      }
+    } catch (apiErr) {
+      console.warn('API fetchTeacherLessons fallback to client SDK:', apiErr);
+    }
+
     if (auth.currentUser) {
       try {
-        const snap = await getDocs(collection(db, 'lessons'));
-        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lesson));
+        const [lSnap, aSnap, attSnap, cSnap] = await Promise.all([
+          getDocs(collection(db, 'lessons')),
+          getDocs(collection(db, 'assignments')),
+          getDocs(collection(db, 'attempts')),
+          getDocs(collection(db, 'classes')),
+        ]);
+        const allClasses = cSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        const classMap = new Map(allClasses.map((c) => [c.id, c]));
+        const allAssignments = aSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+
+        const isRealAttempt = (att: any) => att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation');
+        const isSimAttempt = (att: any) => att.dataOrigin === 'simulation' || att.id.startsWith('att-demo-');
+
+        let targetAttempts = allAttempts;
+        if (dataOrigin === 'real') {
+          targetAttempts = allAttempts.filter(isRealAttempt);
+        } else if (dataOrigin === 'simulation') {
+          targetAttempts = allAttempts.filter(isSimAttempt);
+        }
+
+        const completedAttempts = targetAttempts.filter((att) => att.status === 'completed' && Boolean(att.completedAt));
+
+        return lSnap.docs.map((d) => {
+          const lData: any = { id: d.id, ...d.data() };
+          const lessonAssignments = allAssignments.filter((a) => a.lessonId === d.id && a.status !== 'cancelled');
+          const lessonAssignmentIds = new Set(lessonAssignments.map((a) => a.id));
+          const assignedClassIds = new Set<string>();
+          lessonAssignments.forEach((a) => {
+            if (a.classId) assignedClassIds.add(a.classId);
+          });
+          const assignedClasses = Array.from(assignedClassIds).map((cid) => ({
+            id: cid,
+            name: classMap.get(cid)?.name || cid,
+          }));
+          const matchingAttempts = completedAttempts.filter((att) =>
+            att.lessonId === d.id || (att.assignmentId && lessonAssignmentIds.has(att.assignmentId))
+          );
+          const completedStudentIds = new Set(matchingAttempts.map((att) => att.studentId));
+          const scores = matchingAttempts.map((att) => Number(att.score)).filter((sc) => !isNaN(sc) && sc >= 0);
+          const avgScore = scores.length > 0
+            ? Math.round((scores.reduce((sum, sc) => sum + sc, 0) / scores.length) * 10) / 10
+            : null;
+
+          return {
+            ...lData,
+            stats: {
+              completedStudentsCount: completedStudentIds.size,
+              totalSubmissionsCount: matchingAttempts.length,
+              avgScore,
+              assignedClassesCount: assignedClassIds.size,
+              assignedClasses,
+              assignmentIds: Array.from(lessonAssignmentIds),
+              dataOriginScope: dataOrigin,
+            },
+          } as Lesson;
+        });
       } catch (err: any) {
         if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
           throw err;
@@ -257,17 +325,23 @@ export const dataService = {
       }
     }
 
-    const res = await fetch('/api/teacher/lessons', {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
-      throw new Error('Không thể tải thư viện bài học.');
-    }
-    const data = await res.json();
-    return data.lessons || [];
+    return [];
   },
 
-  async fetchTeacherAssignments(teacherId: string): Promise<Assignment[]> {
+  async fetchTeacherAssignments(teacherId: string, dataOrigin: 'real' | 'simulation' | 'all' = 'real'): Promise<Assignment[]> {
+    const originParam = `?dataOrigin=${dataOrigin}&teacherId=${encodeURIComponent(teacherId)}`;
+    try {
+      const res = await fetch(`/api/teacher/assignments${originParam}`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.assignments || [];
+      }
+    } catch (apiErr) {
+      console.warn('API fetchTeacherAssignments fallback to client SDK:', apiErr);
+    }
+
     if (auth.currentUser) {
       try {
         const snap = await getDocs(collection(db, 'assignments'));
@@ -279,15 +353,7 @@ export const dataService = {
         }
       }
     }
-
-    const res = await fetch(`/api/teacher/assignments?teacherId=${encodeURIComponent(teacherId)}`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
-      throw new Error('Không thể tải danh sách bài tập đã giao.');
-    }
-    const data = await res.json();
-    return data.assignments || [];
+    return [];
   },
 
   async saveAssignment(assignmentDoc: Partial<Assignment> & { allowReassign?: boolean }): Promise<Assignment> {
@@ -348,8 +414,9 @@ export const dataService = {
     return res.json();
   },
 
-  async fetchAssignmentProgress(id: string): Promise<any> {
-    const res = await fetch(`/api/teacher/assignments/${encodeURIComponent(id)}/progress`, {
+  async fetchAssignmentProgress(id: string, dataOrigin?: 'real' | 'simulation' | 'all'): Promise<any> {
+    const originParam = dataOrigin ? `?dataOrigin=${dataOrigin}` : '';
+    const res = await fetch(`/api/teacher/assignments/${encodeURIComponent(id)}/progress${originParam}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -360,6 +427,8 @@ export const dataService = {
     return {
       assignment: resData.assignment,
       classroom: resData.classroom,
+      stats: resData.stats,
+      dataOriginScope: resData.stats?.dataOriginScope || dataOrigin || 'all',
       totalStudents: resData.stats?.totalStudents || 0,
       submittedStudentsCount: resData.stats?.submittedStudentsCount || 0,
       inProgressStudentsCount: resData.stats?.inProgressStudentsCount || 0,
@@ -367,14 +436,14 @@ export const dataService = {
       totalAttemptsCount: resData.stats?.totalSubmissionsCount || 0,
       averageScore: resData.stats?.avgScore || 0,
       studentProgressList: (resData.students || []).map((s: any) => ({
-        studentId: s.id,
-        studentName: s.displayName,
+        studentId: s.studentId || s.id,
+        studentName: s.studentName || s.displayName,
         studentCode: s.studentCode,
         status: s.status,
-        attemptsCount: s.submissionsCount || 0,
+        attemptsCount: s.attemptsCount ?? (s.submissionsCount || 0),
         bestScore: s.bestScore,
         maxScore: s.maxScore || 80,
-        lastSubmittedAt: s.latestSubmittedAt,
+        lastSubmittedAt: s.lastSubmittedAt || s.latestSubmittedAt,
       })),
     };
   },
@@ -758,33 +827,73 @@ export const dataService = {
     });
   },
 
-  async fetchTeacherAnalytics(teacherId: string): Promise<{ attempts: Attempt[]; insights: MistakeInsight[] }> {
-    if (auth.currentUser) {
-      try {
-        const attSnap = await getDocs(collection(db, 'attempts'));
-        const insSnap = await getDocs(collection(db, 'mistakeInsights'));
+  async fetchTeacherAnalytics(teacherId: string): Promise<{
+    attempts: Attempt[];
+    insights: MistakeInsight[];
+    assignments: Assignment[];
+    classes: any[];
+    students: Array<{ id: string; displayName: string; studentCode?: string; classId: string; grade: number; status?: string }>;
+    attemptAnswers: any[];
+    academicYears: any[];
+    lessons: Array<{ id: string; title: string; grade: number; topic?: string; status?: string }>;
+  }> {
+    try {
+      const res = await fetch(`/api/teacher/analytics?teacherId=${encodeURIComponent(teacherId)}`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
         return {
-          attempts: attSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Attempt)),
-          insights: insSnap.docs.map((d) => ({ id: d.id, ...d.data() } as MistakeInsight)),
+          attempts: data.attempts || [],
+          insights: data.insights || [],
+          assignments: data.assignments || [],
+          classes: data.classes || [],
+          students: data.students || [],
+          attemptAnswers: data.attemptAnswers || [],
+          academicYears: data.academicYears || [],
+          lessons: data.lessons || [],
         };
-      } catch (err: any) {
-        if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
-          throw err;
-        }
       }
+    } catch (err) {
+      console.warn('Backend analytics proxy error, falling back to direct Firestore:', err);
     }
 
-    const res = await fetch(`/api/teacher/analytics?teacherId=${encodeURIComponent(teacherId)}`, {
+    // Direct Firestore fallback
+    const [attSnap, insSnap, clsSnap, asgSnap] = await Promise.all([
+      getDocs(collection(db, 'attempts')).catch(() => ({ docs: [] as any[] })),
+      getDocs(collection(db, 'mistakeInsights')).catch(() => ({ docs: [] as any[] })),
+      getDocs(collection(db, 'classes')).catch(() => ({ docs: [] as any[] })),
+      getDocs(collection(db, 'assignments')).catch(() => ({ docs: [] as any[] })),
+    ]);
+
+    return {
+      attempts: (attSnap as any).docs.map((d: any) => ({ id: d.id, ...d.data() } as Attempt)),
+      insights: (insSnap as any).docs.map((d: any) => ({ id: d.id, ...d.data() } as MistakeInsight)),
+      assignments: (asgSnap as any).docs.map((d: any) => ({ id: d.id, ...d.data() } as Assignment)),
+      classes: (clsSnap as any).docs.map((d: any) => ({ id: d.id, ...d.data() })),
+      students: [],
+      attemptAnswers: [],
+      academicYears: [],
+      lessons: [],
+    };
+  },
+
+  async createReinforcementDraft(params: {
+    grade: number;
+    patterns: string[];
+    topic?: string;
+    title?: string;
+  }): Promise<{ ok: boolean; lesson: Lesson; version: LessonVersion; message: string }> {
+    const res = await fetch('/api/teacher/create-reinforcement-draft', {
+      method: 'POST',
       headers: getAuthHeaders(),
+      body: JSON.stringify(params),
     });
     if (!res.ok) {
-      throw new Error('Không thể tải số liệu phân tích lỗi sai.');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Lỗi tạo bài củng cố bản nháp.');
     }
-    const data = await res.json();
-    return {
-      attempts: data.attempts || [],
-      insights: data.insights || [],
-    };
+    return res.json();
   },
 
   async fetchClassStudents(classId: string): Promise<{ class: any; students: any[]; assignments: any[] }> {

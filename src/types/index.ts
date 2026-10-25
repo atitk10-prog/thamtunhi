@@ -173,7 +173,14 @@ export interface Question {
   interactionType: InteractionType;
   visualConfig?: VisualAssetConfig;
   options?: string[]; // Cho single_choice, operator_pick
-  pairs?: { left: string; right: string }[]; // Cho expression_match
+  pairs?: {
+    left: string;
+    right: string;
+    count?: number;
+    icon?: string;
+    image?: string;
+    label?: string;
+  }[]; // Cho expression_match
   expectedAnswer: string; // Chuỗi đáp án chuẩn
   acceptableAnswers?: string[]; // Các dạng đáp án hợp lệ tương đương
   explanation: string; // Giải thích chi tiết cho giáo viên & học sinh sau làm
@@ -186,10 +193,21 @@ export interface Question {
   }[];
 }
 
+export interface LessonStats {
+  completedStudentsCount: number;
+  totalSubmissionsCount: number;
+  avgScore: number | null;
+  assignedClassesCount: number;
+  assignedClasses?: { id: string; name: string }[];
+  assignmentIds?: string[];
+  dataOriginScope?: string;
+}
+
 export interface Lesson {
   id: string;
   title: string;
   grade: 1 | 2;
+  week?: number;
   topic: string;
   learningStandard: string; // Yêu cầu cần đạt GDPT 2018
   description: string;
@@ -203,6 +221,7 @@ export interface Lesson {
   createdBy: string;
   createdAt: string;
   updatedAt?: string;
+  stats?: LessonStats;
   dataOrigin: DataOrigin;
   environmentTag: EnvironmentTag;
 }
@@ -213,6 +232,7 @@ export interface LessonVersion {
   versionNumber: number;
   title: string;
   grade: 1 | 2;
+  week?: number;
   topic: string;
   learningStandard: string;
   questions: Question[];

@@ -967,12 +967,44 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  const pLower = (q.prompt || '').toLowerCase();
+                                  let detectedIcon = vc?.iconName;
+                                  if (!detectedIcon) {
+                                    if (pLower.includes('cà rốt')) detectedIcon = 'carrot';
+                                    else if (pLower.includes('cá')) detectedIcon = 'fish';
+                                    else if (pLower.includes('sao')) detectedIcon = 'star';
+                                    else if (pLower.includes('kẹo')) detectedIcon = 'candy';
+                                    else if (pLower.includes('bút')) detectedIcon = 'pencil';
+                                    else if (pLower.includes('hoa')) detectedIcon = 'flower';
+                                    else if (pLower.includes('chim')) detectedIcon = 'bird';
+                                    else if (pLower.includes('thỏ')) detectedIcon = 'rabbit';
+                                    else if (pLower.includes('cam')) detectedIcon = 'orange';
+                                    else detectedIcon = 'apple';
+                                  }
+
+                                  const isQue = pLower.includes('que tính') || pLower.includes('bó que') || q.interactionType === 'ten_frame_bundle';
+                                  const isSub = pLower.includes('bớt') || pLower.includes('ăn mất') || pLower.includes('còn lại') || pLower.includes('-');
+                                  const isAdd = pLower.includes('thêm') || pLower.includes('tất cả') || pLower.includes('+');
+
+                                  let targetType: any = 'counters';
+                                  if (isQue) targetType = 'bundles';
+                                  else if (isSub) targetType = 'subtraction';
+                                  else if (isAdd) targetType = 'addition';
+
+                                  const nums = (q.prompt.match(/\b\d+\b/g) || []).map(Number);
+                                  const leftCount = nums.length >= 2 ? nums[0] : (isSub ? 8 : 4);
+                                  const rightCount = nums.length >= 2 ? nums[1] : (isSub ? 3 : 2);
+
                                   handleUpdateVisual(idx, {
-                                    type: q.interactionType === 'ten_frame_bundle' ? 'bundles' : 'counters',
-                                    count: vc?.count ?? 4,
-                                    iconName: vc?.iconName || 'apple',
-                                    tens: q.interactionType === 'ten_frame_bundle' ? (vc?.tens ?? 0) : undefined,
-                                    ones: q.interactionType === 'ten_frame_bundle' ? (vc?.ones ?? 4) : undefined,
+                                    type: targetType,
+                                    count: vc?.count ?? (nums[0] || 4),
+                                    iconName: detectedIcon,
+                                    leftCount: isSub || isAdd ? leftCount : undefined,
+                                    rightCount: isSub || isAdd ? rightCount : undefined,
+                                    leftLabel: isSub ? (detectedIcon === 'carrot' ? 'Có 8 củ cà rốt' : 'Ban đầu') : undefined,
+                                    rightLabel: isSub ? (detectedIcon === 'carrot' ? 'Thỏ ăn mất 3 củ' : 'Bớt đi') : undefined,
+                                    tens: isQue ? (vc?.tens ?? (nums[0] ? Math.floor(nums[0] / 10) : 0)) : undefined,
+                                    ones: isQue ? (vc?.ones ?? (nums[0] ? nums[0] % 10 : 7)) : undefined,
                                     imageUrl: undefined,
                                     imageId: undefined,
                                   });
@@ -1112,6 +1144,11 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                         <option value="candy">🍬 Kẹo ngọt (candy)</option>
                                         <option value="fish">🐟 Chú cá (fish)</option>
                                         <option value="pencil">✏️ Bút chì (pencil)</option>
+                                        <option value="carrot">🥕 Cà rốt (carrot)</option>
+                                        <option value="flower">🌸 Bông hoa (flower)</option>
+                                        <option value="bird">🐦 Chú chim (bird)</option>
+                                        <option value="rabbit">🐰 Chú thỏ (rabbit)</option>
+                                        <option value="orange">🍊 Quả cam (orange)</option>
                                         <option value="block">🧱 Khối vuông (block)</option>
                                       </select>
                                     </div>

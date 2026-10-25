@@ -3,7 +3,7 @@
  * Validates integer precision, error pattern diagnosis, and input normalization
  */
 
-import { evaluateAnswer, safeIntegerEval, normalizeAnswer } from './mathEngine';
+import { evaluateAnswer, safeIntegerEval, normalizeAnswer, sanitizeLessonQuestions } from './mathEngine';
 import { Question } from '../types';
 
 export function runMathEngineTests(): { passed: number; failed: number; errors: string[] } {
@@ -126,6 +126,91 @@ export function runMathEngineTests(): { passed: number; failed: number; errors: 
 
   const resZeroEmpty = evaluateAnswer(qZero, '');
   assert(!resZeroEmpty.isCorrect, 'evaluateAnswer: empty string is NOT correct for expected 0');
+
+  // Test 9: Question Sanitizer - Carrot visual configuration
+  const rawCarrotQ: Question = {
+    id: 'q-g1-04-2',
+    order: 2,
+    prompt: 'Có 8 củ cà rốt, chú thỏ đã ăn mất 3 củ. Hỏi còn lại bao nhiêu củ cà rốt?',
+    interactionType: 'single_choice',
+    options: ['4', '5', '6', '11'],
+    expectedAnswer: '5',
+    explanation: '8 - 3 = 5 củ cà rốt.',
+    skillTag: 'Phép trừ có lời văn',
+    difficulty: 'easy',
+    ruleHints: []
+  };
+  const [sanitizedCarrot] = sanitizeLessonQuestions([rawCarrotQ]);
+  assert(sanitizedCarrot.visualConfig?.type === 'subtraction', 'Carrot subtraction has type: subtraction');
+  assert(sanitizedCarrot.visualConfig?.iconName === 'carrot', 'Carrot question has iconName: carrot');
+  assert(sanitizedCarrot.visualConfig?.leftCount === 8, 'Carrot initial count is 8');
+  assert(sanitizedCarrot.visualConfig?.rightCount === 3, 'Carrot subtracted count is 3');
+
+  // Test 10: Question Sanitizer - Counting sticks (que tính)
+  const rawBundleQ: Question = {
+    id: 'q-g1-02-1',
+    order: 1,
+    prompt: 'Đếm số lượng que tính màu vàng:',
+    interactionType: 'single_choice',
+    expectedAnswer: '7',
+    explanation: 'Có 7 que tính.',
+    skillTag: 'Đếm số lượng',
+    difficulty: 'easy',
+    ruleHints: []
+  };
+  const [sanitizedBundle] = sanitizeLessonQuestions([rawBundleQ]);
+  assert(sanitizedBundle.visualConfig?.type === 'bundles', 'Que tính uses bundles SVG');
+  assert(sanitizedBundle.visualConfig?.ones === 7, 'Que tính shows 7 individual sticks');
+
+  // Test 11: Question Sanitizer - Removal of 5-frame / 10-frame prefixes and preservation of dots
+  const rawFrameQ: Question = {
+    id: 'q-g1-01-5',
+    order: 5,
+    prompt: 'Khung 5 ô: Có mấy chấm tròn màu xanh đang có?',
+    interactionType: 'ten_frame_bundle',
+    expectedAnswer: '5',
+    explanation: '',
+    skillTag: '',
+    difficulty: 'easy',
+    ruleHints: []
+  };
+  const [sanitizedFrame] = sanitizeLessonQuestions([rawFrameQ]);
+  assert(!sanitizedFrame.prompt.includes('Khung 5 ô:'), 'Frame prefix removed from prompt');
+  assert(sanitizedFrame.prompt === 'Có mấy chấm tròn màu xanh?', 'Clean prompt for dot counting');
+  assert(sanitizedFrame.visualConfig?.dotColor === 'blue', 'Dot color is blue for dots question');
+
+  // Test 12: Question Sanitizer - Dual-colored dots on ten frame
+  const rawDualDotQ: Question = {
+    id: 'q-g1-03-5',
+    order: 5,
+    prompt: 'Khung 10 ô: 5 chấm đỏ và 4 chấm xanh. Có tất cả mấy chấm tròn?',
+    interactionType: 'ten_frame_bundle',
+    expectedAnswer: '9',
+    explanation: '',
+    skillTag: '',
+    difficulty: 'easy',
+    ruleHints: []
+  };
+  const [sanitizedDualDot] = sanitizeLessonQuestions([rawDualDotQ]);
+  assert(sanitizedDualDot.visualConfig?.dotColor === 'dual', 'Dual dots configured for red and blue dots');
+  assert(sanitizedDualDot.visualConfig?.leftCount === 5, 'Left count is 5 red dots');
+  assert(sanitizedDualDot.visualConfig?.rightCount === 4, 'Right count is 4 blue dots');
+
+  // Test 13: Question Sanitizer - Flagging missing teacher illustrations
+  const rawWordStoryQ: Question = {
+    id: 'q-test-story',
+    order: 6,
+    prompt: 'Mai có 5 bông hoa, Lan cho Mai thêm 3 bông hoa. Hỏi Mai có tất cả bao nhiêu bông hoa?',
+    interactionType: 'number_input',
+    visualConfig: { type: 'word_story' },
+    expectedAnswer: '8',
+    explanation: '5 + 3 = 8 bông hoa.',
+    skillTag: 'Toán có lời văn',
+    difficulty: 'easy',
+    ruleHints: []
+  };
+  const [sanitizedWordStory] = sanitizeLessonQuestions([rawWordStoryQ]);
+  assert(sanitizedWordStory.requiresTeacherIllustration === true, 'Missing image flagged for teacher illustration');
 
   return { passed, failed, errors };
 }

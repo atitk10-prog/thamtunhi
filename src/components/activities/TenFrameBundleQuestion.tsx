@@ -19,8 +19,7 @@ export const TenFrameBundleQuestion: React.FC<TenFrameBundleQuestionProps> = ({
 
   return (
     <div className="w-full flex flex-col items-center">
-      {/* Visual Model Canvas using authoritative VisualCounters */}
-      <VisualCounters config={question.visualConfig} />
+      <VisualCounters config={question.visualConfig} questionPrompt={question.prompt} />
 
       {/* Answer selection options */}
       <div className="w-full max-w-md grid grid-cols-3 gap-3 mt-4">

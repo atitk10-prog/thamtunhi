@@ -510,7 +510,13 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between">
         <div>
           <h3 className="text-xl sm:text-2xl font-black text-slate-800 leading-snug mb-2">
-            {currentQuestion.prompt}
+            {currentQuestion.prompt
+              ? currentQuestion.prompt
+                  .replace(/^\[ĐÃ SỬA BỞI GIÁO VIÊN\]\s*/i, '')
+                  .replace(/^Khung\s*(?:5|10)\s*ô\s*:\s*/i, '')
+                  .replace(/^(?:Trong\s*)?khung\s*(?:5|10)\s*ô\s*(?:có\s*)?/i, 'Có ')
+                  .trim()
+              : ''}
           </h3>
 
           {/* Render Activity based on interactionType */}

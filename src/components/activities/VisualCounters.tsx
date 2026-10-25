@@ -10,9 +10,10 @@ import {
 interface VisualCountersProps {
   config?: VisualAssetConfig;
   isTeacherView?: boolean;
+  questionPrompt?: string;
 }
 
-export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeacherView = false }) => {
+export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeacherView = false, questionPrompt }) => {
   // Scenario 3: Thiếu dữ liệu hoặc cần bổ sung hình minh họa
   if (!config || config.type === 'none' || config.requiresTeacherIllustration) {
     if (isTeacherView) {
@@ -33,16 +34,57 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     return null;
   }
 
-  // Resolve standard asset or custom image for item sprites
-  const icon = config.iconName || 'apple';
-  const customUrl = normalizeAssetUrl(config.imageUrl);
+  // Resolve standard asset or custom image for item sprites, with context-aware prompt parsing
+  let icon = config.iconName || 'apple';
+  let customUrl = normalizeAssetUrl(config.imageUrl);
+
+  const promptLower = (questionPrompt || '').toLowerCase();
+  if (promptLower.includes('cà rốt')) {
+    icon = 'carrot';
+    customUrl = '/assets/images/standard/food_carrot.png';
+  } else if (promptLower.includes('que tính') || promptLower.includes('bó que')) {
+    icon = 'counting_sticks';
+    customUrl = '/assets/images/standard/counting_sticks_single.png';
+  } else if (promptLower.includes('bông hoa') || promptLower.includes('cành hoa')) {
+    icon = 'flower';
+    customUrl = '/assets/images/standard/nature_flower.png';
+  } else if (promptLower.includes('chú thỏ') || promptLower.includes('con thỏ')) {
+    icon = 'rabbit';
+    customUrl = '/assets/images/standard/animals_rabbit.png';
+  } else if (promptLower.includes('quả cam') || promptLower.includes('trái cam')) {
+    icon = 'orange';
+    customUrl = '/assets/images/standard/food_orange.png';
+  } else if (promptLower.includes('quả táo') || promptLower.includes('trái táo')) {
+    icon = 'apple';
+    customUrl = '/assets/images/standard/food_apple.png';
+  } else if (promptLower.includes('bút chì')) {
+    icon = 'pencil';
+    customUrl = '/assets/images/standard/school_pencil.png';
+  } else if (promptLower.includes('chấm tròn')) {
+    icon = 'dot';
+  }
+
   const matchedAsset = customUrl ? findStandardAsset(customUrl) : findStandardAssetByIcon(icon);
   const effectiveUrl = customUrl || matchedAsset?.url;
-  const effectiveLabel = config.imageAlt || matchedAsset?.title || 'Vật thể';
-  const unitName = config.countUnit || getAssetCountUnit(effectiveUrl || icon, 'vật thể');
+  const effectiveLabel = config.imageAlt || matchedAsset?.title || (icon === 'carrot' ? 'Củ cà rốt' : (icon === 'dot' ? 'Chấm tròn' : 'Vật thể'));
+  const unitName = config.countUnit || (icon === 'carrot' || effectiveUrl?.includes('carrot') ? 'củ cà rốt' : (icon === 'dot' ? 'chấm tròn' : getAssetCountUnit(effectiveUrl || icon, 'vật thể')));
 
   // Render an individual item icon (High-res PNG asset from 60-pack, no crude emoji)
   const renderIcon = (index: number, keyPrefix = 'icon') => {
+    if (icon === 'dot') {
+      const dotColorClass = config.dotColor === 'red'
+        ? 'bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-rose-700'
+        : 'bg-gradient-to-br from-sky-400 to-blue-600 border-2 border-blue-700';
+      return (
+        <div
+          key={`${keyPrefix}-${index}`}
+          className={`w-9 h-9 rounded-full ${dotColorClass} text-white shadow-sm flex items-center justify-center text-sm font-bold transition-transform hover:scale-110 select-none`}
+        >
+          ●
+        </div>
+      );
+    }
+
     if (effectiveUrl) {
       return (
         <div
@@ -198,11 +240,73 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
-  // 3. Discrete Counter Dots Model (Replaces answer-revealing grid frames)
+  // 3. Discrete Counter Model (Only when question asks for dots, replacing answer-revealing grid frames)
   const isFrame = config.type === 'ten_frame' || config.type === 'five_frame';
   if (isFrame) {
-    const count = config.count ?? 0;
+    const count = config.count ?? (config.ones ?? 0);
+
+    // If question is about a specific object (carrots, sticks, flowers, etc.) rather than dots, render actual objects
+    if (icon !== 'dot') {
+      return (
+        <div className="my-4 p-5 bg-sky-50/80 rounded-2xl border-2 border-sky-100 max-w-lg mx-auto">
+          <div className="text-xs uppercase tracking-wider font-extrabold text-sky-700 mb-3 text-center">
+            {isTeacherView ? `Mô hình quan sát: ${count} ${unitName}` : `Quan sát các ${unitName} và đếm:`}
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {Array.from({ length: Math.min(count, 30) }).map((_, i) => renderIcon(i, 'frame-obj'))}
+          </div>
+        </div>
+      );
+    }
+
     const dotColor = config.dotColor || 'blue';
+    const isDual = dotColor === 'dual' || (typeof config.leftCount === 'number' && typeof config.rightCount === 'number' && (config.leftCount > 0 || config.rightCount > 0));
+    const redCount = config.leftCount ?? (isDual ? Math.floor(count / 2) : 0);
+    const blueCount = config.rightCount ?? (isDual ? count - redCount : 0);
+
+    if (isDual) {
+      return (
+        <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-md mx-auto">
+          <div className="text-xs font-black uppercase tracking-wider text-sky-800 text-center mb-3">
+            {isTeacherView ? `Mô hình chấm tròn (${redCount} chấm đỏ + ${blueCount} chấm xanh)` : 'Quan sát các chấm tròn:'}
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 p-4 bg-white/90 rounded-2xl border-2 border-sky-200 shadow-inner">
+            <div className="flex flex-col items-center">
+              <div className="text-[11px] font-black text-rose-700 mb-1.5 uppercase">
+                {isTeacherView ? `${redCount} chấm đỏ` : 'Nhóm chấm đỏ'}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 max-w-[140px]">
+                {Array.from({ length: redCount }).map((_, i) => (
+                  <div
+                    key={`dot-red-${i}`}
+                    className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-rose-700 text-white shadow-sm flex items-center justify-center text-sm font-bold transition-transform hover:scale-110 select-none"
+                  >
+                    ●
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="text-2xl font-black text-slate-400">+</div>
+            <div className="flex flex-col items-center">
+              <div className="text-[11px] font-black text-sky-700 mb-1.5 uppercase">
+                {isTeacherView ? `${blueCount} chấm xanh` : 'Nhóm chấm xanh'}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 max-w-[140px]">
+                {Array.from({ length: blueCount }).map((_, i) => (
+                  <div
+                    key={`dot-blue-${i}`}
+                    className="w-9 h-9 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 border-2 border-blue-700 text-white shadow-sm flex items-center justify-center text-sm font-bold transition-transform hover:scale-110 select-none"
+                  >
+                    ●
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const dotClasses: Record<string, string> = {
       blue: 'bg-gradient-to-br from-sky-400 to-blue-600 border-2 border-blue-700 text-white',
       red: 'bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-rose-700 text-white',
@@ -228,7 +332,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
             {Array.from({ length: count }).map((_, i) => (
               <div
                 key={`dot-${i}`}
-                className={`w-9 h-9 rounded-full ${dotClass} shadow-sm flex items-center justify-center text-sm font-bold animate-in zoom-in-50 transition-transform hover:scale-110`}
+                className={`w-9 h-9 rounded-full ${dotClass} shadow-sm flex items-center justify-center text-sm font-bold animate-in zoom-in-50 transition-transform hover:scale-110 select-none`}
               >
                 ●
               </div>
@@ -303,7 +407,9 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
                     className="w-16 h-28 object-contain filter drop-shadow-sm select-none"
                     loading="lazy"
                   />
-                  <span className="text-[11px] font-black text-amber-900 mt-1.5">1 bó chục</span>
+                  <span className="text-[11px] font-black text-amber-900 mt-1.5">
+                    {isTeacherView ? '1 bó chục' : 'Bó 10 que'}
+                  </span>
                 </div>
               ))}
             </div>

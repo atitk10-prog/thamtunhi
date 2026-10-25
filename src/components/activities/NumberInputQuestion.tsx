@@ -33,7 +33,7 @@ export const NumberInputQuestion: React.FC<NumberInputQuestionProps> = ({
 
   return (
     <div className="w-full flex flex-col items-center">
-      <VisualCounters config={question.visualConfig} />
+      <VisualCounters config={question.visualConfig} questionPrompt={question.prompt} />
 
       {/* Big Display Box */}
       <div className="w-full max-w-xs my-4">

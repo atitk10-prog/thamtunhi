@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "description": "8 anh tien Viet Nam tach tu anh SGK Toan 2 do nguoi dung cung cap; 4 menh gia, moi menh gia co hai mat. Anh nguon nho, khong nhan la anh quang cao hay anh menh gia cao.",
+  "category": "money_measurement",
+  "assets": [
+    {"file":"money-100-front.png","label":"Tiền Việt Nam 100 đồng - mặt trước","denomination":100,"side":"front","preferredForCounting":true},
+    {"file":"money-100-back.png","label":"Tiền Việt Nam 100 đồng - mặt sau","denomination":100,"side":"back","preferredForCounting":false},
+    {"file":"money-200-front.png","label":"Tiền Việt Nam 200 đồng - mặt trước","denomination":200,"side":"front","preferredForCounting":true},
+    {"file":"money-200-back.png","label":"Tiền Việt Nam 200 đồng - mặt sau","denomination":200,"side":"back","preferredForCounting":false},
+    {"file":"money-500-front.png","label":"Tiền Việt Nam 500 đồng - mặt trước","denomination":500,"side":"front","preferredForCounting":true},
+    {"file":"money-500-back.png","label":"Tiền Việt Nam 500 đồng - mặt sau","denomination":500,"side":"back","preferredForCounting":false},
+    {"file":"money-1000-front.png","label":"Tiền Việt Nam 1.000 đồng - mặt trước","denomination":1000,"side":"front","preferredForCounting":true},
+    {"file":"money-1000-back.png","label":"Tiền Việt Nam 1.000 đồng - mặt sau","denomination":1000,"side":"back","preferredForCounting":false}
+  ]
+}

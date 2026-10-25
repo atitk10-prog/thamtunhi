@@ -4,6 +4,7 @@
  */
 
 import { Lesson, Question } from '../types';
+import { WEEKS_1_TO_9_SUPPLEMENTARY } from './weeks1to9Curriculum';
 
 export interface CurriculumSeedItem {
   lesson: Omit<Lesson, 'id' | 'createdAt' | 'createdBy' | 'dataOrigin' | 'environmentTag'> & { id: string };
@@ -11,12 +12,16 @@ export interface CurriculumSeedItem {
 }
 
 export const CURRICULUM_DATA: CurriculumSeedItem[] = [
+  // --- KHO BÀI TẬP BỔ SUNG TUẦN 1 ĐẾN TUẦN 9 (KNTT) ---
+  ...WEEKS_1_TO_9_SUPPLEMENTARY,
+
   // ==================== LỚP 1 (12 BÀI) ====================
   {
     lesson: {
       id: 'lesson-g1-01',
-      title: 'Các số từ 1 đến 5: Đếm và Nhận biết',
+      title: '[Tuần 5] Các số từ 1 đến 5: Đếm và Nhận biết',
       grade: 1,
+      week: 5,
       topic: 'Số và Phép tính trong phạm vi 10',
       learningStandard: 'Đếm, đọc, viết được các số từ 1 đến 5; nhận biết số lượng đồ vật trong phạm vi 5.',
       description: 'Làm quen với các số tự nhiên từ 1 đến 5 qua đồ vật trực quan quen thuộc.',
@@ -61,7 +66,14 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
         order: 3,
         prompt: 'So sánh số lượng: 4 ngôi sao và 2 ngôi sao. Chọn dấu thích hợp (> , < , =):',
         interactionType: 'operator_pick',
-        visualConfig: { type: 'counters', count: 4, iconName: 'star' },
+        visualConfig: {
+          type: 'comparison',
+          leftCount: 4,
+          rightCount: 2,
+          iconName: 'star',
+          leftLabel: '4 ngôi sao',
+          rightLabel: '2 ngôi sao',
+        },
         options: ['>', '<', '='],
         expectedAnswer: '>',
         explanation: 'Vì 4 nhiều hơn 2 nên 4 > 2.',
@@ -77,12 +89,12 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
         prompt: 'Nối hình có số lượng tương ứng với chữ số đúng:',
         interactionType: 'expression_match',
         pairs: [
-          { left: '2 quả cam', right: 'Số 2' },
-          { left: '5 bông hoa', right: 'Số 5' },
-          { left: '1 chú thỏ', right: 'Số 1' }
+          { left: '🍊 🍊 (Quả cam)', right: 'Số 2', count: 2, icon: 'orange', label: 'Quả cam' },
+          { left: '🌸 🌸 🌸 🌸 🌸 (Bông hoa)', right: 'Số 5', count: 5, icon: 'flower', label: 'Bông hoa' },
+          { left: '🐰 (Chú thỏ)', right: 'Số 1', count: 1, icon: 'rabbit', label: 'Chú thỏ' }
         ],
         expectedAnswer: 'MATCHED_ALL',
-        explanation: '2 quả cam nối số 2, 5 bông hoa nối số 5, 1 chú thỏ nối số 1.',
+        explanation: 'Nhóm cam nối số 2, nhóm hoa nối số 5, nhóm thỏ nối số 1.',
         skillTag: 'Ghép cặp số lượng',
         difficulty: 'medium',
         ruleHints: [
@@ -92,16 +104,16 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
       {
         id: 'q-g1-01-5',
         order: 5,
-        prompt: 'Khung 5 ô: Có mấy chấm tròn màu xanh đang có trong khung?',
+        prompt: 'Có mấy chấm tròn màu xanh?',
         interactionType: 'ten_frame_bundle',
         visualConfig: { type: 'ten_frame', gridSize: 5, count: 5, dotColor: 'blue', tens: 0, ones: 5 },
         options: ['3', '4', '5'],
         expectedAnswer: '5',
-        explanation: 'Khung 5 ô đã được điền đầy đủ cả 5 chấm tròn.',
-        skillTag: 'Khung 5 ô',
+        explanation: 'Có tất cả 5 chấm tròn màu xanh.',
+        skillTag: 'Đếm chấm tròn',
         difficulty: 'easy',
         ruleHints: [
-          { pattern: 'COUNTING_OFF_BY_ONE', hintText: 'Khung 5 ô được lấp đầy tức là có đúng 5 chấm tròn em nhé.' }
+          { pattern: 'COUNTING_OFF_BY_ONE', hintText: 'Hãy đếm lần lượt từng chấm tròn: 1, 2, 3, 4, 5 nhé.' }
         ]
       },
       {
@@ -151,8 +163,9 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
   {
     lesson: {
       id: 'lesson-g1-02',
-      title: 'Các số từ 6 đến 10 và Tách - Gộp số',
+      title: '[Tuần 8] Các số từ 6 đến 10 và Tách - Gộp số',
       grade: 1,
+      week: 8,
       topic: 'Số và Phép tính trong phạm vi 10',
       learningStandard: 'Nhận biết, đọc, viết số từ 6 đến 10; thực hiện thao tác tách - gộp số trong phạm vi 10.',
       description: 'Mở rộng phạm vi số đến 10, cấu tạo số và kỹ năng tách gộp trực quan.',
@@ -167,7 +180,7 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
         order: 1,
         prompt: 'Đếm số lượng que tính màu vàng:',
         interactionType: 'single_choice',
-        visualConfig: { type: 'counters', count: 7, iconName: 'block' },
+        visualConfig: { type: 'bundles', tens: 0, ones: 7 },
         options: ['6', '7', '8', '9'],
         expectedAnswer: '7',
         explanation: 'Có tất cả 7 que tính.',
@@ -217,15 +230,15 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
       {
         id: 'q-g1-02-5',
         order: 5,
-        prompt: 'Khung 10 ô: Cần thêm mấy chấm tròn nữa để khung 10 ô được lấp đầy (hiện có 8 chấm)?',
+        prompt: 'Có 8 chấm tròn màu xanh. Cần thêm mấy chấm tròn nữa để được 10 chấm tròn?',
         interactionType: 'ten_frame_bundle',
-        visualConfig: { type: 'ten_frame', count: 8, tens: 0, ones: 8 },
+        visualConfig: { type: 'ten_frame', count: 8, dotColor: 'blue', tens: 0, ones: 8 },
         options: ['1', '2', '3'],
         expectedAnswer: '2',
-        explanation: 'Khung có 10 ô, hiện có 8 chấm tròn, còn trống 2 ô. Vậy cần thêm 2 chấm tròn nữa.',
-        skillTag: 'Khung 10 ô bổ sung',
+        explanation: 'Đang có 8 chấm tròn, cần thêm 2 chấm tròn nữa để được 10 (8 + 2 = 10).',
+        skillTag: 'Bù 10',
         difficulty: 'medium',
-        ruleHints: [{ pattern: 'CROSS_TEN_ERROR', hintText: 'Quan sát các ô còn trống trong khung 10: có đúng 2 ô trắng.' }]
+        ruleHints: [{ pattern: 'CROSS_TEN_ERROR', hintText: 'Đếm tiếp từ 8 đến 10: 8 thêm 2 là 10 nhé!' }]
       },
       {
         id: 'q-g1-02-6',
@@ -334,15 +347,15 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
       {
         id: 'q-g1-03-5',
         order: 5,
-        prompt: 'Khung 10 ô: 5 chấm đỏ và 4 chấm xanh. Có tất cả mấy chấm tròn?',
+        prompt: 'Có 5 chấm tròn màu đỏ và 4 chấm tròn màu xanh. Có tất cả mấy chấm tròn?',
         interactionType: 'ten_frame_bundle',
-        visualConfig: { type: 'ten_frame', count: 9, tens: 0, ones: 9 },
+        visualConfig: { type: 'ten_frame', count: 9, dotColor: 'dual', leftCount: 5, rightCount: 4, tens: 0, ones: 9 },
         options: ['8', '9', '10'],
         expectedAnswer: '9',
         explanation: '5 + 4 = 9 chấm tròn.',
-        skillTag: 'Cộng trên khung 10',
+        skillTag: 'Cộng chấm tròn',
         difficulty: 'easy',
-        ruleHints: [{ pattern: 'COUNTING_OFF_BY_ONE', hintText: 'Khung 10 ô chỉ còn thiếu 1 ô trống duy nhất, tức là có 9 chấm!' }]
+        ruleHints: [{ pattern: 'COUNTING_OFF_BY_ONE', hintText: '5 chấm đỏ thêm 4 chấm xanh là 9 chấm tròn (5 + 4 = 9).' }]
       },
       {
         id: 'q-g1-03-6',
@@ -411,6 +424,14 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
         order: 2,
         prompt: 'Có 8 củ cà rốt, chú thỏ đã ăn mất 3 củ. Hỏi còn lại bao nhiêu củ cà rốt?',
         interactionType: 'single_choice',
+        visualConfig: {
+          type: 'subtraction',
+          leftCount: 8,
+          rightCount: 3,
+          iconName: 'carrot',
+          leftLabel: 'Có 8 củ cà rốt',
+          rightLabel: 'Thỏ ăn mất 3 củ',
+        },
         options: ['4', '5', '6', '11'],
         expectedAnswer: '5',
         explanation: '8 - 3 = 5 củ cà rốt.',
@@ -437,11 +458,11 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
         interactionType: 'expression_match',
         pairs: [
           { left: '7 - 3', right: '4' },
-          { left: '10 - 6', right: '4' },
+          { left: '9 - 4', right: '5' },
           { left: '8 - 2', right: '6' }
         ],
         expectedAnswer: 'MATCHED_ALL',
-        explanation: '7 - 3 = 4, 10 - 6 = 4, 8 - 2 = 6.',
+        explanation: '7 - 3 = 4, 9 - 4 = 5, 8 - 2 = 6.',
         skillTag: 'Bảng trừ 10',
         difficulty: 'medium',
         ruleHints: [{ pattern: 'COUNTING_OFF_BY_ONE', hintText: 'Đếm lùi từ số bị trừ để tìm kết quả chính xác.' }]
@@ -449,13 +470,21 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
       {
         id: 'q-g1-04-5',
         order: 5,
-        prompt: 'Khung 10 ô có 7 chấm tròn. Gạch bớt đi 3 chấm tròn thì còn lại mấy chấm?',
+        prompt: 'Có 7 chấm tròn, bớt đi 3 chấm tròn thì còn lại mấy chấm tròn?',
         interactionType: 'ten_frame_bundle',
-        visualConfig: { type: 'ten_frame', count: 4, tens: 0, ones: 4 },
+        visualConfig: {
+          type: 'subtraction',
+          leftCount: 7,
+          rightCount: 3,
+          iconName: 'dot',
+          dotColor: 'blue',
+          leftLabel: 'Ban đầu (7 chấm)',
+          rightLabel: 'Bớt đi (3 chấm)'
+        },
         options: ['3', '4', '5'],
         expectedAnswer: '4',
         explanation: '7 - 3 = 4 chấm tròn.',
-        skillTag: 'Trừ trên khung 10',
+        skillTag: 'Trừ bớt đi',
         difficulty: 'easy',
         ruleHints: [{ pattern: 'COUNTING_OFF_BY_ONE', hintText: '7 chấm bớt 3 chấm còn lại 4 chấm tròn.' }]
       },
@@ -499,8 +528,9 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
   {
     lesson: {
       id: 'lesson-g1-05',
-      title: 'Hình vuông, Hình tròn, Hình tam giác, Hình chữ nhật',
+      title: '[Tuần 6] Hình vuông, Hình tròn, Hình tam giác, Hình chữ nhật',
       grade: 1,
+      week: 6,
       topic: 'Hình học trực quan',
       learningStandard: 'Nhận biết được hình vuông, hình tròn, hình tam giác, hình chữ nhật qua mô hình và vật thật.',
       description: 'Khám phá các hình hình học cơ bản trong đời sống xung quanh.',
@@ -629,6 +659,7 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
         order: 1,
         prompt: '1 bó que tính gồm 10 que rời được gọi là gì?',
         interactionType: 'single_choice',
+        visualConfig: { type: 'bundles', tens: 1, ones: 0 },
         options: ['1 chục', '1 trăm', '2 chục', '1 đơn vị'],
         expectedAnswer: '1 chục',
         explanation: '1 chục = 10 đơn vị.',
@@ -1087,6 +1118,7 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
         order: 1,
         prompt: '5 chục que tính là số nào?',
         interactionType: 'single_choice',
+        visualConfig: { type: 'bundles', tens: 5, ones: 0 },
         options: ['50', '5', '55', '15'],
         expectedAnswer: '50',
         explanation: '5 chục là 50 (năm mươi).',
@@ -1418,8 +1450,9 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
   {
     lesson: {
       id: 'lesson-g2-01',
-      title: 'Phép cộng có nhớ trong phạm vi 20 (Qua 10)',
+      title: '[Tuần 8] Phép cộng có nhớ trong phạm vi 20 (Qua 10)',
       grade: 2,
+      week: 8,
       topic: 'Phép cộng và phép trừ có nhớ phạm vi 20',
       learningStandard: 'Thực hiện cộng qua 10 dạng 9 + 5, 8 + 5, 7 + 4 bằng cách tách số để được 10.',
       description: 'Phương pháp tách số ở số hạng thứ hai để gộp với số hạng thứ nhất thành 1 chục rồi cộng tiếp.',
@@ -1483,15 +1516,15 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
       {
         id: 'q-g2-01-5',
         order: 5,
-        prompt: 'Khung 10 ô: Khung thứ nhất có 8 chấm đỏ, khung thứ hai có 5 chấm xanh. Chuyển 2 chấm sang để đầy khung 10. Tổng cộng có bao nhiêu chấm?',
+        prompt: 'Có 8 chấm tròn màu đỏ và 5 chấm tròn màu xanh. Có tất cả bao nhiêu chấm tròn?',
         interactionType: 'ten_frame_bundle',
-        visualConfig: { type: 'ten_frame', count: 13, tens: 1, ones: 3 },
+        visualConfig: { type: 'ten_frame', count: 13, dotColor: 'dual', leftCount: 8, rightCount: 5, tens: 1, ones: 3 },
         options: ['12', '13', '14'],
         expectedAnswer: '13',
-        explanation: '8 + 5 = 13. Khung 10 đầy và 3 chấm dư = 13.',
-        skillTag: 'Khung 10 ô tạo nhóm 10',
+        explanation: '8 + 5 = 13 chấm tròn (Tách 5 thành 2 và 3; 8 + 2 = 10, 10 + 3 = 13).',
+        skillTag: 'Cộng qua 10',
         difficulty: 'medium',
-        ruleHints: [{ pattern: 'CROSS_TEN_ERROR', hintText: 'Khung 10 ô đã đầy là 10, bên ngoài còn 3 chấm: 10 + 3 = 13.' }]
+        ruleHints: [{ pattern: 'CROSS_TEN_ERROR', hintText: '8 cộng 2 bằng 10, 10 cộng 3 bằng 13 nhé!' }]
       },
       {
         id: 'q-g2-01-6',
@@ -1598,15 +1631,23 @@ export const CURRICULUM_DATA: CurriculumSeedItem[] = [
       {
         id: 'q-g2-02-5',
         order: 5,
-        prompt: 'Khung 10 ô: Có 1 khung đầy (10 chấm) và 2 chấm rời (tổng là 12 chấm). Gạch bớt 7 chấm thì còn mấy chấm?',
+        prompt: 'Có 12 chấm tròn, bớt đi 7 chấm tròn thì còn lại mấy chấm tròn?',
         interactionType: 'ten_frame_bundle',
-        visualConfig: { type: 'ten_frame', count: 5, tens: 0, ones: 5 },
+        visualConfig: {
+          type: 'subtraction',
+          leftCount: 12,
+          rightCount: 7,
+          iconName: 'dot',
+          dotColor: 'blue',
+          leftLabel: 'Ban đầu (12 chấm)',
+          rightLabel: 'Bớt đi (7 chấm)'
+        },
         options: ['4', '5', '6'],
         expectedAnswer: '5',
-        explanation: '12 - 7 = 5.',
-        skillTag: 'Mô hình khung 10 trừ qua 10',
+        explanation: '12 - 7 = 5 chấm tròn (12 trừ 2 bằng 10, 10 trừ 5 bằng 5).',
+        skillTag: 'Trừ qua 10',
         difficulty: 'medium',
-        ruleHints: [{ pattern: 'CROSS_TEN_ERROR', hintText: 'Gạch 2 chấm rời, rồi gạch thêm 5 chấm trong khung 10, trong khung còn lại 5 chấm.' }]
+        ruleHints: [{ pattern: 'CROSS_TEN_ERROR', hintText: 'Tách 7 thành 2 và 5: 12 trừ 2 bằng 10, 10 trừ 5 bằng 5 nhé!' }]
       },
       {
         id: 'q-g2-02-6',

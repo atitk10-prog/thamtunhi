@@ -22,6 +22,8 @@ import {
   ArchiveRestore,
   Ban,
   MessageSquare,
+  Play,
+  Filter,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { Lesson, LessonVersion, Classroom, UserProfile, Assignment } from '../../types';
@@ -51,6 +53,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [classes, setClasses] = useState<Classroom[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignmentDataOrigin, setAssignmentDataOrigin] = useState<'real' | 'simulation'>('real');
   const [selectedClass, setSelectedClass] = useState<Classroom | null>(null);
   const [assigningStudent, setAssigningStudent] = useState<{ id: string; displayName: string; classId: string; studentCode?: string } | null>(null);
   const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
@@ -102,14 +105,14 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (origin: 'real' | 'simulation' = assignmentDataOrigin) => {
     setLoading(true);
     setErrorMessage(null);
     try {
       const [lList, cList, aList] = await Promise.all([
-        dataService.fetchTeacherLessons(),
+        dataService.fetchTeacherLessons(origin),
         dataService.fetchTeacherClasses(currentUser.id),
-        dataService.fetchTeacherAssignments(currentUser.id),
+        dataService.fetchTeacherAssignments(currentUser.id, origin),
       ]);
       setLessons(lList);
       setClasses(cList);
@@ -120,6 +123,11 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDataOriginChange = async (origin: 'real' | 'simulation') => {
+    setAssignmentDataOrigin(origin);
+    await fetchData(origin);
   };
 
   const handleOpenEditor = async (lesson?: Lesson) => {
@@ -163,6 +171,54 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
     } catch (err) {
       console.error('Preview lesson fetch error:', err);
       showToast('Không thể tải bài học để xem trước.', 'error');
+    }
+  };
+
+  const handlePreviewAssignment = async (a: Assignment) => {
+    const vId = a.lessonVersionId || `version-${a.lessonId}-v1`;
+    try {
+      const v = await dataService.fetchLessonVersion(vId);
+      if (v) {
+        setPreviewLessonVersion(v);
+      } else {
+        showToast('Chưa có phiên bản nội dung bài tập để xem trước.', 'info');
+      }
+    } catch (err) {
+      console.error('Preview assignment error:', err);
+      showToast('Không thể tải nội dung bài tập để xem trước.', 'error');
+    }
+  };
+
+  const handleViewLessonProgress = (lesson: Lesson) => {
+    const stats = lesson.stats;
+    if (!stats || stats.assignedClassesCount === 0 || !stats.assignmentIds?.length) {
+      showToast(`Bài học "${lesson.title}" chưa được giao cho lớp nào. Thầy/Cô hãy nhấn "Giao bài" để phân công.`, 'info');
+      return;
+    }
+
+    const matching = assignments.find((a) => stats.assignmentIds?.includes(a.id));
+    if (matching) {
+      setProgressAssignment(matching);
+    } else {
+      const firstAssignId = stats.assignmentIds[0];
+      const targetClass = stats.assignedClasses?.[0];
+      setProgressAssignment({
+        id: firstAssignId,
+        title: lesson.title,
+        lessonId: lesson.id,
+        lessonVersionId: lesson.currentVersionId || `version-${lesson.id}-v1`,
+        classId: targetClass?.id || 'class-1b',
+        className: targetClass?.name || 'Lớp học',
+        teacherId: currentUser.id,
+        teacherName: currentUser.displayName,
+        grade: lesson.grade,
+        assignedAt: lesson.createdAt,
+        createdAt: lesson.createdAt || new Date().toISOString(),
+        dueDate: '2026-12-31',
+        status: 'open',
+        dataOrigin: assignmentDataOrigin,
+        environmentTag: 'production',
+      });
     }
   };
 
@@ -478,6 +534,30 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                     Tất cả ({lessons.length})
                   </button>
                 </div>
+
+                {/* Data Origin Mode (Real vs Simulation) */}
+                <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => handleDataOriginChange('real')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                      assignmentDataOrigin === 'real' ? 'bg-white shadow-xs text-emerald-800 font-black' : 'text-slate-600'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Bài nộp của học sinh</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDataOriginChange('simulation')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                      assignmentDataOrigin === 'simulation' ? 'bg-white shadow-xs text-indigo-800 font-black' : 'text-slate-600'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                    <span>Dữ liệu mô phỏng</span>
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-3">
@@ -536,6 +616,63 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                       <p className="text-xs font-medium text-slate-600 line-clamp-2 mb-3">
                         {lesson.learningStandard || lesson.description}
                       </p>
+
+                      {/* STATS SUMMARY (PHẦN 1 - NÂNG CẤP KHO HỌC LIỆU) */}
+                      <div className="my-3 p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-1.5 shadow-2xs">
+                            <Users className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                            <div>
+                              <div className="text-[10px] font-bold text-slate-400 uppercase leading-none">Hoàn thành</div>
+                              <div className="font-black text-slate-800">{lesson.stats?.completedStudentsCount ?? 0} em</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-1.5 shadow-2xs">
+                            <Layers className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            <div>
+                              <div className="text-[10px] font-bold text-slate-400 uppercase leading-none">Lượt nộp</div>
+                              <div className="font-black text-slate-800">{lesson.stats?.totalSubmissionsCount ?? 0} lượt</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-1.5 shadow-2xs">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <div>
+                              <div className="text-[10px] font-bold text-slate-400 uppercase leading-none">Điểm TB</div>
+                              <div className="font-black text-slate-800">
+                                {lesson.stats?.avgScore !== null && lesson.stats?.avgScore !== undefined ? `${lesson.stats.avgScore} đ` : 'Chưa có'}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white p-2 rounded-xl border border-slate-100 flex items-center gap-1.5 shadow-2xs">
+                            <School className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                            <div>
+                              <div className="text-[10px] font-bold text-slate-400 uppercase leading-none">Đã giao</div>
+                              <div className="font-black text-slate-800">{lesson.stats?.assignedClassesCount ?? 0} lớp</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Nút Xem chi tiết tiến độ */}
+                        <button
+                          type="button"
+                          onClick={() => handleViewLessonProgress(lesson)}
+                          className={`w-full py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-2xs ${
+                            (lesson.stats?.assignedClassesCount || 0) > 0
+                              ? 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 cursor-pointer active:scale-98'
+                              : 'bg-slate-100 text-slate-400 border border-slate-200/60 cursor-pointer'
+                          }`}
+                        >
+                          <BarChart2 className="w-3.5 h-3.5" />
+                          <span>
+                            {(lesson.stats?.assignedClassesCount || 0) > 0
+                              ? 'Xem chi tiết tiến độ bài làm'
+                              : 'Chưa giao lớp nào • Xem tiến độ'}
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
@@ -636,7 +773,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={fetchData}
+                    onClick={() => fetchData()}
                     className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer transition-colors flex items-center gap-2 shrink-0"
                   >
                     <RefreshCw className="w-3.5 h-3.5" /> Thử lại
@@ -716,7 +853,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
               {/* Assignments Table */}
               <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-black text-slate-800">
                       Các đợt giao bài gần đây
@@ -725,6 +862,55 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                       Quản lý đợt giao bài theo lớp và hạn làm bài
                     </p>
                   </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-black uppercase text-slate-500 mr-1 flex items-center gap-1">
+                      <Filter className="w-3.5 h-3.5 text-sky-600" /> Nguồn dữ liệu:
+                    </span>
+                    <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => handleDataOriginChange('real')}
+                        className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                          assignmentDataOrigin === 'real'
+                            ? 'bg-white shadow-xs text-emerald-800 font-black'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Bài nộp của học sinh (Thực tế)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDataOriginChange('simulation')}
+                        className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                          assignmentDataOrigin === 'simulation'
+                            ? 'bg-amber-400 text-slate-900 font-black shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Dữ liệu mô phỏng quay clip
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Scope Notice Banner (Requirement 8) */}
+                <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${assignmentDataOrigin === 'real' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                    <span>
+                      {assignmentDataOrigin === 'real'
+                        ? 'Phạm vi: Bài nộp của học sinh (Chỉ hiển thị bài làm và thống kê thực tế từ tài khoản học sinh, hoàn toàn tách biệt).'
+                        : 'Phạm vi: Dữ liệu mô phỏng quay clip (Bao gồm dữ liệu mẫu để quay video minh họa, không ảnh hưởng số liệu thực).'}
+                    </span>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border shrink-0 ${
+                    assignmentDataOrigin === 'real'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}>
+                    {assignmentDataOrigin === 'real' ? 'Dữ liệu thực tế' : 'Dữ liệu mô phỏng'}
+                  </span>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -830,6 +1016,15 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                                 <div className="flex items-center justify-end gap-1.5">
                                   <button
                                     type="button"
+                                    onClick={() => handlePreviewAssignment(a)}
+                                    title="Xem trước màn hình học sinh"
+                                    className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 cursor-pointer transition-colors border border-emerald-200"
+                                  >
+                                    <Play className="w-4 h-4" />
+                                  </button>
+
+                                  <button
+                                    type="button"
                                     onClick={() => setProgressAssignment(a)}
                                     title="Xem tiến độ làm bài chi tiết"
                                     className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 cursor-pointer transition-colors border border-sky-200"
@@ -885,7 +1080,14 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
 
         {/* TAB 3: MISCONCEPTION ANALYTICS */}
         {activeTab === 'analytics' && (
-          <MisconceptionAnalytics teacherId={currentUser.id} />
+          <MisconceptionAnalytics
+            teacherId={currentUser.id}
+            onOpenLessonEditor={(lesson, version) => {
+              setEditingLesson(lesson);
+              setEditingVersion(version || null);
+              setIsEditorOpen(true);
+            }}
+          />
         )}
       </main>
 

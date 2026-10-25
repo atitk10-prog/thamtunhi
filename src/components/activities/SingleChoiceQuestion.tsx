@@ -19,7 +19,7 @@ export const SingleChoiceQuestion: React.FC<SingleChoiceQuestionProps> = ({
 
   return (
     <div className="w-full">
-      <VisualCounters config={question.visualConfig} />
+      <VisualCounters config={question.visualConfig} questionPrompt={question.prompt} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
         {options.map((opt, idx) => {

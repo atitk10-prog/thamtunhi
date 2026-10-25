@@ -136,7 +136,7 @@ export function detectErrorPattern(
       return {
         pattern: 'CROSS_TEN_ERROR',
         hintText: `Mẹo tách số: Hãy tách ${b} thành ${(10 - a)} và ${b - (10 - a)} để gộp với ${a} thành 10 rồi cộng tiếp nhé!`,
-        visualGuidance: 'Điền đầy khung 10 ô trước rồi đếm phần dư bên ngoài.'
+        visualGuidance: 'Tách số để làm tròn thành 10 rồi cộng tiếp phần còn lại nhé!'
       };
     }
   }
@@ -159,7 +159,35 @@ export function detectErrorPattern(
     };
   }
 
-  // 8. Expression match error (nối sai cặp)
+  // 8. Geometry misidentification
+  const promptLower = (question.prompt || '').toLowerCase();
+  const expLower = normExpected.toLowerCase();
+  const shapeKeywords = ['hình vuông', 'hình tròn', 'hình tam giác', 'hình chữ nhật', 'khối lập phương', 'khối hộp chữ nhật', 'hình cầu', 'hình trụ'];
+  if (
+    question.visualConfig?.type === 'shapes' ||
+    shapeKeywords.some((k) => promptLower.includes(k) || expLower.includes(k))
+  ) {
+    return {
+      pattern: 'GEOMETRY_MISIDENTIFICATION',
+      hintText: 'Quan sát kỹ đặc điểm hình học: Đếm số cạnh thẳng, số góc hoặc kiểm tra xem mặt phẳng hay khối hình nhé!',
+      visualGuidance: 'Hình vuông có 4 cạnh bằng nhau, hình chữ nhật có 2 cạnh dài và 2 cạnh ngắn bằng nhau.'
+    };
+  }
+
+  // 9. Measurement unit error
+  const measureKeywords = ['cm', 'xăng-ti-mét', 'kg', 'ki-lô-gam', 'lít', 'giờ', 'phút', 'thước kẻ', 'đồng hồ'];
+  if (
+    question.visualConfig?.type === 'clock' ||
+    measureKeywords.some((k) => promptLower.includes(k) || expLower.includes(k))
+  ) {
+    return {
+      pattern: 'MEASUREMENT_UNIT_ERROR',
+      hintText: 'Chú ý đơn vị đo: Kiểm tra kỹ vạch đo trên thước kẻ hoặc kim giờ/kim phút trên mặt đồng hồ nhé!',
+      visualGuidance: 'Đặt một đầu của vật trùng khít với vạch số 0 trên thước kẻ.'
+    };
+  }
+
+  // 10. Expression match error (nối sai cặp)
   if (question.interactionType === 'expression_match' || normUser === 'matched_incorrect') {
     return {
       pattern: 'GENERAL_CALCULATION_ERROR',
@@ -229,7 +257,7 @@ export const ERROR_PATTERN_LABELS: Record<MathErrorPattern, { label: string; des
   CROSS_TEN_ERROR: {
     label: 'Sai bước qua 10 (cộng/trừ có nhớ)',
     description: 'Khó khăn khi tách số để tạo thành 1 chục tròn rồi cộng/trừ tiếp.',
-    advice: 'Tăng cường hoạt động khung 10 ô (Ten-Frame) để nhìn thấy trực quan nhóm 10.'
+    advice: 'Rèn luyện phương pháp tách số để làm tròn 10 (bù 10) hoặc dùng que tính bó 10.'
   },
   PLACE_VALUE_SWAP: {
     label: 'Đảo vị trí Chục và Đơn vị',
@@ -267,3 +295,92 @@ export const ERROR_PATTERN_LABELS: Record<MathErrorPattern, { label: string; des
     advice: 'Khuyến khích học sinh dùng bảng cộng trừ hoặc tính nhẩm từng bước.'
   }
 };
+
+/**
+ * Normalizes question prompts and visual configurations to guarantee pedagogical accuracy:
+ * - Prompts asking for carrots MUST use carrot visuals (carrot icon).
+ * - Prompts asking for counting sticks MUST use bundles.
+ * - Prompts asking for circular dots use dots.
+ * - Unnecessary "Khung 5 ô:" and "Khung 10 ô:" prefixes are removed.
+ * - Subtraction models show the operation (leftCount initial, rightCount subtracted) instead of leaking the answer.
+ * - Questions with missing illustrations or missing assets are flagged with requiresTeacherIllustration: true.
+ */
+export function sanitizeLessonQuestions(questions: any[]): any[] {
+  if (!Array.isArray(questions)) return [];
+  return questions.map((q) => {
+    const copy = { ...q };
+    const p = String(copy.prompt || '').trim();
+    const pLower = p.toLowerCase();
+
+    // 1. CARROT: Đề bài đếm/bớt cà rốt phải hiển thị đúng cà rốt (subtraction hoặc counters)
+    if (pLower.includes('cà rốt')) {
+      if (pLower.includes('ăn mất') || pLower.includes('bớt') || pLower.includes('còn lại')) {
+        copy.visualConfig = {
+          type: 'subtraction',
+          leftCount: 8,
+          rightCount: 3,
+          iconName: 'carrot',
+          leftLabel: 'Có 8 củ cà rốt',
+          rightLabel: 'Thỏ ăn mất 3 củ',
+        };
+      } else if (!copy.visualConfig || copy.visualConfig.type === 'ten_frame' || copy.visualConfig.type === 'five_frame' || copy.visualConfig.iconName !== 'carrot') {
+        const count = typeof copy.visualConfig?.count === 'number' ? copy.visualConfig.count : (parseInt(String(copy.expectedAnswer), 10) || 5);
+        copy.visualConfig = {
+          type: 'counters',
+          count,
+          iconName: 'carrot',
+        };
+      }
+    }
+
+    // 2. QUE TÍNH: Đề bài que tính phải hiển thị đúng bó que tính và que rời (bundles)
+    if (pLower.includes('que tính') || pLower.includes('bó que') || pLower.includes('chục que')) {
+      if (!copy.visualConfig || copy.visualConfig.type !== 'bundles') {
+        if (copy.id === 'q-g1-02-1' || pLower.includes('7 que') || (pLower.includes('đếm số lượng que') && copy.expectedAnswer === '7')) {
+          copy.visualConfig = { type: 'bundles', tens: 0, ones: 7 };
+        } else if (copy.id === 'q-g1-06-1' || pLower.includes('1 bó que tính')) {
+          copy.visualConfig = { type: 'bundles', tens: 1, ones: 0 };
+        } else if (copy.id === 'q-g1-10-1' || pLower.includes('5 chục que')) {
+          copy.visualConfig = { type: 'bundles', tens: 5, ones: 0 };
+        }
+      }
+    }
+
+    // 3. KHUNG 5 Ô & 10 Ô: Loại bỏ khung không cần thiết. Chỉ dùng chấm tròn nếu đề bài yêu cầu đếm chấm tròn
+    if (copy.id === 'q-g1-01-5' || p.includes('Khung 5 ô: Có mấy chấm tròn')) {
+      copy.prompt = 'Có mấy chấm tròn màu xanh?';
+      copy.visualConfig = { type: 'ten_frame', count: 5, dotColor: 'blue' };
+      copy.explanation = 'Có tất cả 5 chấm tròn màu xanh.';
+    } else if (copy.id === 'q-g1-02-5' || p.includes('Khung 10 ô: Cần thêm mấy chấm')) {
+      copy.prompt = 'Có 8 chấm tròn màu xanh. Cần thêm mấy chấm tròn nữa để được 10 chấm tròn?';
+      copy.visualConfig = { type: 'ten_frame', count: 8, dotColor: 'blue' };
+      copy.explanation = 'Đang có 8 chấm tròn, cần thêm 2 chấm tròn nữa để được 10 (8 + 2 = 10).';
+    } else if (copy.id === 'q-g1-03-5' || p.includes('Khung 10 ô: 5 chấm đỏ và 4 chấm xanh')) {
+      copy.prompt = 'Có 5 chấm tròn màu đỏ và 4 chấm tròn màu xanh. Có tất cả mấy chấm tròn?';
+      copy.visualConfig = { type: 'ten_frame', count: 9, dotColor: 'dual', leftCount: 5, rightCount: 4 };
+      copy.explanation = '5 + 4 = 9 chấm tròn.';
+    } else if (copy.id === 'q-g1-04-5' || p.includes('Khung 10 ô có 7 chấm tròn')) {
+      copy.prompt = 'Có 7 chấm tròn, bớt đi 3 chấm tròn thì còn lại mấy chấm tròn?';
+      copy.visualConfig = { type: 'subtraction', leftCount: 7, rightCount: 3, iconName: 'dot', dotColor: 'blue', leftLabel: 'Ban đầu (7 chấm)', rightLabel: 'Bớt đi (3 chấm)' };
+      copy.explanation = '7 - 3 = 4 chấm tròn.';
+    } else if (copy.id === 'q-g2-01-5' || p.includes('Khung 10 ô: Khung thứ nhất có 8 chấm đỏ')) {
+      copy.prompt = 'Có 8 chấm tròn màu đỏ và 5 chấm tròn màu xanh. Có tất cả bao nhiêu chấm tròn?';
+      copy.visualConfig = { type: 'ten_frame', count: 13, dotColor: 'dual', leftCount: 8, rightCount: 5 };
+      copy.explanation = '8 + 5 = 13 chấm tròn (Tách 5 thành 2 và 3; 8 + 2 = 10, 10 + 3 = 13).';
+    } else if (copy.id === 'q-g2-02-5' || p.includes('Khung 10 ô: Có 1 khung đầy')) {
+      copy.prompt = 'Có 12 chấm tròn, bớt đi 7 chấm tròn thì còn lại mấy chấm tròn?';
+      copy.visualConfig = { type: 'subtraction', leftCount: 12, rightCount: 7, iconName: 'dot', dotColor: 'blue', leftLabel: 'Ban đầu (12 chấm)', rightLabel: 'Bớt đi (7 chấm)' };
+      copy.explanation = '12 - 7 = 5 chấm tròn (12 trừ 2 bằng 10, 10 trừ 5 bằng 5).';
+    } else if (copy.id === 'q-g1-01-3') {
+      copy.visualConfig = { type: 'comparison', leftCount: 4, rightCount: 2, iconName: 'star', leftLabel: '4 ngôi sao', rightLabel: '2 ngôi sao' };
+    }
+
+    // 4. KIỂM TRA ĐÁNH DẤU HÌNH ẢNH: Nếu câu hỏi lời văn không có hình ảnh minh họa phù hợp, đánh dấu để giáo viên bổ sung
+    if (copy.visualConfig?.type === 'word_story' && !copy.visualConfig?.imageUrl && !copy.visualConfig?.diagram) {
+      copy.requiresTeacherIllustration = true;
+    }
+
+    return copy;
+  });
+}
+
