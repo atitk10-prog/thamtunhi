@@ -14,8 +14,10 @@ import {
   RefreshCw,
   Eye,
   Sparkles,
+  FolderPlus,
+  Plus,
 } from 'lucide-react';
-import { MediaCategory, MediaItem } from '../../types';
+import { MediaCategory, MediaItem, CustomMediaCategory } from '../../types';
 import { dataService } from '../../lib/dataService';
 import { STANDARD_ASSETS, normalizeAssetUrl } from '../../lib/standardAssets';
 
@@ -27,12 +29,15 @@ export interface CategoryDef {
 }
 
 export const MEDIA_CATEGORIES: CategoryDef[] = [
-  { id: 'food', label: 'Trái cây, thực phẩm', icon: '🍎', standardCount: 15 },
+  { id: 'food', label: 'Trái cây – Thực phẩm', icon: '🍎', standardCount: 15 },
   { id: 'animals', label: 'Động vật', icon: '🐶', standardCount: 12 },
   { id: 'school', label: 'Đồ dùng học tập', icon: '🎒', standardCount: 10 },
-  { id: 'nature', label: 'Thiên nhiên', icon: '🌻', standardCount: 8 },
+  { id: 'nature', label: 'Thiên nhiên', icon: '🌿', standardCount: 8 },
+  { id: 'counting_sticks', label: 'Que tính', icon: '🥢', standardCount: 2 },
+  { id: 'geometry', label: 'Hình học', icon: '📐', standardCount: 7 },
+  { id: 'clock_time', label: 'Đồng hồ – Thời gian', icon: '⏰', standardCount: 1 },
+  { id: 'money_measurement', label: 'Tiền tệ', icon: '💵', standardCount: 0 },
   { id: 'backgrounds', label: 'Phông cảnh', icon: '🏞️', standardCount: 5 },
-  { id: 'math', label: 'Công cụ Toán học', icon: '📐', standardCount: 10 },
 ];
 
 interface MediaLibraryModalProps {
@@ -55,6 +60,14 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Custom Categories State
+  const [customCategories, setCustomCategories] = useState<CustomMediaCategory[]>([]);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupIcon, setNewGroupIcon] = useState('📁');
+  const [createGroupError, setCreateGroupError] = useState<string | null>(null);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
   // Upload Form State
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -103,17 +116,61 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const items = await dataService.fetchMediaLibrary('all');
+      const [items, cats] = await Promise.all([
+        dataService.fetchMediaLibrary('all'),
+        dataService.fetchCustomCategories(),
+      ]);
       if (Array.isArray(items) && items.length > 0) {
         setMediaList(items);
       } else {
         setMediaList(STANDARD_ASSETS);
+      }
+      if (Array.isArray(cats)) {
+        setCustomCategories(cats);
       }
     } catch (err: any) {
       console.warn('Backend loadMedia failed, using standard assets:', err);
       setMediaList(STANDARD_ASSETS);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    setCreateGroupError(null);
+    const cleanName = newGroupName.trim();
+    if (!cleanName) {
+      setCreateGroupError('Thầy/Cô vui lòng nhập tên nhóm.');
+      return;
+    }
+
+    // Check duplicate with standard categories
+    const isStdDuplicate = MEDIA_CATEGORIES.some(
+      (c) => c.label.toLowerCase() === cleanName.toLowerCase() || c.id.toLowerCase() === cleanName.toLowerCase()
+    );
+    // Check duplicate with custom categories
+    const isCustomDuplicate = customCategories.some(
+      (c) => c.name.toLowerCase() === cleanName.toLowerCase()
+    );
+
+    if (isStdDuplicate || isCustomDuplicate) {
+      setCreateGroupError('Tên nhóm này đã tồn tại. Thầy/Cô vui lòng nhập tên khác.');
+      return;
+    }
+
+    setIsCreatingGroup(true);
+    try {
+      const created = await dataService.createCustomCategory(cleanName, newGroupIcon);
+      setCustomCategories((prev) => [...prev, created]);
+      setSelectedCategory(created.id);
+      setUploadCategory(created.id as any);
+      setIsCreateGroupOpen(false);
+      setNewGroupName('');
+      setSuccessMsg(`Đã tạo thành công nhóm mới: "${cleanName}"!`);
+    } catch (err: any) {
+      setCreateGroupError(err.message || 'Lỗi khi tạo nhóm mới.');
+    } finally {
+      setIsCreatingGroup(false);
     }
   };
 
@@ -125,16 +182,15 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
         if (m.category === cat.id) return true;
         if (cat.id === 'food' && (m.category as any) === 'fruits') return true;
         if (cat.id === 'school' && (m.category as any) === 'items') return true;
-        if (
-          cat.id === 'math' &&
-          ['counters_frames', 'counting_sticks', 'geometry', 'clock_time', 'money_measurement'].includes(m.category as any)
-        )
-          return true;
+        if (cat.id === 'counting_sticks' && (m.category as any) === 'counters_frames') return true;
         return false;
       }).length;
     }
+    for (const custom of customCategories) {
+      counts[custom.id] = mediaList.filter((m) => m.category === custom.id).length;
+    }
     return counts;
-  }, [mediaList]);
+  }, [mediaList, customCategories]);
 
   // Filtered Media List based on category & search query
   const filteredMedia = useMemo(() => {
@@ -144,11 +200,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
         if (m.category === selectedCategory) return true;
         if (selectedCategory === 'food' && (m.category as any) === 'fruits') return true;
         if (selectedCategory === 'school' && (m.category as any) === 'items') return true;
-        if (
-          selectedCategory === 'math' &&
-          ['counters_frames', 'counting_sticks', 'geometry', 'clock_time', 'money_measurement'].includes(m.category as any)
-        )
-          return true;
+        if (selectedCategory === 'counting_sticks' && (m.category as any) === 'counters_frames') return true;
         return false;
       });
     }
@@ -454,8 +506,8 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 </div>
               </div>
 
-              {/* 6 Categories Pills */}
-              <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              {/* Categories Pills & Create Group Action */}
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedCategory('all')}
@@ -496,6 +548,48 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                     </button>
                   );
                 })}
+
+                {/* Teacher Custom Categories */}
+                {customCategories.map((cat) => {
+                  const isActive = selectedCategory === cat.id;
+                  const currentCount = categoryCounts[cat.id] ?? 0;
+
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition-all ${
+                        isActive
+                          ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300'
+                          : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                      }`}
+                    >
+                      <span>{cat.icon || '📁'}</span>
+                      <span>{cat.name}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-emerald-200/60 text-emerald-800'
+                      }`}>
+                        {currentCount}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* + Tạo nhóm mới Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreateGroupOpen(true);
+                    setCreateGroupError(null);
+                    setNewGroupName('');
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                  title="Thêm nhóm đồ họa mới"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tạo nhóm mới</span>
+                </button>
               </div>
 
               {/* Grid of Images */}
@@ -789,19 +883,43 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Danh mục môn Toán <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Danh mục môn Toán <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreateGroupOpen(true);
+                        setCreateGroupError(null);
+                        setNewGroupName('');
+                      }}
+                      className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      + Tạo nhóm mới
+                    </button>
+                  </div>
                   <select
                     value={uploadCategory}
                     onChange={(e) => setUploadCategory(e.target.value as MediaCategory)}
                     className="w-full h-10 px-3 rounded-xl border-2 border-slate-200 focus:border-sky-500 text-xs font-bold focus:outline-hidden bg-white"
                   >
-                    {MEDIA_CATEGORIES.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.icon} {cat.label}
-                      </option>
-                    ))}
+                    <optgroup label="Nhóm chuẩn GDPT 2018">
+                      {MEDIA_CATEGORIES.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.icon} {cat.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {customCategories.length > 0 && (
+                      <optgroup label="Nhóm do giáo viên tạo">
+                        {customCategories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.icon || '📁'} {cat.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
@@ -1076,6 +1194,105 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                   {previewMedia.description || 'Tài nguyên đồ họa chuẩn'} • {(previewMedia.sizeBytes / 1024).toFixed(0)} KB
                   {previewMedia.countUnit ? ` • Đơn vị đếm: ${previewMedia.countUnit}` : ''}
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Custom Category Modal */}
+        {isCreateGroupOpen && (
+          <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+            <div className="w-full max-w-md bg-white rounded-3xl p-6 border-3 border-emerald-300 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <FolderPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800">Tạo Nhóm Đồ Họa Mới</h4>
+                    <p className="text-[11px] text-slate-500 font-medium">Thêm danh mục riêng cho giáo viên</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateGroupOpen(false)}
+                  className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {createGroupError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                  <span>{createGroupError}</span>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tên nhóm mới <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newGroupName}
+                    onChange={(e) => {
+                      setNewGroupName(e.target.value);
+                      if (createGroupError) setCreateGroupError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateGroup();
+                      }
+                    }}
+                    placeholder="Ví dụ: Phương tiện giao thông, Biển báo..."
+                    className="w-full h-10 px-3 rounded-xl border-2 border-slate-200 focus:border-emerald-500 text-xs font-semibold focus:outline-hidden"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Biểu tượng đại diện
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {['📁', '🚗', '🧸', '🎨', '⛵', '🍕', '🎈', '🧩', '🎸', '⚽', '📚', '⭐'].map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setNewGroupIcon(emoji)}
+                        className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center cursor-pointer transition-all ${
+                          newGroupIcon === emoji
+                            ? 'bg-emerald-100 border-2 border-emerald-500 shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateGroupOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateGroup}
+                  disabled={isCreatingGroup || !newGroupName.trim()}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black cursor-pointer shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isCreatingGroup ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  <span>Tạo nhóm</span>
+                </button>
               </div>
             </div>
           </div>

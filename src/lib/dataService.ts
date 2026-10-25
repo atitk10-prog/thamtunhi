@@ -11,7 +11,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { getAuthHeaders } from './authSession';
-import { Assignment, Attempt, Lesson, LessonVersion, MistakeInsight, UserProfile, UserAccountStatus, MediaItem, MediaCategory } from '../types';
+import { Assignment, Attempt, Lesson, LessonVersion, MistakeInsight, UserProfile, UserAccountStatus, MediaItem, MediaCategory, CustomMediaCategory } from '../types';
 import { searchStandardAssets } from './standardAssets';
 
 /**
@@ -407,6 +407,84 @@ export const dataService = {
       throw errorObj;
     }
     return res.json();
+  },
+
+  async fetchCustomCategories(): Promise<CustomMediaCategory[]> {
+    try {
+      const res = await fetch('/api/teacher/media/categories', {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.categories)) {
+          try {
+            localStorage.setItem('thamtunhi_custom_categories', JSON.stringify(data.categories));
+          } catch {}
+          return data.categories;
+        }
+      }
+    } catch (e) {
+      console.warn('API fetch categories notice:', e);
+    }
+
+    try {
+      const saved = localStorage.getItem('thamtunhi_custom_categories');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+
+    return [];
+  },
+
+  async createCustomCategory(name: string, icon = '📁'): Promise<CustomMediaCategory> {
+    const cleanName = name.trim();
+    if (!cleanName) {
+      throw new Error('Tên nhóm không được để trống.');
+    }
+
+    let createdCategory: CustomMediaCategory | null = null;
+    try {
+      const res = await fetch('/api/teacher/media/categories', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name: cleanName, icon }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        createdCategory = data.category;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Lỗi khi tạo nhóm mới.');
+      }
+    } catch (err: any) {
+      if (err.message && (err.message.includes('đã tồn tại') || err.message.includes('tên khác'))) {
+        throw err;
+      }
+      console.warn('Backend create category notice, saving locally:', err);
+      createdCategory = {
+        id: `custom-cat-${Date.now()}`,
+        name: cleanName,
+        icon,
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    if (!createdCategory) {
+      throw new Error('Không thể tạo nhóm mới.');
+    }
+
+    try {
+      const current = await this.fetchCustomCategories();
+      const exists = current.some((c) => c.name.toLowerCase() === cleanName.toLowerCase());
+      if (!exists) {
+        const updated = [...current, createdCategory];
+        localStorage.setItem('thamtunhi_custom_categories', JSON.stringify(updated));
+      }
+    } catch {}
+
+    return createdCategory;
   },
 
   /**

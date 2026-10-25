@@ -78,20 +78,29 @@ export type MathErrorPattern =
   | 'GENERAL_CALCULATION_ERROR';    // Lỗi tính toán thông thường
 
 export type MediaCategory =
-  | 'food'               // Trái cây và thực phẩm (15 ảnh)
-  | 'animals'            // Động vật (12 ảnh)
-  | 'school'             // Đồ dùng học tập & đồ chơi (10 ảnh)
-  | 'nature'             // Thiên nhiên (8 ảnh)
-  | 'backgrounds'        // Phông cảnh minh họa (5 ảnh)
-  | 'math'               // Đồ họa Toán học chuẩn xác (10 SVG)
-  // Backward compatibility with legacy uploaded categories:
+  | 'food'               // Trái cây và thực phẩm
+  | 'animals'            // Động vật
+  | 'school'             // Đồ dùng học tập & đồ chơi
+  | 'nature'             // Thiên nhiên
+  | 'counting_sticks'    // Que tính & Bó que
+  | 'geometry'           // Hình học phẳng & Khối
+  | 'clock_time'         // Đồng hồ – Thời gian
+  | 'money_measurement'  // Tiền tệ
+  | 'backgrounds'        // Phông cảnh minh họa
+  | 'math'               // Đồ họa Toán học khác
+  // Backward compatibility with legacy categories & custom groups:
   | 'items'
   | 'fruits'
   | 'counters_frames'
-  | 'counting_sticks'
-  | 'geometry'
-  | 'clock_time'
-  | 'money_measurement';
+  | (string & {});
+
+export interface CustomMediaCategory {
+  id: string;
+  name: string;
+  icon?: string;
+  createdAt: string;
+  createdBy?: string;
+}
 
 export interface MediaItem {
   id: string;
@@ -119,7 +128,7 @@ export interface MediaUploadResponse {
 }
 
 export interface VisualAssetConfig {
-  type: 'counters' | 'addition' | 'ten_frame' | 'five_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story' | 'comparison' | 'image' | 'money' | 'clock' | 'none';
+  type: 'counters' | 'addition' | 'subtraction' | 'ten_frame' | 'five_frame' | 'bundles' | 'number_line' | 'shapes' | 'word_story' | 'comparison' | 'image' | 'money' | 'clock' | 'none';
   count?: number;
   leftCount?: number;
   rightCount?: number;

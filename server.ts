@@ -935,8 +935,37 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
         leftCount: a,
         rightCount: b,
         iconName,
-        leftLabel: `Nhóm 1 (${a})`,
-        rightLabel: `Nhóm 2 (${b})`,
+        leftLabel: 'Nhóm 1',
+        rightLabel: 'Nhóm 2',
+      };
+    }
+  }
+
+  // 1b. Phép trừ a - b (Minh họa nhóm ban đầu và thao tác bớt đi)
+  const subMatch = prompt.match(/(\d+)\s*[-−]\s*(\d+)/);
+  if (subMatch) {
+    const a = parseInt(subMatch[1], 10);
+    const b = parseInt(subMatch[2], 10);
+    if (!isNaN(a) && !isNaN(b) && a >= 0 && b >= 0 && a <= 20 && b <= a) {
+      let iconName = 'apple';
+      if (rawText.includes('cá')) iconName = 'fish';
+      else if (rawText.includes('sao')) iconName = 'star';
+      else if (rawText.includes('kẹo')) iconName = 'candy';
+      else if (rawText.includes('bút') || rawText.includes('que')) iconName = 'pencil';
+      else if (rawText.includes('khối') || rawText.includes('viên')) iconName = 'block';
+      else if (rawText.includes('cà rốt')) iconName = 'carrot';
+      else if (rawText.includes('hoa') || rawText.includes('bông')) iconName = 'flower';
+      else if (rawText.includes('chim')) iconName = 'bird';
+      else if (rawText.includes('thỏ')) iconName = 'rabbit';
+      else if (rawText.includes('cam')) iconName = 'orange';
+
+      return {
+        type: 'subtraction',
+        leftCount: a,
+        rightCount: b,
+        iconName,
+        leftLabel: 'Ban đầu',
+        rightLabel: 'Bớt đi',
       };
     }
   }
@@ -952,8 +981,21 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
         leftCount: Math.min(Math.max(0, left), 20),
         rightCount: Math.min(Math.max(0, right), 20),
         iconName: vc.iconName || 'apple',
-        leftLabel: vc.leftLabel,
-        rightLabel: vc.rightLabel,
+        leftLabel: vc.leftLabel || 'Nhóm 1',
+        rightLabel: vc.rightLabel || 'Nhóm 2',
+      };
+    }
+
+    if (vc.type === 'subtraction') {
+      const left = typeof vc.leftCount === 'number' ? Math.max(0, vc.leftCount) : (parseInt(String(vc.leftCount), 10) || 0);
+      const right = typeof vc.rightCount === 'number' ? Math.max(0, vc.rightCount) : (parseInt(String(vc.rightCount), 10) || 0);
+      return {
+        type: 'subtraction',
+        leftCount: Math.min(Math.max(0, left), 20),
+        rightCount: Math.min(Math.max(0, right), left),
+        iconName: vc.iconName || 'apple',
+        leftLabel: vc.leftLabel || 'Ban đầu',
+        rightLabel: vc.rightLabel || 'Bớt đi',
       };
     }
 
@@ -990,39 +1032,28 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
       };
     }
 
-    if ((vc.type === 'ten_frame' || vc.type === 'five_frame') && typeof vc.count === 'number') {
-      const gSize = vc.type === 'five_frame' || vc.gridSize === 5 ? 5 : 10;
-      const count = Math.max(0, vc.count);
-      if (count > 0) {
+    // Loại bỏ hoàn toàn khung ô (ten_frame, five_frame): chuyển thành đồ vật rời (counters)
+    if (vc.type === 'ten_frame' || vc.type === 'five_frame') {
+      const count = typeof vc.count === 'number' ? Math.max(0, vc.count) : (parseInt(String(vc.count), 10) || 0);
+      if (count > 0 || genuinelyZero) {
         return {
-          type: vc.type,
-          gridSize: gSize,
-          count: Math.min(count, gSize),
-          dotColor: vc.dotColor || 'blue',
-        };
-      }
-      // count === 0: chỉ chấp nhận nếu bài toán thực sự là 0
-      if (genuinelyZero) {
-        return {
-          type: vc.type,
-          gridSize: gSize,
-          count: 0,
-          dotColor: vc.dotColor || 'blue',
+          type: 'counters',
+          count: Math.min(count, 20),
+          iconName: vc.dotColor === 'red' ? 'apple' : 'star',
         };
       }
       const numMatch = prompt.match(/(\d+)/);
       if (numMatch) {
         return {
-          type: vc.type,
-          gridSize: gSize,
-          count: Math.min(parseInt(numMatch[1], 10), gSize),
-          dotColor: vc.dotColor || 'blue',
+          type: 'counters',
+          count: Math.min(parseInt(numMatch[1], 10), 20),
+          iconName: 'apple',
         };
       }
       return {
         type: 'none',
         requiresTeacherIllustration: true,
-        caption: 'Cần bổ sung hình minh họa: Chưa có số chấm tròn phù hợp.',
+        caption: 'Cần bổ sung hình minh họa: Giáo viên vui lòng chọn hình và số lượng đồ vật đếm.',
       };
     }
 
@@ -1092,9 +1123,6 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
     if (rawText.includes('que') || rawText.includes('bó')) {
       return { type: 'bundles', tens: 0, ones: 0 };
     }
-    if (rawText.includes('khung') || rawText.includes('chấm')) {
-      return { type: 'ten_frame', gridSize: 10, count: 0, dotColor: 'blue' };
-    }
     return { type: 'counters', count: 0, iconName: 'apple' };
   }
 
@@ -1127,7 +1155,7 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
     }
   }
 
-  // Khung 10 / Khung 5
+  // Chuyển đổi nhắc tới khung 10 / khung 5 / chấm tròn thành đếm vật rời (counters), loại bỏ khung cố định lộ đáp án
   if (rawText.includes('khung 10') || rawText.includes('khung 5') || rawText.includes('chấm tròn')) {
     const numMatch = prompt.match(/(\d+)/);
     if (numMatch) {
@@ -1135,10 +1163,9 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
       const isFive = rawText.includes('khung 5');
       const size = isFive ? 5 : 10;
       return {
-        type: isFive ? 'five_frame' : 'ten_frame',
-        gridSize: size,
+        type: 'counters',
         count: Math.min(Math.max(0, count), size),
-        dotColor: 'blue',
+        iconName: 'apple',
       };
     }
   }
@@ -1417,9 +1444,10 @@ YÊU CẦU SƯ PHẠM VÀ DỮ LIỆU:
    - "operator_pick": Chọn dấu +, -, =, >, < (options: [">", "<", "="] hoặc ["+", "-"]).
 5. HÌNH MINH HỌA TRỰC QUAN (visualConfig): Mỗi câu hỏi BẮT BUỘC có cấu hình trực quan chuẩn xác:
    - "addition": Dành cho phép cộng (ví dụ 1 + 3 = ? hoặc bài toán thêm/gộp). Cấu hình: { "type": "addition", "leftCount": 1, "rightCount": 3, "iconName": "apple" }. Hiển thị Nhóm 1 + Nhóm 2. TUYỆT ĐỐI không dùng bundles cho phép cộng, và TUYỆT ĐỐI không để lộ kết quả tổng trên hình.
-   - "counters": Đếm đồ vật đơn { "type": "counters", "count": 4, "iconName": "apple" } (iconName: "apple", "fish", "star", "candy", "pencil", "carrot", "flower", "bird", "rabbit", "orange", "block"). Nếu số lượng là 0 thì count: 0 (hiển thị khay rỗng).
-   - "ten_frame" hoặc "five_frame": Khung 10 ô hoặc khung 5 ô { "type": "ten_frame", "gridSize": 10, "count": 6, "dotColor": "blue" }.
+   - "subtraction": Dành cho phép trừ (ví dụ 5 - 2 = ? hoặc bài toán bớt đi). Cấu hình: { "type": "subtraction", "leftCount": 5, "rightCount": 2, "iconName": "apple" }. Hiển thị nhóm ban đầu và nhóm bớt đi. TUYỆT ĐỐI không để lộ đáp án còn lại trên hình.
+   - "counters": Đếm đồ vật rời { "type": "counters", "count": 4, "iconName": "apple" } (iconName: "apple", "fish", "star", "candy", "pencil", "carrot", "flower", "bird", "rabbit", "orange", "block"). Nếu số lượng là 0 thì count: 0 (hiển thị khay rỗng).
    - "bundles": Bó que tính và que rời { "type": "bundles", "tens": 1, "ones": 5 }. Dành riêng cho dạng bài chục và đơn vị. Nếu nhỏ hơn 10 thì tens: 0 và ones là số que lẻ. Nếu số lượng thực sự bằng 0 thì tens: 0, ones: 0. TUYỆT ĐỐI không gán bundles cho phép cộng 2 nhóm rời rạc.
+   - TUYỆT ĐỐI KHÔNG dùng dạng khung ô cố định (ten_frame, five_frame) vì hiển thị sẵn các ô cố định làm học sinh suy ra đáp án. Ưu tiên hình que tính rời, quả táo, con vật và các đồ vật rời để học sinh tự quan sát, đếm.
    - "comparison": So sánh 2 nhóm { "type": "comparison", "leftCount": 4, "rightCount": 2, "iconName": "star" }.
    - "shapes": Nhận biết hình { "type": "shapes", "shapeType": "circle" | "square" | "triangle" | "rectangle" | "cylinder" | "sphere" }.
    - "money": Tiền Việt Nam { "type": "money", "moneyBills": [{"denomination": 2000, "count": 2}] }.
@@ -2802,6 +2830,7 @@ app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']),
 
 const MEDIA_STORAGE_DIR = path.resolve(__dirname, 'data', 'media_storage');
 const MEDIA_LIBRARY_FILE = path.resolve(__dirname, 'data', 'media_library.json');
+const CUSTOM_CATEGORIES_FILE = path.resolve(__dirname, 'data', 'custom_categories.json');
 const ASSETS_MANIFEST_FILE = path.resolve(__dirname, 'public', 'assets', 'toan-nhi', 'assets_manifest.json');
 
 // Map legacy media IDs to standard 60 asset filenames to eliminate legacy 404s
@@ -2848,10 +2877,17 @@ function getStandardManifestAssets(): any[] {
         for (const item of group.items || []) {
           const isSvg = item.file.endsWith('.svg');
           const isBg = group.id === 'backgrounds';
+          let itemCat = group.id;
+          if (group.id === 'math') {
+            if (item.file.includes('stick')) itemCat = 'counting_sticks';
+            else if (item.file.includes('clock')) itemCat = 'clock_time';
+            else if (item.file.includes('money')) itemCat = 'money_measurement';
+            else itemCat = 'geometry';
+          }
           list.push({
-            id: `std-${group.id}-${item.file.replace(/\.[^/.]+$/, '')}`,
+            id: `std-${itemCat}-${item.file.replace(/\.[^/.]+$/, '')}`,
             title: item.label,
-            category: group.id,
+            category: itemCat,
             url: `${basePath}${item.file}`,
             mimeType: isSvg ? 'image/svg+xml' : 'image/png',
             sizeBytes: isSvg ? 15000 : (isBg ? 85000 : 45000),
@@ -2860,8 +2896,8 @@ function getStandardManifestAssets(): any[] {
             uploadedBy: 'system',
             uploadedAt: '2026-03-01T00:00:00.000Z',
             isStandardAsset: true,
-            countable: Boolean(group.countable),
-            countUnit: item.countUnit || (group.id === 'animals' ? 'con' : (group.id === 'food' ? 'quả' : 'cái')),
+            countable: Boolean(group.countable || itemCat === 'counting_sticks' || item.file.includes('circle')),
+            countUnit: item.countUnit || (group.id === 'animals' ? 'con' : (group.id === 'food' ? 'quả' : (itemCat === 'counting_sticks' ? 'que' : 'cái'))),
             aliases: item.aliases || [],
             description: `Tài nguyên đồ họa chuẩn môn Toán tiểu học: ${item.label}`,
           });
@@ -2902,6 +2938,27 @@ function saveMediaLibrary(items: any[]) {
     fs.writeFileSync(MEDIA_LIBRARY_FILE, JSON.stringify(items, null, 2), 'utf8');
   } catch (err) {
     console.warn('Failed to save media_library.json:', err);
+  }
+}
+
+function loadCustomCategories(): any[] {
+  try {
+    if (fs.existsSync(CUSTOM_CATEGORIES_FILE)) {
+      return JSON.parse(fs.readFileSync(CUSTOM_CATEGORIES_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.warn('Failed to read custom_categories.json:', err);
+  }
+  return [];
+}
+
+function saveCustomCategories(items: any[]) {
+  try {
+    const dir = path.dirname(CUSTOM_CATEGORIES_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(CUSTOM_CATEGORIES_FILE, JSON.stringify(items, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Failed to save custom_categories.json:', err);
   }
 }
 
@@ -2987,10 +3044,12 @@ app.post('/api/teacher/media/upload', requireAuth, requireRole(['teacher', 'admi
     }
 
     const validCategories = [
-      'items', 'animals', 'fruits', 'counters_frames',
-      'counting_sticks', 'geometry', 'clock_time', 'money_measurement'
+      'food', 'animals', 'school', 'nature',
+      'counting_sticks', 'geometry', 'clock_time', 'money_measurement', 'backgrounds',
+      'items', 'fruits', 'counters_frames', 'math'
     ];
-    if (!validCategories.includes(category)) {
+    const isCustomCat = typeof category === 'string' && (category.startsWith('custom-') || category.trim().length > 0);
+    if (!validCategories.includes(category) && !isCustomCat) {
       return res.status(400).json({ error: 'Danh mục hình ảnh không hợp lệ.' });
     }
 
@@ -3128,11 +3187,7 @@ app.get('/api/teacher/media', requireAuth, requireRole(['teacher', 'admin']), as
     const categoryMap: Record<string, string> = {
       fruits: 'food',
       items: 'school',
-      counters_frames: 'math',
-      counting_sticks: 'math',
-      geometry: 'math',
-      clock_time: 'math',
-      money_measurement: 'math',
+      counters_frames: 'counting_sticks',
     };
 
     if (category && typeof category === 'string' && category !== 'all') {
@@ -3295,6 +3350,110 @@ app.delete('/api/teacher/media/:id', requireAuth, requireRole(['teacher', 'admin
   } catch (err: any) {
     console.error('Delete media error:', err);
     return res.status(500).json({ error: 'Lỗi xóa hình ảnh: ' + err.message });
+  }
+});
+
+// List Custom Categories (Teacher & Admin)
+app.get('/api/teacher/media/categories', requireAuth, requireRole(['teacher', 'admin']), async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    let categories: any[] = [];
+    try {
+      const snap = await getDoc(doc(db, 'test', 'custom_media_categories'));
+      if (snap.exists() && Array.isArray(snap.data().items)) {
+        categories = snap.data().items;
+      }
+    } catch (cloudErr) {
+      console.warn('Notice: Firestore custom categories read notice:', cloudErr);
+    }
+
+    if (categories.length === 0) {
+      categories = loadCustomCategories();
+    }
+
+    return res.json({ ok: true, categories });
+  } catch (err: any) {
+    console.error('Fetch custom categories error:', err);
+    return res.status(500).json({ error: 'Lỗi lấy danh sách nhóm đồ họa: ' + err.message });
+  }
+});
+
+// Create Custom Category (Teacher & Admin)
+app.post('/api/teacher/media/categories', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name, icon = '📁' } = req.body;
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    if (!cleanName) {
+      return res.status(400).json({ error: 'Tên nhóm không được để trống.' });
+    }
+
+    const standardLabels = [
+      'trái cây – thực phẩm', 'trái cây và thực phẩm', 'thực phẩm', 'trái cây', 'food',
+      'động vật', 'animals',
+      'đồ dùng học tập', 'đồ dùng học tập & đồ chơi', 'school',
+      'thiên nhiên', 'nature',
+      'que tính', 'counting_sticks',
+      'hình học', 'geometry',
+      'đồng hồ – thời gian', 'đồng hồ', 'thời gian', 'clock_time',
+      'tiền tệ', 'money_measurement',
+      'phông cảnh', 'phông cảnh minh họa', 'backgrounds'
+    ];
+
+    if (standardLabels.includes(cleanName.toLowerCase())) {
+      return res.status(400).json({ error: 'Tên nhóm này trùng với nhóm chuẩn của hệ thống. Thầy/Cô vui lòng nhập tên khác.' });
+    }
+
+    // Check existing custom categories
+    let existing: any[] = [];
+    try {
+      const snap = await getDoc(doc(db, 'test', 'custom_media_categories'));
+      if (snap.exists() && Array.isArray(snap.data().items)) {
+        existing = snap.data().items;
+      }
+    } catch {}
+    if (existing.length === 0) {
+      existing = loadCustomCategories();
+    }
+
+    if (existing.some((c: any) => c.name && c.name.toLowerCase() === cleanName.toLowerCase())) {
+      return res.status(400).json({ error: 'Tên nhóm này đã tồn tại. Thầy/Cô vui lòng nhập tên khác.' });
+    }
+
+    const newCategory = {
+      id: `custom-cat-${Date.now()}`,
+      name: cleanName,
+      icon: typeof icon === 'string' && icon.trim() ? icon.trim() : '📁',
+      createdAt: new Date().toISOString(),
+      createdBy: req.user?.uid || 'teacher',
+      createdByName: req.user?.displayName || 'Giáo viên',
+    };
+
+    existing.push(newCategory);
+    saveCustomCategories(existing);
+
+    try {
+      await setDoc(doc(db, 'test', 'custom_media_categories'), {
+        items: existing,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (cloudErr) {
+      console.warn('Notice: Firestore custom category save notice:', cloudErr);
+    }
+
+    await writeAuditLog({
+      action: 'CREATE_MEDIA_CATEGORY',
+      actorId: req.user?.uid,
+      actorName: req.user?.displayName,
+      actorRole: req.user?.role,
+      targetCollection: 'custom_media_categories',
+      targetId: newCategory.id,
+      targetName: cleanName,
+      details: `Giáo viên tạo nhóm đồ họa mới: '${cleanName}'`,
+    });
+
+    return res.json({ ok: true, category: newCategory });
+  } catch (err: any) {
+    console.error('Create custom category error:', err);
+    return res.status(500).json({ error: 'Lỗi khi tạo nhóm mới: ' + err.message });
   }
 });
 

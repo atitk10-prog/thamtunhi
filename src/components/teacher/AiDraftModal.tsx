@@ -436,6 +436,11 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
                             ➕ {q.visualConfig.leftCount} + {q.visualConfig.rightCount}
                           </span>
                         )}
+                        {q.visualConfig?.type === 'subtraction' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-extrabold">
+                            ➖ {q.visualConfig.leftCount} bớt {q.visualConfig.rightCount}
+                          </span>
+                        )}
                         {q.visualConfig?.type === 'bundles' && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-extrabold">
                             🥢 {q.visualConfig.tens ?? 0} chục + {q.visualConfig.ones ?? 0} que

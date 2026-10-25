@@ -729,7 +729,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                           <option value="number_input">2. Nhập số trực tiếp</option>
                           <option value="operator_pick">3. Chọn dấu phép tính / so sánh</option>
                           <option value="expression_match">4. Ghép nối cặp thẻ</option>
-                          <option value="ten_frame_bundle">5. Khung 10 ô / Bó que tính</option>
+                          <option value="ten_frame_bundle">5. Bó que tính / Que rời (Tách gộp số)</option>
                           <option value="number_line_order">6. Trục số / Thứ tự số</option>
                         </select>
                       </div>
@@ -968,10 +968,11 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                 type="button"
                                 onClick={() => {
                                   handleUpdateVisual(idx, {
-                                    type: q.interactionType === 'ten_frame_bundle' ? 'ten_frame' : 'counters',
+                                    type: q.interactionType === 'ten_frame_bundle' ? 'bundles' : 'counters',
                                     count: vc?.count ?? 4,
                                     iconName: vc?.iconName || 'apple',
-                                    gridSize: q.interactionType === 'ten_frame_bundle' ? (q.prompt.toLowerCase().includes('khung 5 ô') ? 5 : 10) : undefined,
+                                    tens: q.interactionType === 'ten_frame_bundle' ? (vc?.tens ?? 0) : undefined,
+                                    ones: q.interactionType === 'ten_frame_bundle' ? (vc?.ones ?? 4) : undefined,
                                     imageUrl: undefined,
                                     imageId: undefined,
                                   });
@@ -1026,15 +1027,13 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                   <select
                                     value={
                                       isFrame
-                                        ? (isFive ? 'five_frame' : 'ten_frame')
+                                        ? 'counters'
                                         : (vc?.type || 'counters')
                                     }
                                     onChange={(e) => {
                                       const val = e.target.value;
-                                      if (val === 'five_frame') {
-                                        handleUpdateVisual(idx, { type: 'ten_frame', gridSize: 5, count: Math.min(vc?.count || 5, 5), dotColor: vc?.dotColor || 'blue' });
-                                      } else if (val === 'ten_frame') {
-                                        handleUpdateVisual(idx, { type: 'ten_frame', gridSize: 10, count: vc?.count || 10, dotColor: vc?.dotColor || 'blue' });
+                                      if (val === 'subtraction') {
+                                        handleUpdateVisual(idx, { type: 'subtraction', leftCount: 5, rightCount: 2, iconName: vc?.iconName || 'apple', gridSize: undefined });
                                       } else {
                                         handleUpdateVisual(idx, { type: val as any, gridSize: undefined });
                                       }
@@ -1042,9 +1041,8 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                     className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
                                   >
                                     <option value="addition">➕ Phép cộng gộp hai nhóm (1 + 3)</option>
-                                    <option value="counters">🍎 Đếm đồ vật đơn</option>
-                                    <option value="five_frame">⏹️ Khung 5 ô (Five-Frame)</option>
-                                    <option value="ten_frame">🔟 Khung 10 ô (Ten-Frame)</option>
+                                    <option value="subtraction">➖ Phép trừ bớt đi (5 - 2)</option>
+                                    <option value="counters">🍎 Đếm đồ vật rời</option>
                                     <option value="bundles">🥢 Bó que tính chục - đơn vị</option>
                                     <option value="comparison">⚖️ So sánh 2 nhóm</option>
                                     <option value="number_line">📏 Trục số</option>
@@ -1131,58 +1129,51 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                   </>
                                 )}
 
-                                {isFrame && (
+                                {vc?.type === 'subtraction' && (
                                   <>
                                     <div>
-                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Số ô của khung</label>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Loại vật thể</label>
                                       <select
-                                        value={isFive ? '5' : '10'}
-                                        onChange={(e) => {
-                                          const gSize = Number(e.target.value);
-                                          handleUpdateVisual(idx, {
-                                            type: 'ten_frame',
-                                            gridSize: gSize,
-                                            count: Math.min(vc?.count || gSize, gSize),
-                                          });
-                                        }}
+                                        value={vc.iconName || 'apple'}
+                                        onChange={(e) => handleUpdateVisual(idx, { iconName: e.target.value })}
                                         className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
                                       >
-                                        <option value="5">Khung 5 ô (sức chứa 5)</option>
-                                        <option value="10">Khung 10 ô (sức chứa 10)</option>
+                                        <option value="apple">🍎 Quả táo (apple)</option>
+                                        <option value="star">⭐ Ngôi sao (star)</option>
+                                        <option value="candy">🍬 Kẹo ngọt (candy)</option>
+                                        <option value="fish">🐟 Chú cá (fish)</option>
+                                        <option value="pencil">✏️ Bút chì (pencil)</option>
+                                        <option value="carrot">🥕 Cà rốt (carrot)</option>
+                                        <option value="flower">🌸 Bông hoa (flower)</option>
+                                        <option value="bird">🐦 Chú chim (bird)</option>
+                                        <option value="rabbit">🐰 Chú thỏ (rabbit)</option>
+                                        <option value="orange">🍊 Quả cam (orange)</option>
+                                        <option value="block">🧱 Khối vuông (block)</option>
                                       </select>
                                     </div>
 
                                     <div>
-                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                                        Số chấm tròn (Tối đa {isFive ? 5 : 10})
-                                      </label>
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Ban đầu (Trái)</label>
                                       <input
                                         type="number"
                                         min={0}
-                                        max={isFive ? 5 : 10}
-                                        value={vc?.count ?? (isFive ? 5 : 10)}
-                                        onChange={(e) => {
-                                          const maxLimit = isFive ? 5 : 10;
-                                          const rawVal = Number(e.target.value);
-                                          const clamped = Math.min(Math.max(0, rawVal), maxLimit);
-                                          handleUpdateVisual(idx, { count: clamped, tens: 0, ones: clamped });
-                                        }}
+                                        max={20}
+                                        value={vc.leftCount ?? 5}
+                                        onChange={(e) => handleUpdateVisual(idx, { leftCount: Math.max(0, Number(e.target.value)) })}
                                         className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
                                       />
                                     </div>
 
                                     <div>
-                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Màu sắc chấm</label>
-                                      <select
-                                        value={vc?.dotColor || 'blue'}
-                                        onChange={(e) => handleUpdateVisual(idx, { dotColor: e.target.value })}
+                                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Bớt đi (Phải)</label>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={20}
+                                        value={vc.rightCount ?? 2}
+                                        onChange={(e) => handleUpdateVisual(idx, { rightCount: Math.max(0, Number(e.target.value)) })}
                                         className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
-                                      >
-                                        <option value="blue">🔵 Màu xanh dương (blue)</option>
-                                        <option value="red">🔴 Màu đỏ (red)</option>
-                                        <option value="green">🟢 Màu xanh lá (green)</option>
-                                        <option value="amber">🟡 Màu vàng cam (amber)</option>
-                                      </select>
+                                      />
                                     </div>
                                   </>
                                 )}

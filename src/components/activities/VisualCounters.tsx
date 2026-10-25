@@ -104,7 +104,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
       return (
         <div className="my-5 p-5 bg-sky-50/80 rounded-2xl border-2 border-sky-100 max-w-lg mx-auto">
           <div className="text-xs uppercase tracking-wider font-extrabold text-sky-700 mb-3 text-center">
-            Quan sát mô hình đếm: {count} {unitName}
+            {isTeacherView ? `Quan sát mô hình đếm: ${count} ${unitName}` : `Quan sát các ${unitName} và đếm:`}
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
             {Array.from({ length: count }).map((_, i) => renderIcon(i, 'img-rep'))}
@@ -198,76 +198,41 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
-  // 3. Five-Frame & Ten-Frame Grid Models (GDPT 2018)
+  // 3. Discrete Counter Dots Model (Replaces answer-revealing grid frames)
   const isFrame = config.type === 'ten_frame' || config.type === 'five_frame';
   if (isFrame) {
-    const isFive = config.type === 'five_frame' || config.gridSize === 5;
-    const gridCellCount = isFive ? 5 : 10;
     const count = config.count ?? 0;
-    const firstFrameCount = Math.min(count, gridCellCount);
-    const secondFrameCount = !isFive && count > 10 ? Math.min(count - 10, 10) : 0;
-
     const dotColor = config.dotColor || 'blue';
     const dotClasses: Record<string, string> = {
-      blue: 'bg-gradient-to-br from-sky-400 to-blue-600 border border-blue-700 text-white',
-      red: 'bg-gradient-to-br from-rose-400 to-rose-600 border border-rose-700 text-white',
-      green: 'bg-gradient-to-br from-emerald-400 to-emerald-600 border border-emerald-700 text-white',
-      amber: 'bg-gradient-to-br from-amber-400 to-amber-600 border border-amber-700 text-white',
+      blue: 'bg-gradient-to-br from-sky-400 to-blue-600 border-2 border-blue-700 text-white',
+      red: 'bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-rose-700 text-white',
+      green: 'bg-gradient-to-br from-emerald-400 to-emerald-600 border-2 border-emerald-700 text-white',
+      amber: 'bg-gradient-to-br from-amber-400 to-amber-600 border-2 border-amber-700 text-white',
     };
     const dotClass = dotClasses[dotColor] || dotClasses.blue;
 
     return (
       <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-md mx-auto">
-        <div className="text-xs font-black uppercase tracking-wider text-sky-700 text-center mb-1">
-          {isFive ? 'Khung 5 Ô Trực Quan' : 'Khung 10 Ô (Ten-Frame) Trực Quan'}
+        <div className="text-xs font-black uppercase tracking-wider text-sky-700 text-center mb-2">
+          {isTeacherView ? `Mô hình chấm tròn đếm (${count} chấm tròn)` : 'Quan sát và đếm các chấm tròn:'}
         </div>
-        {count === 0 && (
-          <div className="text-[11px] font-bold text-slate-500 text-center mb-2">
-            (0 chấm tròn – Khung rỗng)
+        {count === 0 ? (
+          <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
+            <span className="text-2xl mb-1">⚪</span>
+            <span className="text-xs font-semibold text-slate-400">
+              {isTeacherView ? '(0 chấm tròn – Bảng đếm rỗng)' : '(Bảng đếm rỗng – Chưa có chấm tròn)'}
+            </span>
           </div>
-        )}
-        <div
-          className={`mx-auto grid gap-2 p-3 bg-white rounded-2xl border-3 border-sky-300 shadow-inner ${
-            isFive ? 'max-w-[280px] grid-cols-5' : 'max-w-[280px] grid-cols-5'
-          }`}
-        >
-          {Array.from({ length: gridCellCount }).map((_, i) => {
-            const isFilled = i < firstFrameCount;
-            return (
+        ) : (
+          <div className="p-4 bg-white/90 rounded-2xl border-2 border-sky-200 shadow-inner flex flex-wrap items-center justify-center gap-3 min-h-[70px]">
+            {Array.from({ length: count }).map((_, i) => (
               <div
-                key={`f1-${i}`}
-                className="w-11 h-11 rounded-xl border-2 border-slate-200 bg-slate-50 flex items-center justify-center"
+                key={`dot-${i}`}
+                className={`w-9 h-9 rounded-full ${dotClass} shadow-sm flex items-center justify-center text-sm font-bold animate-in zoom-in-50 transition-transform hover:scale-110`}
               >
-                {isFilled && (
-                  <div className={`w-8 h-8 rounded-full ${dotClass} shadow-sm flex items-center justify-center text-xs font-bold animate-in zoom-in-50`}>
-                    ●
-                  </div>
-                )}
+                ●
               </div>
-            );
-          })}
-        </div>
-
-        {secondFrameCount > 0 && (
-          <div className="mt-3">
-            <div className="text-[11px] font-bold text-slate-500 text-center mb-1">Khung thứ hai:</div>
-            <div className="max-w-[280px] mx-auto grid grid-cols-5 gap-2 p-3 bg-white rounded-2xl border-3 border-sky-300 shadow-inner">
-              {Array.from({ length: 10 }).map((_, i) => {
-                const isFilled = i < secondFrameCount;
-                return (
-                  <div
-                    key={`f2-${i}`}
-                    className="w-11 h-11 rounded-xl border-2 border-slate-200 bg-slate-50 flex items-center justify-center"
-                  >
-                    {isFilled && (
-                      <div className={`w-8 h-8 rounded-full ${dotClass} shadow-sm flex items-center justify-center text-xs font-bold animate-in zoom-in-50`}>
-                        ●
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            ))}
           </div>
         )}
       </div>
@@ -301,7 +266,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
       return (
         <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-lg mx-auto">
           <div className="text-xs font-black uppercase tracking-wider text-emerald-800 text-center mb-3">
-            🥢 Mô hình Que tính (0 que tính)
+            {isTeacherView ? '🥢 Mô hình Que tính (0 que tính)' : '🥢 Mô hình Que tính'}
           </div>
           <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
             <span className="text-2xl mb-1">🥢</span>
@@ -319,7 +284,9 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     return (
       <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-xl mx-auto">
         <div className="text-xs font-black uppercase tracking-wider text-emerald-800 text-center mb-3">
-          {isSmallStick ? `🥢 Mô hình Que tính (${ones} que lẻ)` : `🥢 Mô hình Bó Que tính & Que Lẻ (${tens} chục + ${ones} que lẻ)`}
+          {isTeacherView
+            ? (isSmallStick ? `🥢 Mô hình Que tính (${ones} que lẻ)` : `🥢 Mô hình Bó Que tính & Que Lẻ (${tens} chục + ${ones} que lẻ)`)
+            : (isSmallStick ? '🥢 Quan sát que tính và đếm:' : '🥢 Quan sát bó que tính và que rời:')}
         </div>
         <div className="flex flex-wrap items-center justify-center gap-6 p-4 bg-white/80 rounded-2xl border-2 border-sky-100">
           {/* Tens bundles with official SVG */}
@@ -359,7 +326,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
                 </div>
               ))}
               <div className="w-full text-center text-[11px] font-black text-emerald-800 mt-1">
-                {tens > 0 ? `${ones} que rời` : `${ones} que tính`}
+                {isTeacherView ? (tens > 0 ? `${ones} que rời` : `${ones} que tính`) : 'Que rời'}
               </div>
             </div>
           )}
@@ -382,7 +349,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           {/* Group 1 */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide text-center">
-              {config.leftLabel || (left === 0 ? `0 ${unitName}` : `${left} ${unitName}`)}
+              {config.leftLabel || (isTeacherView ? (left === 0 ? `0 ${unitName}` : `${left} ${unitName}`) : 'Nhóm 1')}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
               {left > 0 ? (
@@ -403,7 +370,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           {/* Group 2 */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-indigo-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-indigo-800 mb-2 uppercase tracking-wide text-center">
-              {config.rightLabel || (right === 0 ? `0 ${unitName}` : `${right} ${unitName}`)}
+              {config.rightLabel || (isTeacherView ? (right === 0 ? `0 ${unitName}` : `${right} ${unitName}`) : 'Nhóm 2')}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
               {right > 0 ? (
@@ -411,6 +378,66 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
               ) : (
                 <div className="flex flex-col items-center justify-center py-2 text-slate-400">
                   <span className="text-xs font-semibold">(0 {unitName} – Khay rỗng)</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 5b. Subtraction (Phép trừ a - b: Minh họa nhóm ban đầu và thao tác bớt đi)
+  if (config.type === 'subtraction') {
+    const left = Math.max(0, config.leftCount ?? 0);
+    const right = Math.max(0, config.rightCount ?? 0);
+
+    return (
+      <div className="my-5 p-5 bg-gradient-to-r from-rose-50 via-amber-50/20 to-sky-50 rounded-3xl border-2 border-rose-200 w-full max-w-xl mx-auto shadow-xs">
+        <div className="text-xs uppercase tracking-wider font-extrabold text-rose-800 mb-3 text-center">
+          {isTeacherView ? `Mô hình phép trừ: ${left} bớt ${right} ${unitName}` : `Quan sát mô hình phép trừ: Bớt đi từ nhóm ban đầu`}
+        </div>
+        <div className="flex items-center justify-center gap-3 sm:gap-6">
+          {/* Initial Group */}
+          <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
+            <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide text-center">
+              {config.leftLabel || (isTeacherView ? `Ban đầu (${left} ${unitName})` : 'Nhóm ban đầu')}
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
+              {left > 0 ? (
+                Array.from({ length: left }).map((_, i) => renderIcon(i, 'sub-init'))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-2 text-slate-400">
+                  <span className="text-xs font-semibold">(Khay rỗng – Chưa có {unitName})</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Minus Sign */}
+          <div className="w-10 h-10 rounded-2xl bg-rose-500 text-white font-black flex items-center justify-center shadow-md text-2xl border-2 border-rose-600 flex-shrink-0">
+            −
+          </div>
+
+          {/* Subtracted Group */}
+          <div className="flex-1 p-3 sm:p-4 bg-rose-50/70 rounded-2xl border-2 border-dashed border-rose-300 shadow-xs flex flex-col items-center">
+            <div className="text-xs font-black text-rose-800 mb-2 uppercase tracking-wide text-center flex items-center gap-1">
+              <span>✂️</span>
+              <span>{config.rightLabel || (isTeacherView ? `Bớt đi (${right} ${unitName})` : 'Số bớt đi')}</span>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
+              {right > 0 ? (
+                Array.from({ length: right }).map((_, i) => (
+                  <div key={`sub-right-${i}`} className="relative transition-transform hover:scale-105">
+                    {renderIcon(i, 'sub-takeaway')}
+                    <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[9px] font-black flex items-center justify-center shadow-xs">
+                      ✕
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-2 text-slate-400">
+                  <span className="text-xs font-semibold">(Không bớt đi)</span>
                 </div>
               )}
             </div>
@@ -446,13 +473,15 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           {/* Left Group */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide">
-              {config.leftLabel || `Nhóm A (${left} ${unitName})`}
+              {config.leftLabel || (isTeacherView ? `Nhóm A (${left} ${unitName})` : 'Nhóm A')}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
               {left > 0 ? (
                 Array.from({ length: left }).map((_, i) => renderIcon(i, 'left'))
               ) : (
-                <span className="text-xs font-semibold text-slate-400 py-2">(0 {unitName} – Khay rỗng)</span>
+                <span className="text-xs font-semibold text-slate-400 py-2">
+                  {isTeacherView ? `(0 ${unitName} – Khay rỗng)` : '(Khay rỗng)'}
+                </span>
               )}
             </div>
           </div>
@@ -465,7 +494,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           {/* Right Group */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide">
-              {config.rightLabel || `Nhóm B (${right} ${unitName})`}
+              {config.rightLabel || (isTeacherView ? `Nhóm B (${right} ${unitName})` : 'Nhóm B')}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
               {right > 0 ? (
@@ -543,12 +572,16 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
       return (
         <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-md mx-auto">
           <div className="text-xs font-black uppercase tracking-wider text-sky-800 text-center mb-2">
-            Mô hình đếm đồ vật (0 {unitName})
+            {isTeacherView ? `Mô hình đếm đồ vật (0 ${unitName})` : 'Khay đếm đồ vật'}
           </div>
           <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
             <span className="text-2xl mb-1">🧺</span>
-            <span className="text-sm font-black text-slate-700">0 {unitName}</span>
-            <span className="text-xs font-semibold text-slate-400 mt-0.5">(Khay rỗng – Số lượng: 0)</span>
+            <span className="text-sm font-black text-slate-700">
+              {isTeacherView ? `0 ${unitName}` : 'Khay rỗng'}
+            </span>
+            <span className="text-xs font-semibold text-slate-400 mt-0.5">
+              {isTeacherView ? '(Khay rỗng – Số lượng: 0)' : '(Chưa có đồ vật nào)'}
+            </span>
           </div>
         </div>
       );
@@ -557,7 +590,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     return (
       <div className="my-5 p-5 bg-sky-50/80 rounded-2xl border-2 border-sky-100 max-w-md mx-auto">
         <div className="text-xs uppercase tracking-wider font-extrabold text-sky-600 mb-3 text-center">
-          Quan sát mô hình đếm: {count} {unitName}
+          {isTeacherView ? `Mô hình đếm: ${count} ${unitName}` : `Quan sát các ${unitName} và đếm:`}
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {Array.from({ length: count }).map((_, i) => renderIcon(i))}
@@ -638,7 +671,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
                   ))}
                 </div>
                 <span className="text-[11px] font-bold text-slate-600 mt-1.5">
-                  {count > 1 ? `${count} tờ ` : ''}{style.name} ({style.label})
+                  {isTeacherView ? `${count > 1 ? `${count} tờ ` : ''}${style.name} (${style.label})` : style.label}
                 </span>
               </div>
             );
