@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { getAuthHeaders } from './authSession';
 import { Assignment, Attempt, Lesson, LessonVersion, MistakeInsight, UserProfile, UserAccountStatus, MediaItem, MediaCategory } from '../types';
+import { searchStandardAssets } from './standardAssets';
 
 /**
  * Unified Data Service for THÁM TỬ TOÁN NHÍ
@@ -351,16 +352,22 @@ export const dataService = {
     if (search && search.trim()) params.set('search', search.trim());
 
     const url = `/api/teacher/media${params.toString() ? `?${params.toString()}` : ''}`;
-    const res = await fetch(url, {
-      headers: getAuthHeaders(),
-    });
+    try {
+      const res = await fetch(url, {
+        headers: getAuthHeaders(),
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Không thể tải thư viện hình ảnh.');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          return data.items;
+        }
+      }
+    } catch (err) {
+      console.warn('Notice: API media fetch notice, falling back to standard math assets:', err);
     }
-    const data = await res.json();
-    return data.items || [];
+
+    return searchStandardAssets(category, search);
   },
 
   async uploadMedia(data: {

@@ -1,0 +1,109 @@
+{
+  "version": "1.0.0",
+  "project": "Thám Tử Toán Nhí",
+  "assetBasePath": "/assets/toan-nhi/",
+  "groups": [
+    {
+      "id": "food",
+      "label": "Trái cây và thực phẩm",
+      "countable": true,
+      "items": [
+        {"file":"apple-red.png","label":"Quả táo đỏ","aliases":["táo","quả táo","apple"]},
+        {"file":"orange-fruit.png","label":"Quả cam","aliases":["cam","quả cam","orange"]},
+        {"file":"banana-yellow.png","label":"Quả chuối","aliases":["chuối","quả chuối","banana"]},
+        {"file":"pear-green.png","label":"Quả lê","aliases":["lê","quả lê","pear"]},
+        {"file":"watermelon-slice.png","label":"Miếng dưa hấu","aliases":["dưa hấu","miếng dưa","watermelon"]},
+        {"file":"strawberry-red.png","label":"Quả dâu tây","aliases":["dâu tây","quả dâu","strawberry"]},
+        {"file":"grapes-purple.png","label":"Chùm nho tím","aliases":["chùm nho","nho","grapes"],"countUnit":"chùm"},
+        {"file":"carrot-orange.png","label":"Củ cà rốt","aliases":["cà rốt","carrot"]},
+        {"file":"candy-wrapped.png","label":"Viên kẹo gói","aliases":["kẹo","viên kẹo","candy"]},
+        {"file":"cupcake-small.png","label":"Bánh cupcake","aliases":["bánh ngọt","cupcake"]},
+        {"file":"bread-loaf.png","label":"Ổ bánh mì","aliases":["bánh mì","ổ bánh mì","bread"]},
+        {"file":"egg-white.png","label":"Quả trứng","aliases":["trứng","quả trứng","egg"]},
+        {"file":"tomato-red.png","label":"Quả cà chua","aliases":["cà chua","tomato"]},
+        {"file":"peach-pink.png","label":"Quả đào","aliases":["đào","quả đào","peach"]},
+        {"file":"cookie-round.png","label":"Chiếc bánh quy","aliases":["bánh quy","cookie"]}
+      ]
+    },
+    {
+      "id": "animals",
+      "label": "Động vật",
+      "countable": true,
+      "items": [
+        {"file":"bird-sparrow.png","label":"Chim sẻ","aliases":["chim","chim sẻ","bird"]},
+        {"file":"fish-gold.png","label":"Cá vàng","aliases":["cá","cá vàng","fish"]},
+        {"file":"rabbit-white.png","label":"Thỏ trắng","aliases":["thỏ","con thỏ","rabbit"]},
+        {"file":"cat-orange.png","label":"Mèo vàng","aliases":["mèo","con mèo","cat"]},
+        {"file":"dog-brown.png","label":"Chó nâu","aliases":["chó","con chó","dog"]},
+        {"file":"chick-yellow.png","label":"Gà con","aliases":["gà con","con gà","chick"]},
+        {"file":"duck-yellow.png","label":"Vịt con","aliases":["vịt","vịt con","duck"]},
+        {"file":"butterfly-blue.png","label":"Bướm xanh","aliases":["bướm","con bướm","butterfly"]},
+        {"file":"bee-yellow.png","label":"Ong vàng","aliases":["ong","con ong","bee"]},
+        {"file":"frog-green.png","label":"Ếch xanh","aliases":["ếch","con ếch","frog"]},
+        {"file":"turtle-green.png","label":"Rùa xanh","aliases":["rùa","con rùa","turtle"]},
+        {"file":"ladybug-red.png","label":"Bọ rùa đỏ","aliases":["bọ rùa","ladybug"]}
+      ]
+    },
+    {
+      "id": "school",
+      "label": "Đồ dùng học tập và đồ chơi",
+      "countable": true,
+      "items": [
+        {"file":"pencil-yellow.png","label":"Bút chì vàng","aliases":["bút chì","pencil"]},
+        {"file":"book-open.png","label":"Quyển sách mở","aliases":["sách","quyển sách","book"]},
+        {"file":"eraser-pink.png","label":"Cục tẩy","aliases":["tẩy","cục tẩy","eraser"]},
+        {"file":"backpack-blue.png","label":"Cặp sách xanh","aliases":["cặp sách","ba lô","backpack"]},
+        {"file":"notebook-green.png","label":"Quyển vở xanh","aliases":["vở","quyển vở","notebook"]},
+        {"file":"ruler-wood.png","label":"Thước kẻ","aliases":["thước","thước kẻ","ruler"]},
+        {"file":"crayon-box.png","label":"Hộp bút màu","aliases":["hộp bút màu","hộp màu","crayons"],"countUnit":"hộp"},
+        {"file":"football-soccer.png","label":"Quả bóng đá","aliases":["bóng","bóng đá","football"]},
+        {"file":"school-bell.png","label":"Chuông trường","aliases":["chuông","school bell"]},
+        {"file":"scissors-safe.png","label":"Chiếc kéo học sinh","aliases":["kéo","chiếc kéo","scissors"]}
+      ]
+    },
+    {
+      "id": "nature",
+      "label": "Thiên nhiên",
+      "countable": true,
+      "items": [
+        {"file":"flower-red.png","label":"Bông hoa đỏ","aliases":["hoa đỏ","bông hoa","flower"]},
+        {"file":"flower-yellow.png","label":"Bông hoa vàng","aliases":["hoa vàng","bông hoa","flower"]},
+        {"file":"leaf-green.png","label":"Chiếc lá xanh","aliases":["lá","lá cây","leaf"]},
+        {"file":"tree-small.png","label":"Cây xanh","aliases":["cây","cây xanh","tree"]},
+        {"file":"mushroom-red.png","label":"Cây nấm","aliases":["nấm","cây nấm","mushroom"]},
+        {"file":"cloud-white.png","label":"Đám mây trắng","aliases":["mây","đám mây","cloud"]},
+        {"file":"star-gold.png","label":"Ngôi sao vàng","aliases":["sao","ngôi sao","star"]},
+        {"file":"pinecone-brown.png","label":"Quả thông","aliases":["quả thông","pinecone"]}
+      ]
+    },
+    {
+      "id": "backgrounds",
+      "label": "Phông cảnh minh họa",
+      "countable": false,
+      "items": [
+        {"file":"scene-classroom.png","label":"Lớp học","aliases":["lớp học","classroom"]},
+        {"file":"scene-garden.png","label":"Khu vườn","aliases":["vườn","garden"]},
+        {"file":"scene-pond.png","label":"Ao nước","aliases":["ao","hồ","pond"]},
+        {"file":"scene-market.png","label":"Quầy chợ","aliases":["chợ","market"]},
+        {"file":"scene-playground.png","label":"Sân chơi","aliases":["sân chơi","playground"]}
+      ]
+    },
+    {
+      "id": "math",
+      "label": "Đồ họa Toán học chuẩn xác",
+      "countable": false,
+      "items": [
+        {"file":"math-counting-stick-single.svg","label":"Một que tính","aliases":["que tính","single stick"],"countUnit":"1 que"},
+        {"file":"math-counting-stick-bundle10.svg","label":"Một bó 10 que tính","aliases":["bó chục","10 que tính"],"countUnit":"10 que"},
+        {"file":"math-tenframe-empty.svg","label":"Khung 10 ô trống","aliases":["khung 10","ten frame"]},
+        {"file":"math-number-card-blank.svg","label":"Thẻ số trống","aliases":["thẻ số","number card"]},
+        {"file":"math-token-plus.svg","label":"Dấu cộng","aliases":["cộng","+"]},
+        {"file":"math-token-minus.svg","label":"Dấu trừ","aliases":["trừ","-"]},
+        {"file":"math-token-equals.svg","label":"Dấu bằng","aliases":["bằng","="]},
+        {"file":"math-clock-face-blank.svg","label":"Mặt đồng hồ không kim","aliases":["đồng hồ","clock"]},
+        {"file":"math-shape-circle-blue.svg","label":"Hình tròn xanh","aliases":["hình tròn","circle"]},
+        {"file":"math-shape-triangle-yellow.svg","label":"Hình tam giác vàng","aliases":["tam giác","triangle"]}
+      ]
+    }
+  ]
+}

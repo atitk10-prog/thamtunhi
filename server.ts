@@ -265,6 +265,9 @@ app.use((_req, res, next) => {
   next();
 });
 
+// Serve public directory statically (assets, icons, manifest)
+app.use(express.static(path.resolve(__dirname, 'public')));
+
 // 1. Health check endpoint (Probes true Cloud Firestore connectivity and reports genuine status)
 app.get('/api/health', async (_req: Request, res: Response) => {
   let firestoreConnected = false;
@@ -2799,6 +2802,79 @@ app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']),
 
 const MEDIA_STORAGE_DIR = path.resolve(__dirname, 'data', 'media_storage');
 const MEDIA_LIBRARY_FILE = path.resolve(__dirname, 'data', 'media_library.json');
+const ASSETS_MANIFEST_FILE = path.resolve(__dirname, 'public', 'assets', 'toan-nhi', 'assets_manifest.json');
+
+// Map legacy media IDs to standard 60 asset filenames to eliminate legacy 404s
+const LEGACY_MEDIA_MAP: Record<string, string> = {
+  'media-fruit-apple-red': 'apple-red.png',
+  'media-fruit-orange': 'orange-fruit.png',
+  'media-fruit-banana': 'banana-yellow.png',
+  'media-fruit-watermelon': 'watermelon-slice.png',
+  'media-animal-goldfish': 'fish-gold.png',
+  'media-animal-rabbit': 'rabbit-white.png',
+  'media-animal-duck': 'duck-yellow.png',
+  'media-item-backpack': 'backpack-blue.png',
+  'media-item-ruler': 'ruler-wood.png',
+  'media-frame-five': 'math-tenframe-empty.svg',
+  'media-frame-ten': 'math-tenframe-empty.svg',
+  'media-stick-single': 'math-counting-stick-single.svg',
+  'media-stick-bundle-10': 'math-counting-stick-bundle10.svg',
+  'media-geo-square': 'math-shape-circle-blue.svg',
+  'media-geo-circle': 'math-shape-circle-blue.svg',
+  'media-geo-triangle': 'math-shape-triangle-yellow.svg',
+  'media-clock-8am': 'math-clock-face-blank.svg',
+  'media-money-1000': 'math-number-card-blank.svg',
+  'media-money-2000': 'math-number-card-blank.svg',
+  'media-money-5000': 'math-number-card-blank.svg',
+  'media-money-10000': 'math-number-card-blank.svg',
+  'media-money-20000': 'math-number-card-blank.svg',
+  'media-money-50000': 'math-number-card-blank.svg',
+  'media-money-100000': 'math-number-card-blank.svg',
+};
+
+// Cache for loaded standard manifest items
+let cachedStandardAssets: any[] | null = null;
+
+function getStandardManifestAssets(): any[] {
+  if (cachedStandardAssets && cachedStandardAssets.length > 0) {
+    return cachedStandardAssets;
+  }
+  try {
+    if (fs.existsSync(ASSETS_MANIFEST_FILE)) {
+      const manifest = JSON.parse(fs.readFileSync(ASSETS_MANIFEST_FILE, 'utf8'));
+      const list: any[] = [];
+      const basePath = manifest.assetBasePath || '/assets/toan-nhi/';
+      for (const group of manifest.groups || []) {
+        for (const item of group.items || []) {
+          const isSvg = item.file.endsWith('.svg');
+          const isBg = group.id === 'backgrounds';
+          list.push({
+            id: `std-${group.id}-${item.file.replace(/\.[^/.]+$/, '')}`,
+            title: item.label,
+            category: group.id,
+            url: `${basePath}${item.file}`,
+            mimeType: isSvg ? 'image/svg+xml' : 'image/png',
+            sizeBytes: isSvg ? 15000 : (isBg ? 85000 : 45000),
+            width: isBg ? 1920 : 1024,
+            height: isBg ? 1080 : 1024,
+            uploadedBy: 'system',
+            uploadedAt: '2026-03-01T00:00:00.000Z',
+            isStandardAsset: true,
+            countable: Boolean(group.countable),
+            countUnit: item.countUnit || (group.id === 'animals' ? 'con' : (group.id === 'food' ? 'quả' : 'cái')),
+            aliases: item.aliases || [],
+            description: `Tài nguyên đồ họa chuẩn môn Toán tiểu học: ${item.label}`,
+          });
+        }
+      }
+      cachedStandardAssets = list;
+      return list;
+    }
+  } catch (err) {
+    console.warn('Notice: Failed reading assets_manifest.json in server:', err);
+  }
+  return [];
+}
 
 try {
   if (!fs.existsSync(MEDIA_STORAGE_DIR)) {
@@ -3018,47 +3094,62 @@ app.get('/api/teacher/media', requireAuth, requireRole(['teacher', 'admin']), as
   try {
     const { category, search } = req.query;
 
-    let items: any[] = [];
+    // 1. Authoritative standard 60 primary math assets
+    const standardItems = getStandardManifestAssets();
 
-    // Authoritative source: Cloud Firestore catalog index for Vercel production sync
+    // 2. Custom teacher uploads from Cloud Firestore / local catalog
+    let customItems: any[] = [];
     try {
       const catSnap = await getDoc(doc(db, 'test', 'media_catalog_index'));
       if (catSnap.exists() && Array.isArray(catSnap.data().items)) {
-        items = catSnap.data().items;
+        customItems = catSnap.data().items;
       }
     } catch (cloudErr) {
       console.warn('Notice: Failed reading media_catalog_index from Firestore:', cloudErr);
     }
 
-    // Fallback to local catalog if Firestore is empty or unreachable
-    if (items.length === 0) {
-      items = loadMediaLibrary();
+    if (customItems.length === 0) {
+      customItems = loadMediaLibrary();
     }
 
-    // Strict sanity filter: Only keep healthy records with size >= 100 bytes and valid IDs
-    // Prevents broken 38B/68B test records or missing files from appearing in the UI
-    items = items.filter((item) => {
+    // Filter custom items: exclude old mock seed items that duplicate legacy media IDs
+    const safeCustomItems = customItems.filter((item) => {
       if (!item || !item.id) return false;
+      if (item.isStandardAsset) return false;
+      if (typeof item.id === 'string' && item.id.startsWith('std-')) return false;
+      if (LEGACY_MEDIA_MAP[item.id]) return false; // filter out old test seed mock
       const size = Number(item.sizeBytes) || 0;
       return size >= 100;
     });
 
+    let items = [...standardItems, ...safeCustomItems];
+
+    // Category filtering (including legacy category mapping)
+    const categoryMap: Record<string, string> = {
+      fruits: 'food',
+      items: 'school',
+      counters_frames: 'math',
+      counting_sticks: 'math',
+      geometry: 'math',
+      clock_time: 'math',
+      money_measurement: 'math',
+    };
+
     if (category && typeof category === 'string' && category !== 'all') {
-      items = items.filter((item) => item.category === category);
+      const targetCat = categoryMap[category] || category;
+      items = items.filter((item) => item.category === targetCat || item.category === category);
     }
 
     if (search && typeof search === 'string' && search.trim()) {
       const q = search.trim().toLowerCase();
       items = items.filter((item) => {
-        return (
-          (item.title && item.title.toLowerCase().includes(q)) ||
-          (item.description && item.description.toLowerCase().includes(q)) ||
-          (item.category && item.category.toLowerCase().includes(q))
-        );
+        const titleMatch = item.title && item.title.toLowerCase().includes(q);
+        const descMatch = item.description && item.description.toLowerCase().includes(q);
+        const catMatch = item.category && item.category.toLowerCase().includes(q);
+        const aliasMatch = Array.isArray(item.aliases) && item.aliases.some((a: string) => a.toLowerCase().includes(q));
+        return titleMatch || descMatch || catMatch || aliasMatch;
       });
     }
-
-    items.sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
 
     return res.json({ ok: true, items });
   } catch (err: any) {
@@ -3073,6 +3164,11 @@ app.delete('/api/teacher/media/:id', requireAuth, requireRole(['teacher', 'admin
     const { id } = req.params;
     if (!id) {
       return res.status(400).json({ error: 'Thiếu mã định danh hình ảnh cần xóa.' });
+    }
+
+    // Protection: Never allow deleting standard math assets
+    if (id.startsWith('std-') || LEGACY_MEDIA_MAP[id]) {
+      return res.status(400).json({ error: 'Không thể xóa tài nguyên đồ họa chuẩn của hệ thống.' });
     }
 
     const items = loadMediaLibrary();
@@ -3207,6 +3303,20 @@ app.get('/api/media/file/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!id) return res.status(400).send('Bad Request');
+
+    // 0. Auto-healing for legacy media IDs & standard assets: Serve or redirect directly
+    const legacyFileName = LEGACY_MEDIA_MAP[id];
+    if (legacyFileName) {
+      const filePath = path.join(__dirname, 'public', 'assets', 'toan-nhi', legacyFileName);
+      if (fs.existsSync(filePath)) {
+        const mimeType = legacyFileName.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.sendFile(filePath);
+      }
+      return res.redirect(302, `/assets/toan-nhi/${legacyFileName}`);
+    }
 
     // 1. In-memory cache (Fastest, zero I/O)
     const cached = mediaMemoryCache.get(id);

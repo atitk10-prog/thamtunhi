@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Một que tính bằng gỗ">
+  <defs><linearGradient id="wood" x1="0" x2="1"><stop stop-color="#b56c31"/><stop offset=".25" stop-color="#ffdf98"/><stop offset=".72" stop-color="#e8a85f"/><stop offset="1" stop-color="#ae6534"/></linearGradient></defs>
+  <rect x="223" y="58" width="66" height="396" rx="32" fill="url(#wood)" stroke="#a66b32" stroke-width="5"/>
+  <path d="M247 76v350" stroke="#fff0c4" stroke-width="6" stroke-linecap="round" opacity=".8"/>
+</svg>

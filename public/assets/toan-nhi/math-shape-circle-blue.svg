@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hình tròn màu xanh">
+  <defs><radialGradient id="shape" cx=".3" cy=".2"><stop stop-color="#abecff"/><stop offset=".65" stop-color="#42a7ed"/><stop offset="1" stop-color="#1975c3"/></radialGradient></defs>
+  <circle cx="256" cy="256" r="194" fill="url(#shape)" stroke="#176db0" stroke-width="9"/>
+  <path d="M122 202c24-62 66-94 132-105" stroke="#ffffff" stroke-width="12" opacity=".62" stroke-linecap="round" fill="none"/>
+</svg>

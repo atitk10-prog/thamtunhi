@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Dấu cộng">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a5ebbb"/><stop offset="1" stop-color="#42b979"/></linearGradient></defs>
+  <rect x="62" y="62" width="388" height="388" rx="104" fill="url(#bg)" stroke="#27885d" stroke-width="12"/>
+  <path d="M256 145v222M145 256h222" stroke="#ffffff" stroke-width="56" stroke-linecap="round"/>
+</svg>

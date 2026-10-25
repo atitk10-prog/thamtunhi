@@ -30,6 +30,7 @@ import { Lesson, LessonVersion, Question, InteractionType, MathErrorPattern, Vis
 import { VisualCounters } from '../activities/VisualCounters';
 import { MediaLibraryModal } from './MediaLibraryModal';
 import { AiDraftModal, AiDraftMeta } from './AiDraftModal';
+import { normalizeAssetUrl, getAssetCountUnit } from '../../lib/standardAssets';
 
 interface LessonEditorModalProps {
   isOpen: boolean;
@@ -1079,10 +1080,10 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                       <label className="block text-[11px] font-bold text-slate-600 mb-1">Nhóm 1 (Trái)</label>
                                       <input
                                         type="number"
-                                        min={1}
+                                        min={0}
                                         max={20}
-                                        value={vc.leftCount ?? 1}
-                                        onChange={(e) => handleUpdateVisual(idx, { leftCount: Math.max(1, Number(e.target.value)) })}
+                                        value={vc.leftCount ?? 0}
+                                        onChange={(e) => handleUpdateVisual(idx, { leftCount: Math.max(0, Number(e.target.value)) })}
                                         className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
                                       />
                                     </div>
@@ -1090,10 +1091,10 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                       <label className="block text-[11px] font-bold text-slate-600 mb-1">Nhóm 2 (Phải)</label>
                                       <input
                                         type="number"
-                                        min={1}
+                                        min={0}
                                         max={20}
-                                        value={vc.rightCount ?? 3}
-                                        onChange={(e) => handleUpdateVisual(idx, { rightCount: Math.max(1, Number(e.target.value)) })}
+                                        value={vc.rightCount ?? 0}
+                                        onChange={(e) => handleUpdateVisual(idx, { rightCount: Math.max(0, Number(e.target.value)) })}
                                         className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
                                       />
                                     </div>
@@ -1120,10 +1121,10 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                       <label className="block text-[11px] font-bold text-slate-600 mb-1">Số lượng đếm</label>
                                       <input
                                         type="number"
-                                        min={1}
+                                        min={0}
                                         max={20}
-                                        value={vc.count ?? 4}
-                                        onChange={(e) => handleUpdateVisual(idx, { count: Math.max(1, Number(e.target.value)) })}
+                                        value={vc.count ?? 0}
+                                        onChange={(e) => handleUpdateVisual(idx, { count: Math.max(0, Number(e.target.value)) })}
                                         className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
                                       />
                                     </div>
@@ -1281,18 +1282,23 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3">
                                       <div className="w-14 h-14 rounded-lg bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center p-1">
-                                        <img src={vc.imageUrl} alt="" className="max-w-full max-h-full object-contain" />
+                                        <img src={normalizeAssetUrl(vc.imageUrl)} alt="" className="max-w-full max-h-full object-contain" />
                                       </div>
                                       <div>
-                                        <div className="text-xs font-black text-slate-800">
-                                          {vc.imageAlt || 'Hình ảnh từ thư viện'}
+                                        <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                          <span>{vc.imageAlt || 'Hình ảnh từ thư viện'}</span>
+                                          {vc.countUnit && (
+                                            <span className="px-1.5 py-0.2 rounded-full bg-sky-100 text-sky-800 text-[10px] font-bold">
+                                              đơn vị: {vc.countUnit}
+                                            </span>
+                                          )}
                                         </div>
                                         <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-2 mt-0.5">
                                           <span>Tỷ lệ: {vc.imageAspectRatio || 'Gốc'}</span>
                                           <span>•</span>
                                           <span>Cỡ: {vc.imageScale || 'Vừa'}</span>
                                           <span>•</span>
-                                          <span>Fit: {vc.imageFit || 'contain'}</span>
+                                          <span>Số lượng: {vc.leftCount !== undefined && vc.rightCount !== undefined ? `${vc.leftCount} + ${vc.rightCount}` : (vc.count ?? 1)}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -1312,6 +1318,46 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                       >
                                         Gỡ hình
                                       </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Multi-object Repetition & Math Count Controls for Questions */}
+                                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                    <div>
+                                      <label className="block text-[10px] font-black text-slate-700 mb-0.5">
+                                        Số lượng lặp lại trong câu hỏi
+                                      </label>
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={20}
+                                          value={vc.count ?? 1}
+                                          onChange={(e) => handleUpdateVisual(idx, { count: Math.max(0, Number(e.target.value)), leftCount: undefined, rightCount: undefined })}
+                                          className="w-20 h-7 px-2 rounded-lg border border-slate-200 bg-white text-xs font-bold"
+                                        />
+                                        <span className="text-[11px] text-slate-500 font-bold">
+                                          {vc.countUnit || 'đối tượng'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+                                      <span className="text-[10px] text-slate-400 font-bold">Thử nhanh:</span>
+                                      {[1, 2, 3, 5, 8].map((n) => (
+                                        <button
+                                          key={n}
+                                          type="button"
+                                          onClick={() => handleUpdateVisual(idx, { count: n, leftCount: undefined, rightCount: undefined })}
+                                          className={`px-2 py-0.5 rounded-md text-[10px] font-black cursor-pointer transition-all ${
+                                            (vc.count ?? 1) === n && vc.leftCount === undefined
+                                              ? 'bg-sky-600 text-white shadow-xs'
+                                              : 'bg-white text-slate-600 hover:bg-sky-100 border border-slate-200'
+                                          }`}
+                                        >
+                                          {n} {vc.countUnit || ''}
+                                        </button>
+                                      ))}
                                     </div>
                                   </div>
 
@@ -1643,14 +1689,17 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
             onClose={() => setMediaLibraryTargetQIdx(null)}
             selectedMediaId={questions[mediaLibraryTargetQIdx]?.visualConfig?.imageId}
             onSelectMedia={(selectedMedia: MediaItem) => {
+              const cleanUrl = normalizeAssetUrl(selectedMedia.url);
+              const isBg = selectedMedia.category === 'backgrounds';
               handleUpdateVisual(mediaLibraryTargetQIdx, {
                 type: 'image',
                 imageId: selectedMedia.id,
-                imageUrl: selectedMedia.url,
+                imageUrl: cleanUrl,
                 imageAlt: selectedMedia.title,
-                imageScale: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageScale || 'medium',
-                imageAspectRatio: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageAspectRatio || 'original',
-                imageFit: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageFit || 'contain',
+                countUnit: selectedMedia.countUnit || getAssetCountUnit(cleanUrl),
+                imageScale: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageScale || (isBg ? 'full' : 'medium'),
+                imageAspectRatio: isBg ? '16:9' : (questions[mediaLibraryTargetQIdx]?.visualConfig?.imageAspectRatio || 'original'),
+                imageFit: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageFit || (isBg ? 'cover' : 'contain'),
                 imageAlign: questions[mediaLibraryTargetQIdx]?.visualConfig?.imageAlign || 'center',
                 isTeacherVerified: true,
               });

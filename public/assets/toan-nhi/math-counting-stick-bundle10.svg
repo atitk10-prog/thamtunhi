@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Một bó đúng mười que tính">
+  <defs>
+    <linearGradient id="wood" x1="0" x2="1"><stop stop-color="#b86d2d"/><stop offset=".5" stop-color="#ffe0a2"/><stop offset="1" stop-color="#d28a40"/></linearGradient>
+    <linearGradient id="band" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ff9d8b"/><stop offset=".5" stop-color="#e94a4b"/><stop offset="1" stop-color="#b92345"/></linearGradient>
+    <g id="stick"><rect width="29" height="355" rx="13" fill="url(#wood)" stroke="#b87d3c" stroke-width="2"/><path d="M9 15v322" stroke="#fff1ca" stroke-width="3" opacity=".7"/></g>
+  </defs>
+  <g transform="translate(69 76)">
+    <use href="#stick" x="0"/><use href="#stick" x="37"/><use href="#stick" x="74"/><use href="#stick" x="111"/><use href="#stick" x="148"/>
+    <use href="#stick" x="185"/><use href="#stick" x="222"/><use href="#stick" x="259"/><use href="#stick" x="296"/><use href="#stick" x="333"/>
+  </g>
+  <rect x="60" y="253" width="390" height="53" rx="13" fill="url(#band)" stroke="#b92249" stroke-width="3"/>
+  <path d="M255 254c-22-26-31-48-12-46 13 2 22 16 26 27 5-22 23-35 34-27 11 10-8 27-32 47z" fill="#fd7290" stroke="#be3457" stroke-width="3"/>
+  <ellipse cx="266" cy="278" rx="24" ry="18" fill="#e83863" stroke="#a81e44" stroke-width="3"/>
+</svg>

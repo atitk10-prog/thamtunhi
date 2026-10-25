@@ -1,5 +1,11 @@
 import React from 'react';
 import { VisualAssetConfig } from '../../types';
+import {
+  findStandardAsset,
+  findStandardAssetByIcon,
+  normalizeAssetUrl,
+  getAssetCountUnit,
+} from '../../lib/standardAssets';
 
 interface VisualCountersProps {
   config?: VisualAssetConfig;
@@ -27,118 +33,108 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     return null;
   }
 
+  // Resolve standard asset or custom image for item sprites
   const icon = config.iconName || 'apple';
+  const customUrl = normalizeAssetUrl(config.imageUrl);
+  const matchedAsset = customUrl ? findStandardAsset(customUrl) : findStandardAssetByIcon(icon);
+  const effectiveUrl = customUrl || matchedAsset?.url;
+  const effectiveLabel = config.imageAlt || matchedAsset?.title || 'Vật thể';
+  const unitName = config.countUnit || getAssetCountUnit(effectiveUrl || icon, 'vật thể');
+
+  // Render an individual item icon (High-res PNG asset from 60-pack, no crude emoji)
   const renderIcon = (index: number, keyPrefix = 'icon') => {
-    switch (icon) {
-      case 'apple':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🍎
+    if (effectiveUrl) {
+      return (
+        <div
+          key={`${keyPrefix}-${index}`}
+          className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center p-1 transition-transform hover:scale-110 drop-shadow-xs"
+        >
+          <img
+            src={effectiveUrl}
+            alt={effectiveLabel}
+            className="w-full h-full object-contain filter drop-shadow-xs select-none"
+            loading="lazy"
+            onError={(e) => {
+              const target = e.currentTarget;
+              target.style.display = 'none';
+              const fallback = target.nextElementSibling as HTMLElement;
+              if (fallback) fallback.style.display = 'flex';
+            }}
+          />
+          <div
+            className="hidden w-10 h-10 rounded-xl bg-amber-50 border border-amber-300 text-amber-700 text-xs font-black items-center justify-center"
+            title="Tệp ảnh chưa sẵn sàng"
+          >
+            ⚠️
           </div>
-        );
-      case 'fish':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🐟
-          </div>
-        );
-      case 'star':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            ⭐
-          </div>
-        );
-      case 'candy':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🍬
-          </div>
-        );
-      case 'pencil':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            ✏️
-          </div>
-        );
-      case 'carrot':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🥕
-          </div>
-        );
-      case 'flower':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🌸
-          </div>
-        );
-      case 'bird':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🐦
-          </div>
-        );
-      case 'rabbit':
-      case 'bunny':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🐰
-          </div>
-        );
-      case 'orange':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🍊
-          </div>
-        );
-      case 'banana':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🍌
-          </div>
-        );
-      case 'ball':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            ⚽
-          </div>
-        );
-      case 'book':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            📚
-          </div>
-        );
-      case 'hat':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🧢
-          </div>
-        );
-      case 'car':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🚗
-          </div>
-        );
-      case 'duck':
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-3xl transition-transform hover:scale-125 drop-shadow">
-            🦆
-          </div>
-        );
-      case 'block':
-      default:
-        return (
-          <div key={`${keyPrefix}-${index}`} className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 border-2 border-amber-600 flex items-center justify-center font-bold text-white shadow-md">
-            {index + 1}
-          </div>
-        );
+        </div>
+      );
     }
+
+    // Default styled counter block if no graphic asset is found
+    return (
+      <div
+        key={`${keyPrefix}-${index}`}
+        className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 border-2 border-amber-600 flex items-center justify-center font-bold text-white shadow-md select-none"
+      >
+        {index + 1}
+      </div>
+    );
   };
 
-  // 1. Uploaded / Library Image Illustration (P0)
-  if (config.type === 'image' || config.imageUrl) {
+  // 1. Library Image Illustration (Single Image or Multi-Item Repeat)
+  if (config.type === 'image') {
+    const cleanUrl = normalizeAssetUrl(config.imageUrl);
+
+    if (!cleanUrl) {
+      if (isTeacherView) {
+        return (
+          <div className="my-3 p-3.5 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 text-amber-900 text-xs font-semibold flex items-center gap-2">
+            <span>💡</span>
+            <span><strong>Cần chọn hình minh họa:</strong> Thầy/Cô vui lòng chọn ảnh từ Thư viện hình ảnh hoặc tải ảnh mới.</span>
+          </div>
+        );
+      }
+      return null;
+    }
+
+    // Multi-item repeat when count > 1
+    if (typeof config.count === 'number' && config.count > 1) {
+      const count = Math.min(config.count, 20);
+      return (
+        <div className="my-5 p-5 bg-sky-50/80 rounded-2xl border-2 border-sky-100 max-w-lg mx-auto">
+          <div className="text-xs uppercase tracking-wider font-extrabold text-sky-700 mb-3 text-center">
+            Quan sát mô hình đếm: {count} {unitName}
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {Array.from({ length: count }).map((_, i) => renderIcon(i, 'img-rep'))}
+          </div>
+          {config.caption && (
+            <p className="text-xs text-slate-500 font-semibold italic mt-2 text-center px-2">
+              {config.caption}
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    // Zero count representation
+    if (config.count === 0) {
+      return (
+        <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-md mx-auto">
+          <div className="text-xs font-black uppercase tracking-wider text-sky-800 text-center mb-2">
+            Mô hình đếm đồ vật (0 {unitName})
+          </div>
+          <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
+            <span className="text-2xl mb-1">🧺</span>
+            <span className="text-sm font-black text-slate-700">0 {unitName}</span>
+            <span className="text-xs font-semibold text-slate-400 mt-0.5">(Khay rỗng – Số lượng: 0)</span>
+          </div>
+        </div>
+      );
+    }
+
+    // Single Illustration Image
     const scaleClasses = {
       small: 'max-w-[200px]',
       medium: 'max-w-[320px]',
@@ -166,11 +162,21 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
         <div className={`flex flex-col items-center ${scaleClasses} w-full`}>
           <div className={`w-full overflow-hidden rounded-2xl bg-white border-2 border-slate-200 shadow-sm p-1.5 ${aspectClasses}`}>
             <img
-              src={config.imageUrl}
+              src={cleanUrl}
               alt={config.imageAlt || 'Hình minh họa câu hỏi'}
-              className={`w-full h-full max-h-[360px] rounded-xl ${fitClass} transition-transform hover:scale-[1.02]`}
+              className={`w-full h-full max-h-[360px] rounded-xl ${fitClass} transition-transform hover:scale-[1.01]`}
               loading="lazy"
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.style.display = 'none';
+                const fallback = target.nextElementSibling as HTMLElement;
+                if (fallback) fallback.style.display = 'flex';
+              }}
             />
+            <div className="hidden flex-col items-center justify-center text-center p-6 bg-amber-50 rounded-xl text-amber-800 text-xs font-bold gap-1.5">
+              <span className="text-2xl">⚠️</span>
+              <span>Không thể tải tệp hình ảnh. Thầy/Cô vui lòng kiểm tra lại liên kết trong Thư viện.</span>
+            </div>
           </div>
           {config.caption && (
             <p className="text-xs text-slate-500 font-semibold italic mt-2 text-center px-2">
@@ -192,7 +198,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
-  // 3. Five-Frame & Ten-Frame Grid Models
+  // 3. Five-Frame & Ten-Frame Grid Models (GDPT 2018)
   const isFrame = config.type === 'ten_frame' || config.type === 'five_frame';
   if (isFrame) {
     const isFive = config.type === 'five_frame' || config.gridSize === 5;
@@ -268,7 +274,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
-  // 4. Bundles of Tens & Singles / Que tính (Zero-safe & Exact Representation)
+  // 4. Bundles of Tens & Singles / Que tính (Sử dụng SVG chuẩn từ bộ 60 tài nguyên)
   if (config.type === 'bundles' || (config.tens !== undefined && config.ones !== undefined)) {
     const rawTens = config.tens;
     const rawOnes = config.ones;
@@ -311,23 +317,26 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     const isSmallStick = tens === 0;
 
     return (
-      <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-lg mx-auto">
+      <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-xl mx-auto">
         <div className="text-xs font-black uppercase tracking-wider text-emerald-800 text-center mb-3">
           {isSmallStick ? `🥢 Mô hình Que tính (${ones} que lẻ)` : `🥢 Mô hình Bó Que tính & Que Lẻ (${tens} chục + ${ones} que lẻ)`}
         </div>
         <div className="flex flex-wrap items-center justify-center gap-6 p-4 bg-white/80 rounded-2xl border-2 border-sky-100">
-          {/* Tens bundles (only show when tens > 0) */}
+          {/* Tens bundles with official SVG */}
           {tens > 0 && (
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               {Array.from({ length: tens }).map((_, i) => (
                 <div
                   key={`ten-${i}`}
-                  className="flex flex-col items-center p-2 rounded-xl bg-amber-50 border-2 border-amber-300 shadow-sm"
+                  className="flex flex-col items-center p-2 rounded-2xl bg-amber-50/80 border-2 border-amber-300 shadow-xs transition-transform hover:scale-105"
                 >
-                  <div className="w-10 h-16 rounded-lg bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 border-2 border-amber-600 flex items-center justify-center text-xs font-black text-amber-950 shadow">
-                    10
-                  </div>
-                  <span className="text-[11px] font-bold text-amber-800 mt-1">1 bó chục</span>
+                  <img
+                    src="/assets/toan-nhi/math-counting-stick-bundle10.svg"
+                    alt="Bó 10 que tính"
+                    className="w-16 h-28 object-contain filter drop-shadow-sm select-none"
+                    loading="lazy"
+                  />
+                  <span className="text-[11px] font-black text-amber-900 mt-1.5">1 bó chục</span>
                 </div>
               ))}
             </div>
@@ -336,17 +345,20 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           {/* Plus separator when both tens and ones exist */}
           {ones > 0 && tens > 0 && <span className="text-2xl font-black text-slate-400">+</span>}
 
-          {/* Ones sticks */}
+          {/* Ones sticks with official SVG */}
           {ones > 0 && (
-            <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-[220px]">
+            <div className="flex flex-wrap items-center justify-center gap-2 max-w-[260px]">
               {Array.from({ length: ones }).map((_, i) => (
-                <div
-                  key={`one-${i}`}
-                  className="w-3 h-16 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 border border-emerald-700 shadow-sm transition-transform hover:scale-110"
-                  title={`Que tính ${i + 1}`}
-                />
+                <div key={`one-${i}`} className="flex flex-col items-center">
+                  <img
+                    src="/assets/toan-nhi/math-counting-stick-single.svg"
+                    alt={`Que tính ${i + 1}`}
+                    className="w-3.5 h-28 object-contain filter drop-shadow-xs transition-transform hover:scale-110 select-none"
+                    loading="lazy"
+                  />
+                </div>
               ))}
-              <div className="w-full text-center text-[11px] font-bold text-emerald-800 mt-1">
+              <div className="w-full text-center text-[11px] font-black text-emerald-800 mt-1">
                 {tens > 0 ? `${ones} que rời` : `${ones} que tính`}
               </div>
             </div>
@@ -361,25 +373,10 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     const left = Math.max(0, config.leftCount ?? 0);
     const right = Math.max(0, config.rightCount ?? 0);
 
-    const iconLabels: Record<string, string> = {
-      apple: 'quả táo',
-      fish: 'chú cá',
-      star: 'ngôi sao',
-      candy: 'viên kẹo',
-      pencil: 'bút chì',
-      carrot: 'củ cà rốt',
-      flower: 'bông hoa',
-      bird: 'chú chim',
-      rabbit: 'chú thỏ',
-      orange: 'quả cam',
-      block: 'khối vuông',
-    };
-    const unitName = iconLabels[icon] || 'vật thể';
-
     return (
       <div className="my-5 p-5 bg-gradient-to-r from-sky-50 via-amber-50/30 to-indigo-50 rounded-3xl border-2 border-sky-200 w-full max-w-xl mx-auto shadow-xs">
         <div className="text-xs uppercase tracking-wider font-extrabold text-sky-800 mb-3 text-center">
-          Quan sát mô hình phép cộng: Gộp hai nhóm vật thể
+          Quan sát mô hình phép cộng: Gộp hai nhóm {unitName}
         </div>
         <div className="flex items-center justify-center gap-3 sm:gap-6">
           {/* Group 1 */}
@@ -423,28 +420,40 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
-  // 5. Dual-Group Comparison
+  // 6. Dual-Group Comparison
   const isComparison = config.type === 'comparison' || (config.leftCount !== undefined && config.rightCount !== undefined);
   if (isComparison) {
-    const left = config.leftCount ?? config.count ?? 0;
-    const right = config.rightCount ?? 0;
+    if (config.leftCount === undefined && config.rightCount === undefined && config.count === undefined) {
+      if (isTeacherView) {
+        return (
+          <div className="my-3 p-3.5 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 text-amber-900 text-xs font-semibold flex items-center gap-2">
+            <span>💡</span>
+            <span><strong>Cần bổ sung số lượng so sánh:</strong> Chưa có số lượng của hai nhóm vật thể để so sánh.</span>
+          </div>
+        );
+      }
+      return null;
+    }
+    const left = Math.max(0, config.leftCount ?? config.count ?? 0);
+    const right = Math.max(0, config.rightCount ?? 0);
 
     return (
       <div className="my-5 p-5 bg-sky-50/80 rounded-3xl border-2 border-sky-200 w-full max-w-xl mx-auto">
         <div className="text-xs uppercase tracking-wider font-extrabold text-sky-700 mb-3 text-center">
-          Quan sát và so sánh hai nhóm vật thể
+          Quan sát và so sánh hai nhóm {unitName}
         </div>
         <div className="flex items-center justify-center gap-4 sm:gap-8">
           {/* Left Group */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide">
-              {(() => {
-                const cleaned = (config.leftLabel || '').replace(/\d+/g, '').replace(/(ngôi sao|vật thể|quả|bông|chú)/gi, '').trim();
-                return cleaned || 'Nhóm A';
-              })()}
+              {config.leftLabel || `Nhóm A (${left} ${unitName})`}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
-              {Array.from({ length: left }).map((_, i) => renderIcon(i, 'left'))}
+              {left > 0 ? (
+                Array.from({ length: left }).map((_, i) => renderIcon(i, 'left'))
+              ) : (
+                <span className="text-xs font-semibold text-slate-400 py-2">(0 {unitName} – Khay rỗng)</span>
+              )}
             </div>
           </div>
 
@@ -456,13 +465,14 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           {/* Right Group */}
           <div className="flex-1 p-3 sm:p-4 bg-white rounded-2xl border-2 border-sky-300 shadow-xs flex flex-col items-center">
             <div className="text-xs font-black text-sky-800 mb-2 uppercase tracking-wide">
-              {(() => {
-                const cleaned = (config.rightLabel || '').replace(/\d+/g, '').replace(/(ngôi sao|vật thể|quả|bông|chú)/gi, '').trim();
-                return cleaned || 'Nhóm B';
-              })()}
+              {config.rightLabel || `Nhóm B (${right} ${unitName})`}
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 min-h-[50px]">
-              {Array.from({ length: right }).map((_, i) => renderIcon(i, 'right'))}
+              {right > 0 ? (
+                Array.from({ length: right }).map((_, i) => renderIcon(i, 'right'))
+              ) : (
+                <span className="text-xs font-semibold text-slate-400 py-2">(0 {unitName} – Khay rỗng)</span>
+              )}
             </div>
           </div>
         </div>
@@ -470,12 +480,41 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
-  // 6. Shapes (Geometry)
+  // 7. Shapes (Geometry with SVG support)
   if (config.type === 'shapes' && config.shapeType) {
+    if (config.shapeType === 'circle') {
+      return (
+        <div className="my-5 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-2 border-sky-200 max-w-sm mx-auto flex flex-col items-center">
+          <div className="text-xs uppercase tracking-wider font-extrabold text-sky-800 mb-3 text-center">
+            Quan sát hình học: Hình tròn
+          </div>
+          <img
+            src="/assets/toan-nhi/math-shape-circle-blue.svg"
+            alt="Hình tròn xanh"
+            className="w-36 h-36 object-contain filter drop-shadow-md transition-transform hover:scale-105 select-none"
+            loading="lazy"
+          />
+        </div>
+      );
+    }
+    if (config.shapeType === 'triangle') {
+      return (
+        <div className="my-5 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-2 border-sky-200 max-w-sm mx-auto flex flex-col items-center">
+          <div className="text-xs uppercase tracking-wider font-extrabold text-sky-800 mb-3 text-center">
+            Quan sát hình học: Hình tam giác
+          </div>
+          <img
+            src="/assets/toan-nhi/math-shape-triangle-yellow.svg"
+            alt="Hình tam giác vàng"
+            className="w-36 h-36 object-contain filter drop-shadow-md transition-transform hover:scale-105 select-none"
+            loading="lazy"
+          />
+        </div>
+      );
+    }
+
     const shapeLabels: Record<string, { name: string; symbol: string }> = {
-      circle: { name: 'Hình tròn', symbol: '⚪' },
       square: { name: 'Hình vuông', symbol: '🟦' },
-      triangle: { name: 'Hình tam giác', symbol: '🔺' },
       rectangle: { name: 'Hình chữ nhật', symbol: '▬' },
       cylinder: { name: 'Khối trụ', symbol: '🛢️' },
       sphere: { name: 'Khối cầu', symbol: '🔮' },
@@ -483,30 +522,21 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     const shape = shapeLabels[config.shapeType] || { name: 'Hình học', symbol: '🔷' };
 
     return (
-      <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-2xl border-2 border-sky-200 text-center max-w-sm mx-auto">
-        <div className="text-5xl mb-2">{shape.symbol}</div>
-        <div className="text-xs font-black text-sky-800 uppercase tracking-wider">{shape.name}</div>
+      <div className="my-5 p-6 bg-gradient-to-br from-indigo-50 to-sky-50 rounded-3xl border-2 border-indigo-200 max-w-xs mx-auto text-center shadow-xs">
+        <div className="text-xs uppercase tracking-wider font-extrabold text-indigo-700 mb-2">
+          Quan sát hình học
+        </div>
+        <div className="w-24 h-24 mx-auto my-3 bg-white rounded-2xl border-2 border-indigo-300 shadow-md flex items-center justify-center text-5xl">
+          {shape.symbol}
+        </div>
+        <div className="text-sm font-black text-indigo-950 mt-1">{shape.name}</div>
       </div>
     );
   }
 
-  // 7. Single Counter Group (Zero-safe & Exact Representation)
+  // 8. Single Counter Group (Zero-safe & Exact Representation with high-res PNG sprites)
   if (config.type === 'counters' && typeof config.count === 'number') {
     const count = Math.max(0, config.count);
-    const iconLabels: Record<string, string> = {
-      apple: 'quả táo',
-      fish: 'chú cá',
-      star: 'ngôi sao',
-      candy: 'viên kẹo',
-      pencil: 'bút chì',
-      carrot: 'củ cà rốt',
-      flower: 'bông hoa',
-      bird: 'chú chim',
-      rabbit: 'chú thỏ',
-      orange: 'quả cam',
-      block: 'khối vuông',
-    };
-    const unitName = iconLabels[icon] || 'vật thể';
 
     // Scenario 1: Số lượng thực sự bằng 0: hiển thị đúng số 0
     if (count === 0) {
@@ -536,6 +566,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
+  // 9. Vietnamese Currency (Banknotes & Coins - GDPT 2018)
   if (config.type === 'money' || (config.moneyBills && config.moneyBills.length > 0)) {
     if (!config.moneyBills || config.moneyBills.length === 0) {
       if (isTeacherView) {
@@ -588,11 +619,9 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
                       key={cIdx}
                       className={`relative w-40 h-22 sm:w-44 sm:h-24 rounded-xl border-2 ${style.border} ${style.bg} p-2 shadow-md flex flex-col justify-between transition-transform hover:scale-105`}
                     >
-                      {/* Banknote Header */}
                       <div className="text-[7.5px] font-black tracking-tighter text-slate-700 text-center uppercase leading-tight truncate">
                         CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
                       </div>
-                      {/* Center Denomination */}
                       <div className="flex items-center justify-between px-1">
                         <div className="w-6 h-6 rounded-full border border-amber-600/40 bg-amber-400/20 flex items-center justify-center text-[9px] font-black text-amber-700">
                           ★
@@ -601,7 +630,6 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
                           {item.denomination.toLocaleString('vi-VN')}
                         </div>
                       </div>
-                      {/* Banknote Footer */}
                       <div className="flex items-center justify-between text-[8px] font-black text-slate-600 px-1">
                         <span>NGÂN HÀNG NHÀ NƯỚC</span>
                         <span className="uppercase text-emerald-700 font-extrabold">ĐỒNG</span>
@@ -620,7 +648,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
-  // 9. Analog Clock (GDPT 2018 - Xem đồng hồ kim và thời gian)
+  // 10. Analog Clock (Mặt đồng hồ SVG chuẩn từ bộ tài nguyên)
   if (config.type === 'clock' || config.hours !== undefined) {
     if (config.hours === undefined) {
       if (isTeacherView) {
@@ -643,17 +671,24 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
         <div className="text-xs uppercase tracking-wider font-extrabold text-sky-800 mb-3 text-center">
           ⏰ Quan sát đồng hồ kim
         </div>
-        <div className="relative w-48 h-48 sm:w-52 sm:h-52 rounded-full bg-white border-4 border-sky-500 shadow-lg flex items-center justify-center">
-          {/* Hour Numbers 1 to 12 */}
+        <div className="relative w-48 h-48 sm:w-52 sm:h-52 rounded-full bg-white border-4 border-sky-500 shadow-lg flex items-center justify-center overflow-hidden">
+          <img
+            src="/assets/toan-nhi/math-clock-face-blank.svg"
+            alt="Mặt đồng hồ"
+            className="absolute inset-0 w-full h-full object-contain p-2 select-none"
+            loading="lazy"
+          />
+
+          {/* Hour Numbers Overlay for crisp legibility */}
           {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((num, i) => {
             const angle = (i * 30 - 90) * (Math.PI / 180);
-            const radius = 72; // px from center
+            const radius = 72;
             const x = Math.round(Math.cos(angle) * radius);
             const y = Math.round(Math.sin(angle) * radius);
             return (
               <div
                 key={num}
-                className="absolute text-xs sm:text-sm font-black text-slate-800 select-none"
+                className="absolute text-xs sm:text-sm font-black text-slate-800 select-none z-5"
                 style={{ transform: `translate(${x}px, ${y}px)` }}
               >
                 {num}
@@ -663,30 +698,32 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
 
           {/* Hour Hand */}
           <div
-            className="absolute w-2 h-14 bg-slate-900 rounded-full origin-bottom shadow"
+            className="absolute w-2 h-14 bg-slate-900 rounded-full origin-bottom shadow z-10"
             style={{
               bottom: '50%',
+              left: 'calc(50% - 4px)',
               transform: `rotate(${hourAngle}deg)`,
-              transformOrigin: '50% 100%',
+              transformOrigin: 'bottom center',
             }}
           />
 
           {/* Minute Hand */}
           <div
-            className="absolute w-1.5 h-18 bg-rose-600 rounded-full origin-bottom shadow"
+            className="absolute w-1.5 h-18 bg-rose-600 rounded-full origin-bottom shadow z-10"
             style={{
               bottom: '50%',
+              left: 'calc(50% - 3px)',
               transform: `rotate(${minuteAngle}deg)`,
-              transformOrigin: '50% 100%',
+              transformOrigin: 'bottom center',
             }}
           />
 
           {/* Center Pin */}
-          <div className="absolute w-4 h-4 rounded-full bg-amber-400 border-2 border-slate-900 z-10 shadow" />
+          <div className="absolute w-4 h-4 rounded-full bg-slate-950 border-2 border-white shadow-md z-20" />
         </div>
 
         {config.showDigital && (
-          <div className="mt-3 px-3 py-1 rounded-xl bg-sky-100 border border-sky-300 text-xs font-black text-sky-900">
+          <div className="mt-3 px-3 py-1 bg-white rounded-xl border border-sky-300 font-mono text-sm font-black text-sky-900 shadow-xs">
             {hours === 0 ? 12 : hours}:{minutes < 10 ? `0${minutes}` : minutes}
           </div>
         )}
@@ -694,7 +731,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
-  // Scenario 3: Báo cần bổ sung hình minh họa cho giáo viên, tuyệt đối không tự tạo số lượng sai
+  // Fallback for unconfigured models in teacher view
   if (isTeacherView) {
     return (
       <div className="my-3 p-3.5 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-300 text-amber-900 text-xs font-semibold flex items-center justify-between">
@@ -713,4 +750,3 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
 
   return null;
 };
-

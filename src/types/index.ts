@@ -78,29 +78,39 @@ export type MathErrorPattern =
   | 'GENERAL_CALCULATION_ERROR';    // Lỗi tính toán thông thường
 
 export type MediaCategory =
-  | 'items'              // Đồ vật
-  | 'animals'            // Động vật
-  | 'fruits'             // Hoa quả
-  | 'counters_frames'    // Chấm tròn & Khung số (5 ô, 10 ô)
-  | 'counting_sticks'    // Que tính & Bó que tính
-  | 'geometry'           // Hình học (hình phẳng, hình khối)
-  | 'clock_time'         // Đồng hồ & Thời gian
-  | 'money_measurement'; // Tiền tệ & Đơn vị đo
+  | 'food'               // Trái cây và thực phẩm (15 ảnh)
+  | 'animals'            // Động vật (12 ảnh)
+  | 'school'             // Đồ dùng học tập & đồ chơi (10 ảnh)
+  | 'nature'             // Thiên nhiên (8 ảnh)
+  | 'backgrounds'        // Phông cảnh minh họa (5 ảnh)
+  | 'math'               // Đồ họa Toán học chuẩn xác (10 SVG)
+  // Backward compatibility with legacy uploaded categories:
+  | 'items'
+  | 'fruits'
+  | 'counters_frames'
+  | 'counting_sticks'
+  | 'geometry'
+  | 'clock_time'
+  | 'money_measurement';
 
 export interface MediaItem {
   id: string;
   title: string;
   description?: string;
   category: MediaCategory;
-  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/svg+xml';
   sizeBytes: number;
-  url: string; // /api/media/file/:id
+  url: string; // /assets/toan-nhi/:file or /api/media/file/:id
   width?: number;
   height?: number;
   uploadedBy: string;
   uploadedAt: string;
   tags?: string[];
   referenceCount?: number;
+  aliases?: string[];
+  countUnit?: string;
+  countable?: boolean;
+  isStandardAsset?: boolean;
 }
 
 export interface MediaUploadResponse {
@@ -144,6 +154,7 @@ export interface VisualAssetConfig {
   caption?: string;
   isTeacherVerified?: boolean;
   requiresTeacherIllustration?: boolean;
+  countUnit?: string;
 }
 
 export interface Question {

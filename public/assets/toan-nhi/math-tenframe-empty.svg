@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Khung mười ô gồm hai hàng, mỗi hàng năm ô">
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f6fcff"/><stop offset="1" stop-color="#d8f1ff"/></linearGradient>
+  </defs>
+  <rect x="24" y="140" width="464" height="232" rx="28" fill="url(#panel)" stroke="#64b7e6" stroke-width="8"/>
+  <g fill="#ffffff" stroke="#7abbe0" stroke-width="4">
+    <rect x="48" y="160" width="80" height="88" rx="10"/><rect x="132" y="160" width="80" height="88" rx="10"/><rect x="216" y="160" width="80" height="88" rx="10"/><rect x="300" y="160" width="80" height="88" rx="10"/><rect x="384" y="160" width="80" height="88" rx="10"/>
+    <rect x="48" y="264" width="80" height="88" rx="10"/><rect x="132" y="264" width="80" height="88" rx="10"/><rect x="216" y="264" width="80" height="88" rx="10"/><rect x="300" y="264" width="80" height="88" rx="10"/><rect x="384" y="264" width="80" height="88" rx="10"/>
+  </g>
+</svg>
