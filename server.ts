@@ -25,12 +25,175 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import {
-  normalizeMathTextForSpeech,
-  getAudioHash,
-  synthesizeVietnameseSpeech,
-  isGrade1Weeks1To9,
-} from './src/lib/vietnameseTtsServer.ts';
+import https from 'https';
+
+// --- VIETNAMESE TTS UTILITIES (Self-contained in server.ts for zero-dependency Vercel Serverless execution) ---
+function isGrade1Weeks1To9(lessonOrVersion: {
+  id?: string;
+  lessonId?: string;
+  grade?: number;
+  week?: number;
+  title?: string;
+  topic?: string;
+}): boolean {
+  if (!lessonOrVersion) return false;
+  const grade = Number(lessonOrVersion.grade);
+  if (grade !== 1) return false;
+
+  const id = String(lessonOrVersion.id || lessonOrVersion.lessonId || '').toLowerCase();
+  const title = String(lessonOrVersion.title || '').toLowerCase();
+  const topic = String(lessonOrVersion.topic || '').toLowerCase();
+  const week = typeof lessonOrVersion.week === 'number' ? lessonOrVersion.week : undefined;
+
+  if (id.includes('qa-e2e') || id.includes('reinforce')) return false;
+  if (id.includes('g2') || id.includes('grade2') || title.includes('lớp 2')) return false;
+
+  if (id === 'lesson-g1-01' || id.includes('lesson-g1-01')) return true;
+  if (id === 'lesson-g1-02' || id.includes('lesson-g1-02')) return true;
+  if (id === 'lesson-g1-03' || id.includes('lesson-g1-03')) return true;
+  if (id === 'lesson-g1-05' || id.includes('lesson-g1-05')) return true;
+  if (id === 'lesson-draft-1792910089741' || id.includes('1792910089741')) return true;
+
+  if (
+    id === 'lesson-g1-04' || id.includes('lesson-g1-04') ||
+    id === 'lesson-g1-06' || id.includes('lesson-g1-06') ||
+    id === 'lesson-g1-07' || id.includes('lesson-g1-07') ||
+    id === 'lesson-g1-08' || id.includes('lesson-g1-08') ||
+    id === 'lesson-g1-09' || id.includes('lesson-g1-09') ||
+    id === 'lesson-g1-10' || id.includes('lesson-g1-10') ||
+    id === 'lesson-g1-11' || id.includes('lesson-g1-11') ||
+    id === 'lesson-g1-12' || id.includes('lesson-g1-12')
+  ) {
+    return false;
+  }
+
+  if (week !== undefined && !isNaN(week)) {
+    return week >= 1 && week <= 9;
+  }
+  const weekMatch = (title + ' ' + topic).match(/tuần\s*(\d+)/i);
+  if (weekMatch) {
+    const w = parseInt(weekMatch[1], 10);
+    return w >= 1 && w <= 9;
+  }
+  return false;
+}
+
+function normalizeMathTextForSpeech(text: string, options?: (string | number)[]): string {
+  if (!text) return '';
+  let s = text.trim();
+  s = s.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+  s = s.replace(/(\d+)\s*\+\s*(\d+)\s*=\s*(?:\?|\.{2,})/g, '$1 cộng $2 bằng mấy?');
+  s = s.replace(/(\d+)\s*-\s*(\d+)\s*=\s*(?:\?|\.{2,})/g, '$1 trừ $2 bằng mấy?');
+  s = s.replace(/(\d+)\s*=\s*(?:\?|\.{2,})/g, '$1 bằng mấy?');
+  s = s.replace(/(\d+)\s*\.{2,}\s*(\d+)/g, '$1 so với $2');
+  s = s.replace(/\(>\s*,\s*<\s*,\s*=\)/g, '(lớn hơn, bé hơn, hoặc bằng)');
+  s = s.replace(/\(>\s*,\s*<\)/g, '(lớn hơn, hoặc bé hơn)');
+  s = s.replace(/\(\+\s*,\s*-\)/g, '(cộng, hoặc trừ)');
+  s = s.replace(/\s*>\s*/g, ' lớn hơn ');
+  s = s.replace(/\s*<\s*/g, ' bé hơn ');
+  s = s.replace(/\s*=\s*/g, ' bằng ');
+  s = s.replace(/\s*\+\s*/g, ' cộng ');
+  s = s.replace(/(?<=\d)\s*-\s*(?=\d)/g, ' trừ ');
+  s = s.replace(/(\d+)\s*cm\b/gi, '$1 xăng-ti-mét');
+  s = s.replace(/(\d+)\s*kg\b/gi, '$1 ki-lô-gam');
+  s = s.replace(/(\d+)\s*l(?![a-zA-Zàáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ])/gi, '$1 lít');
+
+  if (options && Array.isArray(options) && options.length > 0) {
+    const isPureNumbers = options.every(o => /^\d+$/.test(String(o).trim()));
+    const isPureOperators = options.every(o => /^[><=+\-]+$/.test(String(o).trim()));
+    if (!isPureNumbers && !isPureOperators) {
+      const cleanOptions = options.map(o => String(o).trim()).filter(Boolean);
+      if (cleanOptions.length > 0) {
+        s += '. Các lựa chọn: ' + cleanOptions.join(', ') + '.';
+      }
+    }
+  }
+
+  s = s.replace(/""/g, '"');
+  s = s.replace(/\s+/g, ' ');
+  s = s.replace(/\s+([.,?!:])/g, '$1');
+  return s.trim();
+}
+
+function getAudioHash(text: string): string {
+  return crypto.createHash('md5').update(text.trim(), 'utf8').digest('hex').substring(0, 16);
+}
+
+function fetchTtsChunk(textChunk: string): Promise<Buffer> {
+  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=vi&client=tw-ob&q=' + encodeURIComponent(textChunk);
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      url,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://translate.google.com/',
+        },
+        timeout: 10000,
+      },
+      (res) => {
+        if (res.statusCode !== 200) {
+          return reject(new Error(`Google TTS request failed with status code ${res.statusCode}`));
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (d) => chunks.push(d));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+      }
+    );
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Google TTS request timed out.'));
+    });
+  });
+}
+
+function splitTextIntoChunks(text: string, maxLen = 160): string[] {
+  if (text.length <= maxLen) return [text];
+  const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+  const chunks: string[] = [];
+  let cur = '';
+
+  for (const s of sentences) {
+    if ((cur + ' ' + s).trim().length <= maxLen) {
+      cur = (cur ? cur + ' ' : '') + s.trim();
+    } else {
+      if (cur) chunks.push(cur);
+      if (s.trim().length <= maxLen) {
+        cur = s.trim();
+      } else {
+        const words = s.trim().split(' ');
+        let sub = '';
+        for (const w of words) {
+          if ((sub + ' ' + w).trim().length <= maxLen) {
+            sub = (sub ? sub + ' ' : '') + w;
+          } else {
+            if (sub) chunks.push(sub);
+            sub = w;
+          }
+        }
+        cur = sub;
+      }
+    }
+  }
+  if (cur) chunks.push(cur);
+  return chunks.length > 0 ? chunks : [text.substring(0, maxLen)];
+}
+
+async function synthesizeVietnameseSpeech(text: string): Promise<Buffer> {
+  const clean = text.trim();
+  if (!clean) throw new Error('TTS text cannot be empty');
+  const chunks = splitTextIntoChunks(clean);
+  const audioBuffers: Buffer[] = [];
+  for (const chunk of chunks) {
+    const buf = await fetchTtsChunk(chunk);
+    audioBuffers.push(buf);
+    if (chunks.length > 1) {
+      await new Promise((r) => setTimeout(r, 120));
+    }
+  }
+  return Buffer.concat(audioBuffers);
+}
 
 // Resilient audio storage directory supporting local disk and serverless read-only environments
 const AUDIO_STORAGE_DIR = process.env.VERCEL
