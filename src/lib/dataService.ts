@@ -45,10 +45,11 @@ export const dataService = {
         const q = query(collection(db, 'assignments'), where('classId', '==', classId));
         const snap = await getDocs(q);
         const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Assignment));
+        const activeList = list.filter((a) => a.status !== 'cancelled' && a.status !== 'archived');
         if (studentId) {
-          return list.filter((a) => !a.studentId || a.studentId === studentId);
+          return activeList.filter((a) => !a.studentId || a.studentId === studentId);
         }
-        return list;
+        return activeList;
       } catch (err: any) {
         if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
           throw err;
