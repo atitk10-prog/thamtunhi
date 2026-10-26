@@ -229,9 +229,33 @@ function saveAudioBufferSafe(filename: string, buf: Buffer) {
   }
 }
 
-// Safe JSON loading compatible across Node.js 18, 20, 22, 24
-const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
-const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+// Safe JSON loading compatible across Node.js 18, 20, 22, 24 and Vercel Serverless
+const candidateConfigPaths = [
+  path.resolve(__dirname, 'firebase-applet-config.json'),
+  path.resolve(__dirname, '..', 'firebase-applet-config.json'),
+  path.resolve(process.cwd(), 'firebase-applet-config.json'),
+];
+let firebaseConfig: any = null;
+for (const p of candidateConfigPaths) {
+  try {
+    if (fs.existsSync(p)) {
+      firebaseConfig = JSON.parse(fs.readFileSync(p, 'utf8'));
+      break;
+    }
+  } catch {}
+}
+if (!firebaseConfig) {
+  firebaseConfig = {
+    projectId: 'indigo-lotus-2nmq3',
+    appId: '1:585905017075:web:dc40838af79ac22d5aa786',
+    apiKey: 'AIzaSyC1xGPplfmuKos0D_OwseEzpZnsbU0CdXI',
+    authDomain: 'indigo-lotus-2nmq3.firebaseapp.com',
+    firestoreDatabaseId: 'ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2',
+    storageBucket: 'indigo-lotus-2nmq3.firebasestorage.app',
+    messagingSenderId: '585905017075',
+    oAuthClientId: '585905017075-seus3i44vvb1omrfdk3hn7tecjh8je4i.apps.googleusercontent.com',
+  };
+}
 
 // Initialize Firebase client for server environment
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
