@@ -3244,7 +3244,10 @@ app.get('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']), 
     const allAssignments = aSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
     const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
 
-    const isRealAttempt = (att: any) => att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation');
+    const isRealAttempt = (att: any) =>
+      (att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation')) &&
+      !att.id.includes('-test-') &&
+      att.dataOrigin !== 'test';
     const isSimAttempt = (att: any) => att.dataOrigin === 'simulation' || att.id.startsWith('att-demo-');
 
     let targetAttempts = allAttempts;
@@ -3358,7 +3361,10 @@ app.get('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin'
     const allClasses = classSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
     const classMap = new Map(allClasses.map((c) => [c.id, c]));
 
-    const isRealAttempt = (att: any) => att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation');
+    const isRealAttempt = (att: any) =>
+      (att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation')) &&
+      !att.id.includes('-test-') &&
+      att.dataOrigin !== 'test';
     const isSimAttempt = (att: any) => att.dataOrigin === 'simulation' || att.id.startsWith('att-demo-');
 
     let targetAttempts = allAttempts;
@@ -3799,7 +3805,10 @@ app.get('/api/teacher/assignments/:id/progress', requireAuth, requireRole(['teac
 
     let allAttempts = Array.from(attemptMap.values());
 
-    const isRealAttempt = (att: any) => att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation');
+    const isRealAttempt = (att: any) =>
+      (att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation')) &&
+      !att.id.includes('-test-') &&
+      att.dataOrigin !== 'test';
     const isSimAttempt = (att: any) => att.dataOrigin === 'simulation' || att.id.startsWith('att-demo-');
 
     if (dataOriginQuery === 'real') {

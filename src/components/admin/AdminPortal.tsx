@@ -229,7 +229,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const standardClasses = classes.filter((c) => ['1A', '1B', '2A', '2B', 'class-1a', 'class-1b', 'class-2a', 'class-2b'].includes(c.id) || ['1A', '1B', '2A', '2B'].includes(c.name));
     const gdptLessons = lessons.length > 0 ? lessons : [];
     const totalQuestions = gdptLessons.reduce((sum, l) => sum + ((l as any).questions?.length || l.totalQuestions || 8), 0);
-    const realAttempts = attempts.filter((att) => att.dataOrigin === 'real');
+    const realAttempts = attempts.filter(
+      (att) => att.dataOrigin === 'real' && !att.id.includes('-test-') && !att.id.startsWith('att-demo-')
+    );
     const simulationAttempts = attempts.filter((att) => att.dataOrigin === 'simulation');
 
     return {

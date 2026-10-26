@@ -131,7 +131,9 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
   // --- FILTERING ENGINE (Operational Data Strictly Isolated) ---
   const isRealCompletedAttempt = (att: Attempt) =>
     att.dataOrigin !== 'simulation' &&
+    att.dataOrigin !== 'test' &&
     !att.id.startsWith('att-demo-') &&
+    !att.id.includes('-test-') &&
     att.status === 'completed' &&
     Boolean(att.completedAt);
 

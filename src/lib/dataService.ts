@@ -287,7 +287,10 @@ export const dataService = {
         const allAssignments = aSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
         const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
 
-        const isRealAttempt = (att: any) => att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation');
+        const isRealAttempt = (att: any) =>
+          (att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation')) &&
+          !att.id.includes('-test-') &&
+          att.dataOrigin !== 'test';
         const isSimAttempt = (att: any) => att.dataOrigin === 'simulation' || att.id.startsWith('att-demo-');
 
         let targetAttempts = allAttempts;
@@ -368,7 +371,10 @@ export const dataService = {
         const classMap = new Map(allClasses.map((c) => [c.id, c]));
         const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
 
-        const isRealAttempt = (att: any) => att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation');
+        const isRealAttempt = (att: any) =>
+          (att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation')) &&
+          !att.id.includes('-test-') &&
+          att.dataOrigin !== 'test';
         const isSimAttempt = (att: any) => att.dataOrigin === 'simulation' || att.id.startsWith('att-demo-');
 
         let targetAttempts = allAttempts;
