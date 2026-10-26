@@ -524,8 +524,13 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
         count: p.count,
       }));
 
-      const studentsNeedingHelp = studentSummaries
-        .filter((s) => s.avgScore < 70 || s.totalSubmissions === 0)
+      // Requirement 1: Không đưa học sinh chưa nộp bài vào nhóm mắc lỗi hoặc yếu kiến thức.
+      // Tách rõ nhóm đã có kết quả và nhóm chưa có dữ liệu.
+      const evaluatedStudents = studentSummaries.filter((s) => s.totalSubmissions > 0);
+      const unsubmittedStudents = studentSummaries.filter((s) => s.totalSubmissions === 0);
+
+      const studentsNeedingHelp = evaluatedStudents
+        .filter((s) => s.avgScore < 70)
         .slice(0, 8)
         .map((s) => ({
           name: s.studentName,
@@ -535,7 +540,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
         }));
 
       // Cache version key hash based on attempts state
-      const dataVersion = `${completedAttempts}_${avgScore}_${filteredInsights.length}_${filteredAttempts[0]?.completedAt || ''}`;
+      const dataVersion = `${completedAttempts}_${avgScore}_${evaluatedStudents.length}_${unsubmittedStudents.length}_${filteredInsights.length}_${filteredAttempts[0]?.completedAt || ''}`;
 
       const res = await fetch('/api/teacher/summarize-insights', {
         method: 'POST',
@@ -551,6 +556,9 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
           dataVersion,
           improvedCount: improvedStudentsCount,
           studentsNeedingHelp,
+          evaluatedCount: evaluatedStudents.length,
+          unsubmittedCount: unsubmittedStudents.length,
+          unsubmittedNames: unsubmittedStudents.map((s) => s.studentName),
         }),
       });
 
@@ -807,7 +815,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
           <div className="text-xs font-semibold text-slate-600 mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
             <span>Đã nộp bài:</span>
             <span className="font-black text-emerald-700">
-              {completedStudentsCount}/{totalStudentsAssigned} em ({totalStudentsAssigned > 0 ? Math.round((completedStudentsCount / totalStudentsAssigned) * 100) : 0}%)
+              {completedStudentsCount}/{totalStudentsAssigned} em ({totalStudentsAssigned > 0 ? Math.round((completedStudentsCount / totalStudentsAssigned) * 100) : 0}%) • Chưa làm: {uncompletedStudentsCount} em
             </span>
           </div>
         </div>
@@ -821,8 +829,9 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
               </span>
               <Award className="w-4 h-4 text-amber-500" />
             </div>
-            <div className="text-3xl font-black text-sky-700 mt-2">
-              {avgScore}%
+            <div className="text-3xl font-black text-sky-700 mt-2 flex items-baseline gap-1.5">
+              <span>{avgScore}%</span>
+              <span className="text-xs font-semibold text-slate-400">(mẫu: {completedAttempts} lượt làm)</span>
             </div>
           </div>
           <div className="text-xs font-semibold text-slate-600 mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
@@ -840,13 +849,16 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
               </span>
               <TrendingUp className="w-4 h-4 text-indigo-600" />
             </div>
-            <div className="text-3xl font-black text-indigo-700 mt-2">
-              +{improvedStudentsCount} <span className="text-sm font-bold text-slate-500">em tăng điểm</span>
+            <div className="text-3xl font-black text-indigo-700 mt-2 flex items-baseline gap-1.5">
+              <span>+{improvedStudentsCount}</span>
+              <span className="text-sm font-bold text-slate-500">em tăng điểm (mẫu: {multiAttemptStudents.length} em làm lại)</span>
             </div>
           </div>
           <div className="text-xs font-semibold text-slate-600 mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
             <span>Tự sửa sau gợi ý:</span>
-            <span className="font-black text-indigo-700">{hintRecoveryRate}% thành công</span>
+            <span className="font-black text-indigo-700">
+              {hintRecoveryRate}% <span className="text-[11px] font-semibold text-slate-500">(mẫu: {totalFirstTry + totalPostHint} câu cần gợi ý)</span>
+            </span>
           </div>
         </div>
       </div>
@@ -951,6 +963,37 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
 
             <div className="text-xs font-bold text-slate-200 leading-relaxed">
               {aiResult.summary}
+            </div>
+
+            {/* Phân tách rõ ràng Nhóm đã có kết quả vs Nhóm chưa có dữ liệu */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+              <div className="p-3.5 rounded-2xl bg-sky-950/70 border border-sky-400/40 shadow-xs">
+                <div className="font-black text-sky-300 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5 text-sky-400" /> Nhóm đã có kết quả đánh giá ({studentSummaries.filter(s => s.totalSubmissions > 0).length} em)
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-800 text-sky-100">
+                    Mẫu: {completedAttempts} lượt làm hợp lệ
+                  </span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Căn cứ trên các bài nộp đã ghi nhận. Điểm trung bình nhóm đạt <strong>{avgScore}%</strong>, mức độ tiến bộ +{improvedStudentsCount} em.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-950/70 border border-amber-400/40 shadow-xs">
+                <div className="font-black text-amber-300 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" /> Nhóm chưa có dữ liệu đánh giá ({studentSummaries.filter(s => s.totalSubmissions === 0).length} em)
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-800 text-amber-100">
+                    Chưa nộp bài
+                  </span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Tách riêng để đôn đốc hoàn thành bài tập. Hệ thống không xếp các em chưa nộp bài vào nhóm mắc lỗi hay yếu kiến thức.
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-white/10 text-xs">

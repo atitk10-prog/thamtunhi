@@ -47,7 +47,11 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     customUrl = '/assets/toan-nhi/counting-stick-single.png';
   } else if (promptLower.includes('bông hoa') || promptLower.includes('cành hoa') || promptLower.includes('hoa')) {
     icon = 'flower';
-    customUrl = '/assets/toan-nhi/flower-red.png';
+    if (promptLower.includes('hoa vàng') || promptLower.includes('màu vàng') || promptLower.includes('hoa cúc vàng')) {
+      customUrl = '/assets/toan-nhi/flower-yellow.png';
+    } else {
+      customUrl = '/assets/toan-nhi/flower-red.png';
+    }
   } else if (promptLower.includes('chú thỏ') || promptLower.includes('con thỏ') || promptLower.includes('thỏ')) {
     icon = 'rabbit';
     customUrl = '/assets/toan-nhi/rabbit-white.png';
@@ -106,6 +110,32 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
 
   // Render an individual item icon (High-res PNG asset from 60-pack, no crude emoji)
   const renderIcon = (index: number, keyPrefix = 'icon') => {
+    let itemUrl = effectiveUrl;
+    let itemLabel = effectiveLabel;
+
+    // Distinguish group colors & labels (e.g., left group 4 red flowers, right group 3 yellow flowers)
+    if (keyPrefix === 'add-left' || keyPrefix === 'sub-init') {
+      if (config.leftImageUrl) {
+        itemUrl = config.leftImageUrl;
+      } else if (config.leftLabel?.toLowerCase().includes('hoa vàng') || config.leftLabel?.toLowerCase().includes('màu vàng') || config.leftLabel?.toLowerCase().includes('vàng')) {
+        itemUrl = '/assets/toan-nhi/flower-yellow.png';
+        itemLabel = 'Bông hoa vàng';
+      } else if (config.leftLabel?.toLowerCase().includes('hoa đỏ') || config.leftLabel?.toLowerCase().includes('màu đỏ') || config.leftLabel?.toLowerCase().includes('đỏ')) {
+        itemUrl = '/assets/toan-nhi/flower-red.png';
+        itemLabel = 'Bông hoa đỏ';
+      }
+    } else if (keyPrefix === 'add-right' || keyPrefix === 'sub-takeaway') {
+      if (config.rightImageUrl) {
+        itemUrl = config.rightImageUrl;
+      } else if (config.rightLabel?.toLowerCase().includes('hoa vàng') || config.rightLabel?.toLowerCase().includes('màu vàng') || config.rightLabel?.toLowerCase().includes('vàng')) {
+        itemUrl = '/assets/toan-nhi/flower-yellow.png';
+        itemLabel = 'Bông hoa vàng';
+      } else if (config.rightLabel?.toLowerCase().includes('hoa đỏ') || config.rightLabel?.toLowerCase().includes('màu đỏ') || config.rightLabel?.toLowerCase().includes('đỏ')) {
+        itemUrl = '/assets/toan-nhi/flower-red.png';
+        itemLabel = 'Bông hoa đỏ';
+      }
+    }
+
     if (icon === 'dot') {
       const dotColorClass = config.dotColor === 'red'
         ? 'bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-rose-700'
@@ -120,15 +150,15 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
       );
     }
 
-    if (effectiveUrl) {
+    if (itemUrl) {
       return (
         <div
           key={`${keyPrefix}-${index}`}
           className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center p-1 transition-transform hover:scale-110 drop-shadow-xs"
         >
           <img
-            src={effectiveUrl}
-            alt={effectiveLabel}
+            src={itemUrl}
+            alt={itemLabel}
             className="w-full h-full object-contain filter drop-shadow-xs select-none"
             loading="lazy"
             onError={(e) => {

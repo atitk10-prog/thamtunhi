@@ -134,6 +134,8 @@ export interface VisualAssetConfig {
   rightCount?: number;
   leftLabel?: string;
   rightLabel?: string;
+  leftImageUrl?: string;
+  rightImageUrl?: string;
   iconName?: string; // apple, star, candy, fish, pencil, block, carrot, flower, bird, rabbit, orange, banana, ball, book
   tens?: number;
   ones?: number;

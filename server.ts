@@ -990,13 +990,25 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
     if (vc.type === 'addition') {
       const left = typeof vc.leftCount === 'number' ? Math.max(0, vc.leftCount) : (parseInt(String(vc.leftCount), 10) || 0);
       const right = typeof vc.rightCount === 'number' ? Math.max(0, vc.rightCount) : (parseInt(String(vc.rightCount), 10) || 0);
+      const leftLabel = vc.leftLabel || 'Nhóm 1';
+      const rightLabel = vc.rightLabel || 'Nhóm 2';
+      let leftImageUrl = vc.leftImageUrl;
+      let rightImageUrl = vc.rightImageUrl;
+      if (!leftImageUrl && (leftLabel.includes('hoa đỏ') || leftLabel.includes('đỏ'))) {
+        leftImageUrl = '/assets/toan-nhi/flower-red.png';
+      }
+      if (!rightImageUrl && (rightLabel.includes('hoa vàng') || rightLabel.includes('vàng'))) {
+        rightImageUrl = '/assets/toan-nhi/flower-yellow.png';
+      }
       return {
         type: 'addition',
         leftCount: Math.min(Math.max(0, left), 20),
         rightCount: Math.min(Math.max(0, right), 20),
         iconName: vc.iconName || 'apple',
-        leftLabel: vc.leftLabel || 'Nhóm 1',
-        rightLabel: vc.rightLabel || 'Nhóm 2',
+        leftLabel,
+        rightLabel,
+        leftImageUrl,
+        rightImageUrl,
       };
     }
 
@@ -1010,6 +1022,8 @@ function enrichAiVisualConfig(q: any, tTopic: string, tGrade: number): any {
         iconName: vc.iconName || 'apple',
         leftLabel: vc.leftLabel || 'Ban đầu',
         rightLabel: vc.rightLabel || 'Bớt đi',
+        leftImageUrl: vc.leftImageUrl,
+        rightImageUrl: vc.rightImageUrl,
       };
     }
 
@@ -1681,38 +1695,67 @@ function generateDeterministicPedagogicalSummary(params: {
   completedAttempts?: number;
   improvedCount?: number;
   studentsNeedingHelp?: Array<{ name: string; code?: string; errorCount?: number; topPattern?: string }>;
+  evaluatedCount?: number;
+  unsubmittedCount?: number;
+  unsubmittedNames?: string[];
 }) {
-  const { patterns = [], totalAttempts = 0, avgScore = 0, hintRecoveryRate = 0, completedAttempts = 0, improvedCount = 0, studentsNeedingHelp = [] } = params;
+  const {
+    patterns = [],
+    totalAttempts = 0,
+    avgScore = 0,
+    hintRecoveryRate = 0,
+    completedAttempts = 0,
+    improvedCount = 0,
+    studentsNeedingHelp = [],
+    evaluatedCount = 0,
+    unsubmittedCount = 0,
+    unsubmittedNames = []
+  } = params;
 
   const topThree = patterns.slice(0, 3);
-  const errorNames = topThree.map((p) => `"${p.label}" (${p.count} lượt)`).join(', ');
+  const errorNames = topThree.map((p) => `"${p.label}" (${p.count} lượt / mẫu: ${completedAttempts} lượt)`).join(', ');
 
-  // 1. Điểm mạnh
+  // 1. Điểm mạnh (Căn cứ trên số lượt làm hợp lệ)
   let strengths = '';
-  if (avgScore >= 80) {
-    strengths = `Lớp học có kết quả học tập rất tích cực với điểm trung bình đạt ${avgScore}%. Đa số học sinh nắm chắc kiến thức nền tảng và hoàn thành tốt các bài tập.`;
+  if (completedAttempts === 0) {
+    strengths = 'Chưa có đủ dữ liệu lượt làm hợp lệ để đánh giá điểm mạnh của lớp.';
+  } else if (avgScore >= 80) {
+    strengths = `Lớp học có kết quả học tập rất tích cực với điểm trung bình đạt ${avgScore}% (mẫu: ${completedAttempts} lượt làm hợp lệ từ ${evaluatedCount} học sinh). Đa số học sinh đã nộp bài nắm chắc kiến thức nền tảng và hoàn thành tốt các bài tập.`;
   } else if (avgScore >= 60) {
-    strengths = `Học sinh có tinh thần làm bài tích cực với điểm trung bình đạt ${avgScore}%. Tỷ lệ khắc phục sau khi nhận manh mối gợi ý đạt ${hintRecoveryRate}%, cho thấy các em có khả năng tự điều chỉnh tư duy tốt.`;
+    strengths = `Học sinh có tinh thần làm bài tích cực với điểm trung bình đạt ${avgScore}% (mẫu: ${completedAttempts} lượt làm hợp lệ từ ${evaluatedCount} học sinh). Tỷ lệ khắc phục sau gợi ý đạt ${hintRecoveryRate}%, cho thấy các em có khả năng tự điều chỉnh tư duy tốt.`;
   } else {
     strengths = `Một số em đã có sự tiến bộ đáng khích lệ giữa các lần làm bài (+${improvedCount} lượt có điểm tăng). Tỷ lệ tiếp thu gợi ý đạt ${hintRecoveryRate}%.`;
   }
 
-  // 2. Lỗi nổi bật (chỉ dựa trên minh chứng thực tế)
+  // 2. Lỗi nổi bật (chỉ dựa trên minh chứng thực tế từ lượt làm hợp lệ)
   let topErrors = '';
-  if (topThree.length > 0) {
-    topErrors = `Dữ liệu ghi nhận các mẫu lỗi xuất hiện nhiều nhất gồm: ${errorNames}. Nguyên nhân trực tiếp từ thao tác quan sát chưa kỹ (đếm vội), nhầm lẫn biểu tượng dấu so sánh hoặc khó khăn ở bước chuyển qua chục tròn.`;
+  if (completedAttempts === 0) {
+    topErrors = 'Chưa có lượt nộp bài hợp lệ nào để phân tích mẫu lỗi.';
+  } else if (topThree.length > 0) {
+    topErrors = `Dữ liệu ghi nhận từ ${completedAttempts} lượt làm bài hợp lệ cho thấy các mẫu lỗi xuất hiện nhiều nhất gồm: ${errorNames}. Nguyên nhân trực tiếp từ thao tác quan sát chưa kỹ (đếm vội), nhầm lẫn biểu tượng dấu so sánh hoặc khó khăn ở bước chuyển qua chục tròn.`;
   } else {
     topErrors = `Hiện tại lớp chưa ghi nhận lỗi sai hệ thống nổi bật nào trong phạm vi bài học đã hoàn thành.`;
   }
 
-  // 3. Nhóm học sinh cần hỗ trợ & Mức độ tiến bộ
+  // 3. Phân tách rõ ràng: Nhóm đã có kết quả vs Nhóm chưa có dữ liệu (Tuyệt đối không xếp học sinh chưa làm vào nhóm yếu)
   let studentsNeedingSupport = '';
+  const supportParts: string[] = [];
+  
   if (studentsNeedingHelp.length > 0) {
     const studentNames = studentsNeedingHelp.slice(0, 5).map(s => s.name).join(', ');
-    studentsNeedingSupport = `Nhóm học sinh cần ưu tiên hỗ trợ gồm: ${studentNames}${studentsNeedingHelp.length > 5 ? ` và ${studentsNeedingHelp.length - 5} em khác` : ''}. Cần theo dõi tiến độ qua từng lần làm để củng cố kịp thời.`;
+    supportParts.push(`Nhóm học sinh đã có kết quả đánh giá cần củng cố kiến thức (${studentsNeedingHelp.length} em có điểm TB < 70%): ${studentNames}${studentsNeedingHelp.length > 5 ? ` và ${studentsNeedingHelp.length - 5} em khác` : ''}.`);
+  } else if (evaluatedCount > 0) {
+    supportParts.push(`Toàn bộ ${evaluatedCount} học sinh đã có kết quả đánh giá đều đạt mức điểm từ khá trở lên (điểm TB ≥ 70%).`);
   } else {
-    studentsNeedingSupport = `Các học sinh đều duy trì phong độ làm bài ổn định, chưa có nhóm học sinh tụt hậu nghiêm trọng.`;
+    supportParts.push('Chưa có học sinh nào hoàn thành bài để đánh giá mức độ tiếp thu.');
   }
+
+  if (unsubmittedCount > 0) {
+    const pendingNames = unsubmittedNames.length > 0 ? ` (${unsubmittedNames.slice(0, 5).join(', ')}${unsubmittedNames.length > 5 ? ` và ${unsubmittedNames.length - 5} em khác` : ''})` : '';
+    supportParts.push(`Tách riêng nhóm chưa có dữ liệu đánh giá: ${unsubmittedCount} em${pendingNames} chưa nộp bài. Giáo viên cần đôn đốc các em hoàn thành bài tập, không xếp vào nhóm mắc lỗi hay học sinh yếu.`);
+  }
+
+  studentsNeedingSupport = supportParts.join(' ');
 
   // 4. Biện pháp sư phạm cụ thể (que tính, khung 10 ô, trục số...)
   const pedagogicalActions: string[] = [];
@@ -1749,7 +1792,7 @@ function generateDeterministicPedagogicalSummary(params: {
     'Khen ngợi nỗ lực của các em có tiến bộ giữa các lần làm bài để tạo động lực học tập tích cực.'
   ];
 
-  const summary = `Qua phân tích ${totalAttempts} lượt làm bài (${completedAttempts} lượt hoàn thành), lớp đạt điểm trung bình ${avgScore}%. ${strengths} ${topErrors} Thầy/Cô nên phối hợp các hoạt động củng cố trực quan và giao bài luyện tập ngắn để khắc phục triệt để các mẫu lỗi này.`;
+  const summary = `Căn cứ ${completedAttempts} lượt làm bài hợp lệ (${evaluatedCount} học sinh đã có kết quả đánh giá), lớp đạt điểm trung bình ${avgScore}% (mẫu: ${completedAttempts} lượt). ${unsubmittedCount > 0 ? `Hệ thống tách riêng ${unsubmittedCount} học sinh chưa có dữ liệu nộp bài để đôn đốc hoàn thành.` : ''} ${strengths} ${topErrors}`;
 
   return {
     summary,
@@ -1774,11 +1817,14 @@ app.post('/api/teacher/summarize-insights', requireAuth, requireRole(['teacher',
     dataVersion = '',
     completedAttempts = 0,
     improvedCount = 0,
-    studentsNeedingHelp = []
+    studentsNeedingHelp = [],
+    evaluatedCount = 0,
+    unsubmittedCount = 0,
+    unsubmittedNames = []
   } = req.body;
 
   const teacherId = (req as any).user?.uid || 'teacher-1';
-  const cacheKey = `${teacherId}_${dataOrigin}_${classId}_${dataVersion || `${totalAttempts}_${completedAttempts}_${avgScore}`}`;
+  const cacheKey = `${teacherId}_${dataOrigin}_${classId}_${dataVersion || `${totalAttempts}_${completedAttempts}_${avgScore}_${evaluatedCount}_${unsubmittedCount}`}`;
 
   // Check cache first (Requirement D: Cache theo phiên bản dữ liệu)
   const cached = analyticsAiCache.get(cacheKey);
@@ -1800,7 +1846,10 @@ app.post('/api/teacher/summarize-insights', requireAuth, requireRole(['teacher',
       dataOrigin,
       completedAttempts,
       improvedCount,
-      studentsNeedingHelp
+      studentsNeedingHelp,
+      evaluatedCount,
+      unsubmittedCount,
+      unsubmittedNames
     });
     analyticsAiCache.set(cacheKey, { timestamp: Date.now(), data: fallbackData });
     return res.json({ ok: true, ...fallbackData, cached: false });
@@ -1816,19 +1865,27 @@ YÊU CẦU QUAN TRỌNG:
 - AI CHỈ phân tích dữ liệu tổng hợp từ bài làm đã lưu dưới đây.
 - TUYỆT ĐỐI KHÔNG bịa nguyên nhân hoặc thông tin khi thiếu minh chứng.
 - Dữ liệu nguồn: ${dataOrigin === 'simulation' ? 'Dữ liệu mô phỏng quay clip' : 'Bài nộp của học sinh (Thực tế)'}.
-- Tổng lượt làm bài: ${totalAttempts} (${completedAttempts} lượt đã hoàn thành)
-- Điểm trung bình: ${avgScore}%
-- Tỷ lệ phục hồi sau manh mối gợi ý: ${hintRecoveryRate}%
-- Số học sinh có điểm tiến bộ: ${improvedCount} em
-- Các mẫu lỗi hay gặp: ${topPatternsSummary || 'Không có mẫu lỗi nổi bật'}
-- Nhóm học sinh cần hỗ trợ: ${studentsHelpSummary || 'Không có'}
+- Lượt làm bài hợp lệ: ${completedAttempts} lượt hoàn thành (Tổng số lượt: ${totalAttempts}).
+- Số học sinh đã có kết quả đánh giá: ${evaluatedCount} em.
+- Số học sinh chưa có dữ liệu đánh giá: ${unsubmittedCount} em (${(unsubmittedNames || []).slice(0, 5).join(', ') || 'không có'}).
+- Điểm trung bình của nhóm đã có kết quả: ${avgScore}% (cỡ mẫu: ${completedAttempts} lượt).
+- Tỷ lệ phục hồi sau manh mối gợi ý: ${hintRecoveryRate}%.
+- Số học sinh có điểm tiến bộ: ${improvedCount} em.
+- Các mẫu lỗi hay gặp: ${topPatternsSummary || 'Không có mẫu lỗi nổi bật'}.
+- Nhóm học sinh đã có kết quả và đạt điểm TB < 70% cần củng cố: ${studentsHelpSummary || 'Không có'}.
+
+QUY TẮC PHÂN LOẠI SƯ PHẠM BẮT BUỘC:
+1. TUYỆT ĐỐI KHÔNG đưa ${unsubmittedCount} học sinh chưa nộp bài vào nhóm mắc lỗi hoặc yếu kiến thức. Phải tách rõ:
+   - "Nhóm đã có kết quả đánh giá": ${evaluatedCount} em.
+   - "Nhóm chưa có dữ liệu đánh giá": ${unsubmittedCount} em (cần giáo viên nhắc nhở, đôn đốc hoàn thành bài, không kết luận năng lực).
+2. Các nhận định sư phạm phải căn cứ đúng vào lượt làm hợp lệ (${completedAttempts} lượt); luôn thể hiện số mẫu (N) rõ ràng khi đưa ra bất kỳ tỷ lệ hoặc phần trăm nào (ví dụ: 'Điểm TB đạt 85% (mẫu: ${completedAttempts} lượt)').
 
 Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ không bọc markdown theo cấu trúc sau:
 {
-  "summary": "Đoạn văn tổng quan tình hình học tập và nhận định chung...",
-  "strengths": "Nêu rõ điểm mạnh của lớp theo số liệu đã lưu...",
-  "topErrors": "Phân tích các lỗi sai nổi bật dựa đúng trên minh chứng...",
-  "studentsNeedingSupport": "Nhận xét nhóm học sinh cần hỗ trợ và phân tích mức độ tiến bộ...",
+  "summary": "Đoạn văn tổng quan tình hình học tập và nhận định chung (căn cứ trên ${completedAttempts} lượt làm hợp lệ, tách riêng ${unsubmittedCount} em chưa nộp)...",
+  "strengths": "Nêu rõ điểm mạnh của lớp theo số liệu đã lưu (kèm cỡ mẫu N: ${completedAttempts} lượt)...",
+  "topErrors": "Phân tích các lỗi sai nổi bật dựa đúng trên minh chứng lượt làm hợp lệ (kèm số lượt từng lỗi)...",
+  "studentsNeedingSupport": "Tách rõ 2 nhóm: (1) Nhóm đã có kết quả cần củng cố (${studentsHelpSummary || 'Không có em nào dưới 70%'}), (2) Nhóm chưa có dữ liệu (${unsubmittedCount} em) cần đôn đốc nộp bài...",
   "pedagogicalActions": [
     "Biện pháp sư phạm trực quan cụ thể 1 (sử dụng que tính, khung 10 ô, trục số...)",
     "Biện pháp sư phạm trực quan cụ thể 2...",
@@ -1878,7 +1935,10 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ không bọc markdown t
       dataOrigin,
       completedAttempts,
       improvedCount,
-      studentsNeedingHelp
+      studentsNeedingHelp,
+      evaluatedCount,
+      unsubmittedCount,
+      unsubmittedNames
     });
     analyticsAiCache.set(cacheKey, { timestamp: Date.now(), data: fallbackData });
     return res.json({ ok: true, ...fallbackData, cached: false });
@@ -1902,7 +1962,7 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         id: `q-rf-${Date.now()}-${qIndex++}`,
         order: questions.length + 1,
         prompt: 'Quan sát hình vẽ và đếm xem có tất cả bao nhiêu củ cà rốt?',
-        interactionType: 'multiple_choice',
+        interactionType: 'single_choice',
         visualConfig: {
           type: 'counters',
           count: targetGrade === 1 ? 6 : 14,
@@ -1911,7 +1971,16 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         expectedAnswer: targetGrade === 1 ? '6' : '14',
         options: targetGrade === 1 ? ['5', '6', '7', '8'] : ['13', '14', '15', '16'],
         points: 10,
-        explanation: 'Em hãy chỉ tay vào từng củ cà rốt từ trái sang phải để đếm chính xác, không bỏ sót củ nào nhé.'
+        explanation: 'Em hãy chỉ tay vào từng củ cà rốt từ trái sang phải để đếm chính xác, không bỏ sót củ nào nhé.',
+        skillTag: 'Đếm và nhận biết số lượng',
+        difficulty: 'easy',
+        ruleHints: [
+          {
+            pattern: 'COUNTING_OFF_BY_ONE',
+            hintText: 'Hãy chỉ tay vào từng củ cà rốt và đếm chậm theo thứ tự từ trái sang phải nhé!',
+            visualActionGuidance: 'Chạm đếm từng hình trên màn hình theo nhịp 1-1.'
+          }
+        ]
       });
     }
 
@@ -1921,7 +1990,7 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         id: `q-rf-${Date.now()}-${qIndex++}`,
         order: questions.length + 1,
         prompt: 'Điền dấu so sánh thích hợp (<, >, =) vào chỗ chấm: 8 ... 5',
-        interactionType: 'comparison',
+        interactionType: 'operator_pick',
         visualConfig: {
           type: 'comparison',
           leftCount: 8,
@@ -1933,7 +2002,16 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         expectedAnswer: '>',
         options: ['<', '>', '='],
         points: 10,
-        explanation: 'Vì 8 lớn hơn 5 nên ta điền dấu >. Mũi nhọn luôn quay về phía số bé hơn.'
+        explanation: 'Vì 8 lớn hơn 5 nên ta điền dấu >. Mũi nhọn luôn quay về phía số bé hơn.',
+        skillTag: 'So sánh số lượng',
+        difficulty: 'easy',
+        ruleHints: [
+          {
+            pattern: 'COMPARISON_INVERSION',
+            hintText: 'Mũi nhọn luôn quay về phía số bé hơn (5), miệng mở rộng về phía số lớn hơn (8).',
+            visualActionGuidance: 'Bên nào có nhiều quả táo hơn thì miệng chú cá sẽ mở rộng về bên đó.'
+          }
+        ]
       });
     }
 
@@ -1943,7 +2021,7 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         id: `q-rf-${Date.now()}-${qIndex++}`,
         order: questions.length + 1,
         prompt: 'Trên đĩa có 6 chiếc kẹo, Nam lấy đi 2 chiếc kẹo. Hỏi trên đĩa còn lại mấy chiếc kẹo?',
-        interactionType: 'multiple_choice',
+        interactionType: 'single_choice',
         visualConfig: {
           type: 'subtraction',
           leftCount: 6,
@@ -1955,7 +2033,16 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         expectedAnswer: '4',
         options: ['4', '8', '3', '5'],
         points: 10,
-        explanation: 'Lấy đi là phép trừ: 6 - 2 = 4 (chiếc kẹo).'
+        explanation: 'Lấy đi là phép trừ: 6 - 2 = 4 (chiếc kẹo).',
+        skillTag: 'Phép trừ trong phạm vi 10',
+        difficulty: 'easy',
+        ruleHints: [
+          {
+            pattern: 'WRONG_OPERATOR',
+            hintText: 'Bài toán "lấy đi / còn lại" là phép trừ (-): 6 - 2 = 4 chiếc kẹo.',
+            visualActionGuidance: 'Bớt đi 2 chiếc kẹo từ 6 chiếc kẹo ban đầu.'
+          }
+        ]
       });
     }
 
@@ -1965,7 +2052,7 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         id: `q-rf-${Date.now()}-${qIndex++}`,
         order: questions.length + 1,
         prompt: 'Số gồm 3 chục và 5 đơn vị được viết là số nào?',
-        interactionType: 'multiple_choice',
+        interactionType: 'single_choice',
         visualConfig: {
           type: 'bundles',
           tens: 3,
@@ -1974,7 +2061,16 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         expectedAnswer: '35',
         options: ['53', '35', '305', '8'],
         points: 10,
-        explanation: '3 chục viết ở hàng chục (bên trái), 5 đơn vị viết ở hàng đơn vị (bên phải): 35.'
+        explanation: '3 chục viết ở hàng chục (bên trái), 5 đơn vị viết ở hàng đơn vị (bên phải): 35.',
+        skillTag: 'Hàng chục và hàng đơn vị',
+        difficulty: 'medium',
+        ruleHints: [
+          {
+            pattern: 'PLACE_VALUE_SWAP',
+            hintText: 'Chữ số hàng chục viết trước (bên trái), chữ số hàng đơn vị viết sau (bên phải): 3 chục và 5 đơn vị là 35.',
+            visualActionGuidance: 'Đếm 3 bó chục ở bên trái và 5 que lẻ ở bên phải.'
+          }
+        ]
       });
     }
 
@@ -1984,7 +2080,7 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         id: `q-rf-${Date.now()}-${qIndex++}`,
         order: questions.length + 1,
         prompt: 'Tính nhẩm phép cộng qua 10: 9 + 4 = ?',
-        interactionType: 'multiple_choice',
+        interactionType: 'single_choice',
         visualConfig: {
           type: 'addition',
           leftCount: 9,
@@ -1996,7 +2092,16 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         expectedAnswer: '13',
         options: ['12', '13', '14', '15'],
         points: 10,
-        explanation: 'Tách 4 thành 1 và 3; 9 + 1 = 10; 10 + 3 = 13.'
+        explanation: 'Tách 4 thành 1 và 3; 9 + 1 = 10; 10 + 3 = 13.',
+        skillTag: 'Phép cộng có nhớ qua 10',
+        difficulty: 'medium',
+        ruleHints: [
+          {
+            pattern: 'CROSS_TEN_ERROR',
+            hintText: 'Tách 4 thành 1 và 3; 9 + 1 = 10; 10 + 3 = 13.',
+            visualActionGuidance: 'Gộp 9 với 1 để làm tròn 1 chục rồi cộng tiếp 3.'
+          }
+        ]
       });
     }
 
@@ -2006,7 +2111,7 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         id: `q-rf-${Date.now()}-${qIndex++}`,
         order: questions.length + 1,
         prompt: 'Tìm số thích hợp điền vào vị trí dấu hỏi chấm trên tia số: 5, 6, [ ? ], 8, 9',
-        interactionType: 'multiple_choice',
+        interactionType: 'single_choice',
         visualConfig: {
           type: 'number_line',
           min: 0,
@@ -2015,7 +2120,16 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         expectedAnswer: '7',
         options: ['6', '7', '8', '10'],
         points: 10,
-        explanation: 'Đếm xuôi theo thứ tự: số đứng liền sau 6 và liền trước 8 là số 7.'
+        explanation: 'Đếm xuôi theo thứ tự: số đứng liền sau 6 và liền trước 8 là số 7.',
+        skillTag: 'Thứ tự các số',
+        difficulty: 'easy',
+        ruleHints: [
+          {
+            pattern: 'NUMBER_ORDER_CONFUSION',
+            hintText: 'Đếm xuôi từ trái sang phải: 5, 6 rồi đến 7, 8, 9.',
+            visualActionGuidance: 'Quan sát các vạch chia tăng dần trên tia số.'
+          }
+        ]
       });
     }
 
@@ -2025,19 +2139,30 @@ app.post('/api/teacher/create-reinforcement-draft', requireAuth, requireRole(['t
         id: `q-rf-${Date.now()}-${qIndex++}`,
         order: questions.length + 1,
         prompt: 'Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng. Hỏi có tất cả bao nhiêu bông hoa?',
-        interactionType: 'multiple_choice',
+        interactionType: 'single_choice',
         visualConfig: {
           type: 'addition',
           leftCount: 4,
           rightCount: 3,
           iconName: 'flower',
           leftLabel: '4 hoa đỏ',
-          rightLabel: '3 hoa vàng'
+          rightLabel: '3 hoa vàng',
+          leftImageUrl: '/assets/toan-nhi/flower-red.png',
+          rightImageUrl: '/assets/toan-nhi/flower-yellow.png'
         },
         expectedAnswer: '7',
         options: ['6', '7', '8', '1'],
         points: 10,
-        explanation: 'Gộp hai nhóm lại là phép cộng: 4 + 3 = 7 (bông hoa).'
+        explanation: 'Gộp hai nhóm lại là phép cộng: 4 + 3 = 7 (bông hoa).',
+        skillTag: 'Phép cộng trong phạm vi 10',
+        difficulty: 'easy',
+        ruleHints: [
+          {
+            pattern: 'WRONG_OPERATOR',
+            hintText: 'Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng, gộp lại ta làm phép tính cộng: 4 + 3 = 7 bông hoa.',
+            visualActionGuidance: 'Đếm 4 bông hoa đỏ bên trái và 3 bông hoa vàng bên phải để tìm tổng số bông hoa.'
+          }
+        ]
       });
     }
 
@@ -3280,8 +3405,8 @@ app.get('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']), 
     const lessons = lSnap.docs.map((d) => {
       const lData: any = { id: d.id, ...d.data() };
 
-      // All assignments associated with this lesson (excluding cancelled ones)
-      const lessonAssignments = allAssignments.filter((a) => a.lessonId === d.id && a.status !== 'cancelled');
+      // All assignments associated with this lesson (excluding cancelled and archived ones)
+      const lessonAssignments = allAssignments.filter((a) => a.lessonId === d.id && a.status !== 'cancelled' && a.status !== 'archived');
       const lessonAssignmentIds = new Set(lessonAssignments.map((a) => a.id));
 
       // Classes that have been assigned this lesson
