@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-10-26T16:05:23.024Z",
+  "totalQuestions": 49,
+  "totalAudioFilesOnDisk": 78,
+  "totalBytes": 4281408,
+  "versionSummary": [
+    {
+      "versionId": "version-lesson-g1-01-v1",
+      "title": "Các số từ 1 đến 5: Đếm và Nhận biết",
+      "grade": 1,
+      "questionsCount": 8,
+      "promptsWithAudio": 8,
+      "hintsWithAudio": 8
+    },
+    {
+      "versionId": "version-lesson-g1-01-v2",
+      "title": "Các số từ 1 đến 5: Đếm và Nhận biết",
+      "grade": 1,
+      "questionsCount": 8,
+      "promptsWithAudio": 8,
+      "hintsWithAudio": 8
+    },
+    {
+      "versionId": "version-lesson-g1-02-v1",
+      "title": "Các số từ 6 đến 10 và Tách - Gộp số",
+      "grade": 1,
+      "questionsCount": 8,
+      "promptsWithAudio": 8,
+      "hintsWithAudio": 8
+    },
+    {
+      "versionId": "version-lesson-g1-03-v1",
+      "title": "Phép cộng trong phạm vi 10",
+      "grade": 1,
+      "questionsCount": 8,
+      "promptsWithAudio": 8,
+      "hintsWithAudio": 8
+    },
+    {
+      "versionId": "version-lesson-g1-05-v1",
+      "title": "Hình vuông, Hình tròn, Hình tam giác, Hình chữ nhật",
+      "grade": 1,
+      "questionsCount": 8,
+      "promptsWithAudio": 8,
+      "hintsWithAudio": 8
+    },
+    {
+      "versionId": "version-lesson-draft-1792910089741-v2",
+      "title": "Bài tập Toán: Luyện tập các số 1 2 3 4 5",
+      "grade": 1,
+      "questionsCount": 4,
+      "promptsWithAudio": 4,
+      "hintsWithAudio": 4
+    },
+    {
+      "versionId": "version-lesson-draft-1792910089741-v3",
+      "title": "Bài tập Toán: Luyện tập các số 1 2 3 4 5 (v3)",
+      "grade": 1,
+      "questionsCount": 5,
+      "promptsWithAudio": 5,
+      "hintsWithAudio": 5
+    }
+  ]
+}

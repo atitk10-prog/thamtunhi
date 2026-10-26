@@ -193,6 +193,10 @@ export interface Question {
     hintText: string;
     visualActionGuidance?: string;
   }[];
+  audioUrl?: string;
+  audioHash?: string;
+  hintAudioUrl?: string;
+  hintAudioHash?: string;
 }
 
 export interface LessonStats {

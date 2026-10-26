@@ -25,6 +25,19 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import {
+  normalizeMathTextForSpeech,
+  getAudioHash,
+  synthesizeVietnameseSpeech,
+  isGrade1Weeks1To9,
+} from './src/lib/vietnameseTtsServer.ts';
+
+const AUDIO_STORAGE_DIR = path.resolve(__dirname, 'public', 'audio');
+if (!fs.existsSync(AUDIO_STORAGE_DIR)) {
+  fs.mkdirSync(AUDIO_STORAGE_DIR, { recursive: true });
+}
+const audioMemoryCache = new Map<string, Buffer>();
+
 // Safe JSON loading compatible across Node.js 18, 20, 22, 24
 const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -1661,6 +1674,42 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có văn bản nào 
       difficulty,
       rawPattern
     );
+
+    // Requirement IV: Automatically synthesize Vietnamese audio for Grade 1 Weeks 1-9 drafts
+    if (parsedGrade === 1 && isGrade1Weeks1To9({ grade: 1, title: cleanTopic })) {
+      for (const q of sanitizedQuestions) {
+        try {
+          const spokenPrompt = normalizeMathTextForSpeech(q.prompt, q.options);
+          const pHash = getAudioHash(spokenPrompt);
+          const pFilename = `q_${pHash}.mp3`;
+          const pPath = path.join(AUDIO_STORAGE_DIR, pFilename);
+          if (!fs.existsSync(pPath)) {
+            const buf = await synthesizeVietnameseSpeech(spokenPrompt);
+            fs.writeFileSync(pPath, buf);
+            audioMemoryCache.set(pFilename, buf);
+          }
+          q.audioUrl = `/audio/${pFilename}`;
+          q.audioHash = pHash;
+
+          const primaryHint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
+          if (primaryHint) {
+            const spokenHint = normalizeMathTextForSpeech(primaryHint);
+            const hHash = getAudioHash(spokenHint);
+            const hFilename = `h_${hHash}.mp3`;
+            const hPath = path.join(AUDIO_STORAGE_DIR, hFilename);
+            if (!fs.existsSync(hPath)) {
+              const buf = await synthesizeVietnameseSpeech(spokenHint);
+              fs.writeFileSync(hPath, buf);
+              audioMemoryCache.set(hFilename, buf);
+            }
+            q.hintAudioUrl = `/audio/${hFilename}`;
+            q.hintAudioHash = hHash;
+          }
+        } catch (ttsErr) {
+          console.warn('Audio synthesis notice for draft question:', ttsErr);
+        }
+      }
+    }
 
     return res.json({
       ok: true,
@@ -3766,6 +3815,7 @@ app.put('/api/teacher/assignments/:id', requireAuth, requireRole(['teacher', 'ad
     const assignData: any = assignSnap.data();
 
     // Permission check: admin, creator, or homeroom teacher of the class
+    const clsSnap = await getDoc(doc(db, 'classes', assignData.classId));
     const isXuannuongTeacher = req.user?.email === 'xuannuong@gmail.com' || req.user?.email === 'xuannuong@thamtunhi.edu.vn';
     const isClassTeacher = clsSnap.exists() && (clsSnap.data()?.teacherId === req.user?.uid || (isXuannuongTeacher && ['class-1b', 'class-2a'].includes(assignData.classId)));
     if (req.user?.role !== 'admin' && assignData.teacherId !== req.user?.uid && !isClassTeacher) {
@@ -3827,6 +3877,7 @@ app.post('/api/teacher/assignments/:id/cancel', requireAuth, requireRole(['teach
     }
     const assignData: any = assignSnap.data();
 
+    const clsSnap = await getDoc(doc(db, 'classes', assignData.classId));
     const isXuannuongTeacher = req.user?.email === 'xuannuong@gmail.com' || req.user?.email === 'xuannuong@thamtunhi.edu.vn';
     const isClassTeacher = clsSnap.exists() && (clsSnap.data()?.teacherId === req.user?.uid || (isXuannuongTeacher && ['class-1b', 'class-2a'].includes(assignData.classId)));
     if (req.user?.role !== 'admin' && assignData.teacherId !== req.user?.uid && !isClassTeacher) {
@@ -3871,6 +3922,7 @@ app.delete('/api/teacher/assignments/:id', requireAuth, requireRole(['teacher', 
     }
     const assignData: any = assignSnap.data();
 
+    const clsSnap = await getDoc(doc(db, 'classes', assignData.classId));
     const isXuannuongTeacher = req.user?.email === 'xuannuong@gmail.com' || req.user?.email === 'xuannuong@thamtunhi.edu.vn';
     const isClassTeacher = clsSnap.exists() && (clsSnap.data()?.teacherId === req.user?.uid || (isXuannuongTeacher && ['class-1b', 'class-2a'].includes(assignData.classId)));
     if (req.user?.role !== 'admin' && assignData.teacherId !== req.user?.uid && !isClassTeacher) {
@@ -4959,6 +5011,109 @@ app.get('/api/media/file/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Audio Serving Endpoint (Public read for student questions & teacher previews)
+app.get(['/api/audio/:filename', '/audio/:filename'], async (req: Request, res: Response) => {
+  try {
+    const filename = req.params.filename;
+    if (!filename || !/^[a-zA-Z0-9_-]+\.mp3$/.test(filename)) {
+      return res.status(400).send('Tên tệp âm thanh không hợp lệ.');
+    }
+
+    // 1. In-memory cache (Fastest, zero I/O)
+    const mem = audioMemoryCache.get(filename);
+    if (mem && mem.length > 500) {
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Length', mem.length);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      return res.end(mem);
+    }
+
+    // 2. Disk storage
+    const filePath = path.join(AUDIO_STORAGE_DIR, filename);
+    if (fs.existsSync(filePath)) {
+      const buffer = fs.readFileSync(filePath);
+      if (buffer.length > 500) {
+        if (buffer.length < 1_000_000) {
+          audioMemoryCache.set(filename, buffer);
+        }
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Content-Length', buffer.length);
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.end(buffer);
+      }
+    }
+
+    // 3. Dynamic synthesis if text query parameter is provided
+    const text = req.query.text as string;
+    if (text) {
+      const spoken = normalizeMathTextForSpeech(text);
+      const buf = await synthesizeVietnameseSpeech(spoken);
+      try {
+        fs.writeFileSync(filePath, buf);
+      } catch {}
+      audioMemoryCache.set(filename, buf);
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Length', buf.length);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      return res.end(buf);
+    }
+
+    return res.status(404).send('Không tìm thấy tệp âm thanh.');
+  } catch (err: any) {
+    console.error('Serve audio error:', err);
+    return res.status(500).send('Lỗi máy chủ khi tải tệp âm thanh.');
+  }
+});
+
+// Dynamic Audio Synthesizer Endpoint (Teacher & Admin)
+app.post('/api/audio/synthesize', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { text, type = 'prompt', options } = req.body;
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ error: 'Thiếu nội dung văn bản cần chuyển thành giọng nói.' });
+    }
+    const spoken = normalizeMathTextForSpeech(text, options);
+    const hash = getAudioHash(spoken);
+    const prefix = type === 'hint' ? 'h' : 'q';
+    const filename = `${prefix}_${hash}.mp3`;
+    const filePath = path.join(AUDIO_STORAGE_DIR, filename);
+
+    // Reuse existing audio if available
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath);
+      if (stats.size > 500) {
+        return res.json({
+          ok: true,
+          audioUrl: `/audio/${filename}`,
+          hash,
+          normalizedText: spoken,
+          reused: true,
+        });
+      }
+    }
+
+    const buf = await synthesizeVietnameseSpeech(spoken);
+    try {
+      fs.writeFileSync(filePath, buf);
+    } catch {}
+    audioMemoryCache.set(filename, buf);
+
+    return res.json({
+      ok: true,
+      audioUrl: `/audio/${filename}`,
+      hash,
+      normalizedText: spoken,
+      reused: false,
+    });
+  } catch (err: any) {
+    console.error('Synthesize audio error:', err);
+    return res.status(500).json({ error: 'Lỗi tạo âm thanh: ' + err.message });
+  }
+});
+
 app.get('/api/teacher/analytics', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const [attSnap, insSnap, cSnap, asgSnap, uSnap, ansSnap, ySnap, lesSnap] = await Promise.all([
@@ -5933,6 +6088,17 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
+    app.use('*', async (req: Request, res: Response, next) => {
+      const url = req.originalUrl;
+      try {
+        let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e: any) {
+        vite.ssrFixStacktrace(e);
+        next(e);
+      }
+    });
   } else {
     app.use(express.static(path.join(__dirname, 'dist')));
     app.get('*', (_req: Request, res: Response) => {

@@ -1,0 +1,2320 @@
+{
+  "g1Weeks1to9": [],
+  "g1Outside": [
+    {
+      "id": "lesson-draft-1792910089741",
+      "title": "Bài tập Toán: Luyện tập các số 1 2 3 4 5 (v3)",
+      "status": "published",
+      "currentVersion": 3,
+      "currentVersionId": "version-lesson-draft-1792910089741-v3",
+      "questionCount": 5,
+      "questions": [
+        {
+          "id": "q-math-1",
+          "order": 1,
+          "prompt": "2 + 3 = ?",
+          "expectedAnswer": "5",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "visualActionGuidance": "Chạm vào từng quả táo trên màn hình để đếm từ 1 đến 4.",
+              "hintText": "Bé hãy đếm thật cẩn thận từng quả táo, đừng bỏ sót quả nào nhé!"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-math-2",
+          "order": 2,
+          "prompt": "4 + 4 = ?",
+          "expectedAnswer": "8",
+          "ruleHints": [
+            {
+              "pattern": "WORD_PROBLEM_WRONG_OPERATION",
+              "hintText": "Bài toán hỏi 'tất cả' tức là chúng ta gộp lại với nhau để tính tổng đấy bé ạ!",
+              "visualActionGuidance": "Đếm nhóm chim thứ nhất rồi đếm tiếp nhóm chim thứ hai."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-math-3",
+          "order": 3,
+          "prompt": "Bé hãy điền dấu thích hợp vào ô trống: 3 ... 5",
+          "expectedAnswer": "<",
+          "ruleHints": [
+            {
+              "pattern": "COMPARISON_INVERSION",
+              "hintText": "Bé hãy nhớ miệng của dấu lớn luôn há ra ăn số lớn hơn nhé!",
+              "visualActionGuidance": "So sánh số lượng ngôi sao ở nhóm trái và nhóm phải."
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-math-4",
+          "order": 4,
+          "prompt": "Bé hãy đếm số lượng củ cà rốt có trong khung năm ô dưới đây nhé!",
+          "expectedAnswer": "5",
+          "ruleHints": [
+            {
+              "visualActionGuidance": "Đếm lần lượt từng ô trong khung từ trái sang phải.",
+              "hintText": "Khung có tất cả 5 ô và đều có hình cà rốt ở trong đó bé ơi!",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-custom-1792990816583-5",
+          "order": 5,
+          "prompt": "Câu hỏi toán số 5",
+          "expectedAnswer": "10",
+          "ruleHints": [
+            {
+              "pattern": "GENERAL_CALCULATION_ERROR",
+              "hintText": "Hãy quan sát kỹ và kiểm tra lại từng bước tính."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-01",
+      "title": "Các số từ 1 đến 5: Đếm và Nhận biết",
+      "status": "draft",
+      "currentVersion": 2,
+      "currentVersionId": "version-lesson-g1-01-v2",
+      "draftVersionId": "version-lesson-g1-01-v2-draft",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-01-1",
+          "order": 1,
+          "prompt": "Thám tử Cáo nhìn thấy có bao nhiêu quả táo đỏ trên cây?",
+          "expectedAnswer": "4",
+          "ruleHints": [
+            {
+              "hintText": "Hãy chỉ tay vào từng quả táo và đếm lại thật chậm: 1, 2, 3, 4 nhé!",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-01-2",
+          "order": 2,
+          "prompt": "Đếm số chú cá bơi trong bể và điền số thích hợp vào ô trống:",
+          "expectedAnswer": "3",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "hintText": "Đếm từng chú cá một: 1, 2, 3 chú cá nhé!"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-01-3",
+          "order": 3,
+          "prompt": "Quan sát hai nhóm ngôi sao và chọn dấu thích hợp (> , < , =) để so sánh:",
+          "expectedAnswer": ">",
+          "ruleHints": [
+            {
+              "hintText": "Mũi nhọn luôn chĩa về số nhỏ hơn (2), miệng mở rộng về số lớn hơn (4) nhé!",
+              "pattern": "COMPARISON_INVERSION"
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-01-4",
+          "order": 4,
+          "prompt": "Nối nhóm hình có số lượng tương ứng với chữ số đúng:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "hintText": "Hãy đếm lại từng nhóm đồ vật trước khi chọn số tương ứng nhé."
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-01-5",
+          "order": 5,
+          "prompt": "Có mấy chấm tròn màu xanh?",
+          "expectedAnswer": "5",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "hintText": "Khung 5 ô được lấp đầy tức là có đúng 5 chấm tròn em nhé."
+            }
+          ],
+          "interactionType": "ten_frame_bundle",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-01-6",
+          "order": 6,
+          "prompt": "Sắp xếp các số sau theo thứ tự từ bé đến lớn: 3, 1, 4, 2",
+          "expectedAnswer": "1,2,3,4",
+          "ruleHints": [
+            {
+              "hintText": "Bắt đầu từ số nhỏ nhất là 1, tiếp theo là 2, rồi đến 3, lớn nhất là 4.",
+              "pattern": "NUMBER_ORDER_CONFUSION"
+            }
+          ],
+          "interactionType": "number_line_order",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-01-7",
+          "order": 7,
+          "prompt": "Thám tử có 2 viên kẹo, được tặng thêm 1 viên kẹo. Hỏi có tất cả mấy viên kẹo?",
+          "expectedAnswer": "3",
+          "ruleHints": [
+            {
+              "hintText": "\"Thêm vào\" là làm phép tính cộng: 2 + 1 = 3 nhé!",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-01-8",
+          "order": 8,
+          "prompt": "Số nào đứng liền sau số 4?",
+          "expectedAnswer": "5",
+          "ruleHints": [
+            {
+              "pattern": "NUMBER_ORDER_CONFUSION",
+              "hintText": "Số liền sau là số đứng ngay phía sau khi đếm xuôi: 3, 4 rồi đến 5."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-02",
+      "title": "Các số từ 6 đến 10 và Tách - Gộp số",
+      "status": "draft",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-02-v1",
+      "draftVersionId": "version-lesson-g1-02-v1-draft",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-02-1",
+          "order": 1,
+          "prompt": "Đếm số lượng que tính màu vàng:",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "hintText": "Đếm lại từng que: 1, 2, 3, 4, 5, 6, 7 que tính.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-02-2",
+          "order": 2,
+          "prompt": "Gộp 4 và 3 được mấy? Điền số vào ô trống:",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "hintText": "4 que thêm 3 que nữa là 7 que tính nhé.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-02-3",
+          "order": 3,
+          "prompt": "Chọn dấu thích hợp để điền vào chỗ chấm: 8 ... 10",
+          "expectedAnswer": "<",
+          "ruleHints": [
+            {
+              "hintText": "8 ít hơn 10 nên mũi nhọn chĩa về số 8 nhé: 8 < 10.",
+              "pattern": "COMPARISON_INVERSION"
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-02-4",
+          "order": 4,
+          "prompt": "Nối sơ đồ tách gộp với kết quả tương ứng:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "hintText": "Hãy đếm que tính để kiểm tra lại sơ đồ tách gộp nhé.",
+              "pattern": "GENERAL_CALCULATION_ERROR"
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-02-5",
+          "order": 5,
+          "prompt": "Cần thêm mấy chấm tròn nữa để có tất cả 10 chấm tròn (hiện có 8 chấm)?",
+          "expectedAnswer": "2",
+          "ruleHints": [
+            {
+              "pattern": "CROSS_TEN_ERROR",
+              "hintText": "Quan sát các ô còn trống trong khung 10: có đúng 2 ô trắng."
+            }
+          ],
+          "interactionType": "ten_frame_bundle",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-02-6",
+          "order": 6,
+          "prompt": "Trên trục số từ 0 đến 10, số nào đứng ngay liền trước số 9?",
+          "expectedAnswer": "8",
+          "ruleHints": [
+            {
+              "pattern": "NUMBER_ORDER_CONFUSION",
+              "hintText": "Số liền trước là số nhỏ hơn 1 đơn vị: 9 bớt 1 còn 8."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-02-7",
+          "order": 7,
+          "prompt": "Cành cây có 7 chú chim, bay đi 2 chú chim. Hỏi còn lại bao nhiêu chú chim?",
+          "expectedAnswer": "5",
+          "ruleHints": [
+            {
+              "hintText": "Chim bay đi là phép trừ bớt đi: 7 - 2 = 5 chứ không phải 7 + 2 đâu nhé.",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-02-8",
+          "order": 8,
+          "prompt": "Sắp xếp dãy số sau theo thứ tự giảm dần (từ lớn đến bé): 6, 10, 8, 7",
+          "expectedAnswer": "10,8,7,6",
+          "ruleHints": [
+            {
+              "hintText": "Số lớn nhất là 10, rồi đến 8, đến 7, bé nhất là 6.",
+              "pattern": "NUMBER_ORDER_CONFUSION"
+            }
+          ],
+          "interactionType": "number_line_order",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-03",
+      "title": "Phép cộng trong phạm vi 10",
+      "status": "draft",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-03-v1",
+      "draftVersionId": "version-lesson-g1-03-v1-draft",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-03-1",
+          "order": 1,
+          "prompt": "Tính kết quả: 3 + 4 = ?",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "hintText": "Đếm tiếp từ 3 thêm 4 bước: 4, 5, 6, 7 nhé!"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-03-2",
+          "order": 2,
+          "prompt": "Chọn phép tính thích hợp cho bức tranh: Có 5 quả bóng bay đỏ và 3 quả bóng bay xanh.",
+          "expectedAnswer": "5 + 3 = 8",
+          "ruleHints": [
+            {
+              "pattern": "WRONG_OPERATOR",
+              "hintText": "Cần gộp cả hai loại bóng lại nên ta dùng phép cộng: 5 + 3 = 8."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-03-3",
+          "order": 3,
+          "prompt": "Điền dấu so sánh thích hợp vào chỗ chấm: 4 + 2 ... 7",
+          "expectedAnswer": "<",
+          "ruleHints": [
+            {
+              "hintText": "Tính 4 + 2 = 6 trước. Vì 6 bé hơn 7 nên 6 < 7.",
+              "pattern": "COMPARISON_INVERSION"
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-03-4",
+          "order": 4,
+          "prompt": "Nối phép tính với kết quả đúng:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "hintText": "Đếm que tính hoặc ngón tay để nhẩm từng phép tính.",
+              "pattern": "GENERAL_CALCULATION_ERROR"
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-03-5",
+          "order": 5,
+          "prompt": "5 chấm đỏ và 4 chấm xanh. Có tất cả mấy chấm tròn?",
+          "expectedAnswer": "9",
+          "ruleHints": [
+            {
+              "hintText": "Khung 10 ô chỉ còn thiếu 1 ô trống duy nhất, tức là có 9 chấm!",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "ten_frame_bundle",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-03-6",
+          "order": 6,
+          "prompt": "Điền số còn thiếu vào chỗ chấm: 6 + ... = 9",
+          "expectedAnswer": "3",
+          "ruleHints": [
+            {
+              "hintText": "Từ 6 đếm tiếp mấy bước để đến 9? 7, 8, 9 (3 bước).",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-03-7",
+          "order": 7,
+          "prompt": "Chú thỏ nhảy từ vạch 2 sang phải 5 bước trên trục số. Thỏ dừng lại ở số mấy?",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "pattern": "NUMBER_ORDER_CONFUSION",
+              "hintText": "2 nhảy thêm 5 bước: 3, 4, 5, 6, 7."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-03-8",
+          "order": 8,
+          "prompt": "Mai có 4 bông hoa, Lan tặng Mai 4 bông hoa nữa. Hỏi Mai có tất cả bao nhiêu bông hoa?",
+          "expectedAnswer": "8",
+          "ruleHints": [
+            {
+              "hintText": "4 bông hoa thêm 4 bông hoa nữa: 4 + 4 = 8.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-04",
+      "title": "Phép trừ trong phạm vi 10",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-04-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-04-1",
+          "order": 1,
+          "prompt": "Tính: 9 - 4 = ?",
+          "expectedAnswer": "5",
+          "ruleHints": [
+            {
+              "pattern": "WRONG_OPERATOR",
+              "hintText": "Đây là phép trừ (-) bớt đi nhé, 9 - 4 = 5 chứ không phải cộng đâu."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-04-2",
+          "order": 2,
+          "prompt": "Có 8 củ cà rốt, chú thỏ đã ăn mất 3 củ. Hỏi còn lại bao nhiêu củ cà rốt?",
+          "expectedAnswer": "5",
+          "ruleHints": [
+            {
+              "pattern": "WRONG_OPERATOR",
+              "hintText": "Thỏ ăn mất tức là bớt đi: 8 - 3 = 5."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-04-3",
+          "order": 3,
+          "prompt": "Chọn dấu thích hợp điền vào ô trống: 10 - 2 ... 8",
+          "expectedAnswer": "=",
+          "ruleHints": [
+            {
+              "pattern": "COMPARISON_INVERSION",
+              "hintText": "10 - 2 bằng 8, hai bên bằng nhau nên điền dấu =."
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-04-4",
+          "order": 4,
+          "prompt": "Nối phép trừ với kết quả đúng:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "hintText": "Đếm lùi từ số bị trừ để tìm kết quả chính xác."
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-04-5",
+          "order": 5,
+          "prompt": "Có 7 chấm tròn. Gạch bớt đi 3 chấm tròn thì còn lại mấy chấm?",
+          "expectedAnswer": "4",
+          "ruleHints": [
+            {
+              "hintText": "7 chấm bớt 3 chấm còn lại 4 chấm tròn.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "ten_frame_bundle",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-04-6",
+          "order": 6,
+          "prompt": "Điền số thích hợp vào chỗ chấm: 8 - ... = 6",
+          "expectedAnswer": "2",
+          "ruleHints": [
+            {
+              "pattern": "WRONG_OPERATOR",
+              "hintText": "8 bớt đi mấy để còn 6? 8 bớt 2 còn 6."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-04-7",
+          "order": 7,
+          "prompt": "Chú sóc đứng ở số 9 trên trục số và lùi lại 4 bước. Sóc đang ở số mấy?",
+          "expectedAnswer": "5",
+          "ruleHints": [
+            {
+              "hintText": "Đếm lùi từ 9: 8, 7, 6, 5.",
+              "pattern": "NUMBER_ORDER_CONFUSION"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-04-8",
+          "order": 8,
+          "prompt": "Hộp có 10 chiếc bút chì, Nam lấy ra 5 chiếc. Trong hộp còn lại bao nhiêu chiếc?",
+          "expectedAnswer": "5",
+          "ruleHints": [
+            {
+              "pattern": "WRONG_OPERATOR",
+              "hintText": "Lấy ra là phép trừ: 10 - 5 = 5."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-05",
+      "title": "Hình vuông, Hình tròn, Hình tam giác, Hình chữ nhật",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-05-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-05-1",
+          "order": 1,
+          "prompt": "Biển báo giao thông hình gì có 3 cạnh và 3 góc nhọn?",
+          "expectedAnswer": "Hình tam giác",
+          "ruleHints": [
+            {
+              "hintText": "Tam giác có 3 cạnh nối với nhau tạo thành 3 góc.",
+              "pattern": "GEOMETRY_MISIDENTIFICATION"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-05-2",
+          "order": 2,
+          "prompt": "Đồng hồ treo tường hình tròn không có cạnh nào. Đúng hay Sai?",
+          "expectedAnswer": "Đúng",
+          "ruleHints": [
+            {
+              "pattern": "GEOMETRY_MISIDENTIFICATION",
+              "hintText": "Hình tròn cong tròn đều, lăn được và không có góc nhọn."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-05-3",
+          "order": 3,
+          "prompt": "Khung ảnh có 4 cạnh dài bằng nhau là hình gì?",
+          "expectedAnswer": "Hình vuông",
+          "ruleHints": [
+            {
+              "pattern": "GEOMETRY_MISIDENTIFICATION",
+              "hintText": "Hình vuông có 4 cạnh dài bằng nhau, còn hình chữ nhật có 2 cạnh dài và 2 cạnh ngắn."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-05-4",
+          "order": 4,
+          "prompt": "Nối tên hình với đồ vật quen thuộc trong lớp học:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "hintText": "Quan sát hình dạng viền ngoài của đồ vật.",
+              "pattern": "GEOMETRY_MISIDENTIFICATION"
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-05-5",
+          "order": 5,
+          "prompt": "Một hình chữ nhật có bao nhiêu cạnh?",
+          "expectedAnswer": "4",
+          "ruleHints": [
+            {
+              "hintText": "Đếm 4 cạnh xung quanh hình chữ nhật nhé!",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-05-6",
+          "order": 6,
+          "prompt": "Ghép 2 hình tam giác nhỏ bằng nhau có thể tạo thành hình gì?",
+          "expectedAnswer": "Hình vuông",
+          "ruleHints": [
+            {
+              "pattern": "GEOMETRY_MISIDENTIFICATION",
+              "hintText": "Hình tròn không thể ghép từ các hình tam giác có cạnh thẳng được."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-05-7",
+          "order": 7,
+          "prompt": "Bánh xe đạp có hình gì để lăn tròn được trên đường?",
+          "expectedAnswer": "Hình tròn",
+          "ruleHints": [
+            {
+              "hintText": "Chỉ có hình tròn mới lăn được bon bon trên đường.",
+              "pattern": "GEOMETRY_MISIDENTIFICATION"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-05-8",
+          "order": 8,
+          "prompt": "Một ngôi nhà được vẽ bằng: 1 hình tam giác (mái nhà) và 1 hình vuông (thân nhà). Có tất cả mấy hình?",
+          "expectedAnswer": "2",
+          "ruleHints": [
+            {
+              "hintText": "1 mái nhà + 1 thân nhà = 2 hình.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-06",
+      "title": "Các số trong phạm vi 20 và Số Mười (1 chục)",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-06-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-06-1",
+          "order": 1,
+          "prompt": "1 bó que tính gồm 10 que rời được gọi là gì?",
+          "expectedAnswer": "1 chục",
+          "ruleHints": [
+            {
+              "pattern": "PLACE_VALUE_SWAP",
+              "hintText": "10 đơn vị bó lại thành đúng 1 chục que tính."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-06-2",
+          "order": 2,
+          "prompt": "1 chục và 4 đơn vị là số mấy? Điền số vào ô trống:",
+          "expectedAnswer": "14",
+          "ruleHints": [
+            {
+              "pattern": "PLACE_VALUE_SWAP",
+              "hintText": "Chữ số hàng chục viết trước (1), chữ số hàng đơn vị viết sau (4): 14."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-06-3",
+          "order": 3,
+          "prompt": "Chọn dấu so sánh đúng: 15 ... 18",
+          "expectedAnswer": "<",
+          "ruleHints": [
+            {
+              "hintText": "Cả hai số đều có 1 chục, so sánh hàng đơn vị: 5 bé hơn 8 nên 15 < 18.",
+              "pattern": "COMPARISON_INVERSION"
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-06-4",
+          "order": 4,
+          "prompt": "Nối số với cách đọc tương ứng:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "hintText": "Chú ý số 15 đọc là mười lăm chứ không đọc là mười năm.",
+              "pattern": "GENERAL_CALCULATION_ERROR"
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-06-5",
+          "order": 5,
+          "prompt": "Mô hình que tính: 1 bó chục và 7 que rời là số nào?",
+          "expectedAnswer": "17",
+          "ruleHints": [
+            {
+              "hintText": "1 bó chục viết số 1 trước, 7 que rời viết số 7 sau: số 17 (không phải 71).",
+              "pattern": "PLACE_VALUE_SWAP"
+            }
+          ],
+          "interactionType": "ten_frame_bundle",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-06-6",
+          "order": 6,
+          "prompt": "Sắp xếp các số sau theo thứ tự tăng dần: 14, 11, 19, 16",
+          "expectedAnswer": "11,14,16,19",
+          "ruleHints": [
+            {
+              "hintText": "So sánh hàng đơn vị: 1 < 4 < 6 < 9.",
+              "pattern": "NUMBER_ORDER_CONFUSION"
+            }
+          ],
+          "interactionType": "number_line_order",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-06-7",
+          "order": 7,
+          "prompt": "Số liền sau của số 19 là số nào?",
+          "expectedAnswer": "20",
+          "ruleHints": [
+            {
+              "hintText": "Đếm tiếp sau 19 là 20 (2 chục).",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-06-8",
+          "order": 8,
+          "prompt": "Số 16 gồm mấy chục và mấy đơn vị?",
+          "expectedAnswer": "1 chục và 6 đơn vị",
+          "ruleHints": [
+            {
+              "hintText": "Số 1 đứng ở hàng chục (1 chục), số 6 đứng ở hàng đơn vị (6 đơn vị).",
+              "pattern": "PLACE_VALUE_SWAP"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-07",
+      "title": "Phép cộng không nhớ trong phạm vi 20",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-07-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-07-1",
+          "order": 1,
+          "prompt": "Tính: 12 + 3 = ?",
+          "expectedAnswer": "15",
+          "ruleHints": [
+            {
+              "hintText": "Cộng hàng đơn vị trước: 2 + 3 = 5, ghép với 1 chục là 15.",
+              "pattern": "PLACE_VALUE_SWAP"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-07-2",
+          "order": 1,
+          "prompt": "Tính: 15 + 4 = ?",
+          "expectedAnswer": "19",
+          "ruleHints": [
+            {
+              "hintText": "5 cộng 4 bằng 9, thêm 1 chục phía trước là 19.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-07-3",
+          "order": 3,
+          "prompt": "So sánh: 13 + 2 ... 16",
+          "expectedAnswer": "<",
+          "ruleHints": [
+            {
+              "hintText": "13 + 2 = 15. 15 bé hơn 16 nên điền dấu <.",
+              "pattern": "COMPARISON_INVERSION"
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-07-4",
+          "order": 4,
+          "prompt": "Nối phép tính với kết quả thích hợp:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "pattern": "GENERAL_CALCULATION_ERROR",
+              "hintText": "Cộng các số hàng đơn vị lại với nhau trước."
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-07-5",
+          "order": 5,
+          "prompt": "Mô hình que tính: 1 bó chục và 3 que lẻ, thêm vào 4 que lẻ. Có tất cả mấy que?",
+          "expectedAnswer": "17",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "hintText": "3 + 4 = 7 que lẻ, cùng 1 bó chục thành 17 que."
+            }
+          ],
+          "interactionType": "ten_frame_bundle",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-07-6",
+          "order": 6,
+          "prompt": "Điền số thích hợp: 11 + ... = 18",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "hintText": "1 chục đã giống nhau, 1 thêm mấy bằng 8? 1 thêm 7.",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-07-7",
+          "order": 7,
+          "prompt": "Bình hoa có 12 bông, mẹ cắm thêm 5 bông hoa nữa. Hỏi có tất cả bao nhiêu bông hoa?",
+          "expectedAnswer": "17",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "hintText": "12 + 5: 2 + 5 = 7, thêm 1 chục là 17."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-07-8",
+          "order": 8,
+          "prompt": "Thám tử nhảy trên trục số từ vạch 14 sang phải 3 bước. Điểm dừng là số mấy?",
+          "expectedAnswer": "17",
+          "ruleHints": [
+            {
+              "hintText": "14 đếm tiếp 3 bước: 15, 16, 17.",
+              "pattern": "NUMBER_ORDER_CONFUSION"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-08",
+      "title": "Phép trừ không nhớ trong phạm vi 20",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-08-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-08-1",
+          "order": 1,
+          "prompt": "Tính: 18 - 5 = ?",
+          "expectedAnswer": "13",
+          "ruleHints": [
+            {
+              "hintText": "Lấy 8 đơn vị trừ 5 đơn vị còn 3 đơn vị, giữ 1 chục là 13.",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-08-2",
+          "order": 2,
+          "prompt": "Tính: 16 - 6 = ?",
+          "expectedAnswer": "10",
+          "ruleHints": [
+            {
+              "pattern": "PLACE_VALUE_SWAP",
+              "hintText": "16 trừ đi 6 que lẻ thì còn nguyên vẹn 1 bó chục (số 10)."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-08-3",
+          "order": 3,
+          "prompt": "Chọn dấu so sánh đúng: 19 - 4 ... 15",
+          "expectedAnswer": "=",
+          "ruleHints": [
+            {
+              "hintText": "19 - 4 = 15, hai bên đều bằng 15 nên điền dấu =.",
+              "pattern": "COMPARISON_INVERSION"
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-08-4",
+          "order": 4,
+          "prompt": "Nối phép trừ với kết quả đúng:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "hintText": "Lấy các số hàng đơn vị trừ cho nhau.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-08-5",
+          "order": 5,
+          "prompt": "Có 1 bó chục và 8 que tính rời. Bớt đi 5 que tính rời thì còn lại bao nhiêu que?",
+          "expectedAnswer": "13",
+          "ruleHints": [
+            {
+              "pattern": "PLACE_VALUE_SWAP",
+              "hintText": "Còn 1 bó chục và 3 que lẻ ghép lại là 13 que."
+            }
+          ],
+          "interactionType": "ten_frame_bundle",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-08-6",
+          "order": 6,
+          "prompt": "Điền số thích hợp: 17 - ... = 11",
+          "expectedAnswer": "6",
+          "ruleHints": [
+            {
+              "pattern": "WRONG_OPERATOR",
+              "hintText": "7 trừ mấy bằng 1? 7 trừ 6 bằng 1."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-08-7",
+          "order": 7,
+          "prompt": "Lớp học có 19 bạn, 5 bạn ra sân tập thể dục. Trong lớp còn lại bao nhiêu bạn?",
+          "expectedAnswer": "14",
+          "ruleHints": [
+            {
+              "hintText": "9 - 5 = 4, thêm 1 chục là 14 bạn.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-08-8",
+          "order": 8,
+          "prompt": "Thám tử đứng ở số 18 trên trục số và lùi 6 bước sang trái. Điểm dừng là số mấy?",
+          "expectedAnswer": "12",
+          "ruleHints": [
+            {
+              "pattern": "NUMBER_ORDER_CONFUSION",
+              "hintText": "18 lùi 6 bước: 8 - 6 = 2, còn 12."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-09",
+      "title": "Đo độ dài và Xăng-ti-mét (cm)",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-09-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-09-1",
+          "order": 1,
+          "prompt": "Xăng-ti-mét được viết tắt là gì?",
+          "expectedAnswer": "cm",
+          "ruleHints": [
+            {
+              "pattern": "MEASUREMENT_UNIT_ERROR",
+              "hintText": "Xăng-ti-mét viết tắt là 2 chữ cái c và m liền nhau: cm."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-09-2",
+          "order": 2,
+          "prompt": "Bút chì đặt một đầu ở vạch 0 cm, đầu kia chỉ vào vạch 8 cm. Hỏi bút chì dài bao nhiêu cm?",
+          "expectedAnswer": "8",
+          "ruleHints": [
+            {
+              "hintText": "Vì đầu kia ở vạch 0 nên độ dài chính bằng số chỉ ở đầu ngọn bút: 8 cm.",
+              "pattern": "MEASUREMENT_UNIT_ERROR"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-09-3",
+          "order": 3,
+          "prompt": "So sánh: 7 cm + 2 cm ... 10 cm",
+          "expectedAnswer": "<",
+          "ruleHints": [
+            {
+              "pattern": "COMPARISON_INVERSION",
+              "hintText": "7 + 2 = 9 cm. 9 cm bé hơn 10 cm nên điền dấu <."
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-09-4",
+          "order": 4,
+          "prompt": "Nối phép tính đo lường với kết quả thích hợp:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "hintText": "Tính nhẩm các con số và giữ nguyên chữ cm phía sau.",
+              "pattern": "GENERAL_CALCULATION_ERROR"
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-09-5",
+          "order": 5,
+          "prompt": "Một cục tẩy đặt một đầu ở vạch 2 cm và đầu kia ở vạch 6 cm. Cục tẩy dài bao nhiêu cm?",
+          "expectedAnswer": "4",
+          "ruleHints": [
+            {
+              "hintText": "Chú ý: Cục tẩy không bắt đầu từ 0 mà từ vạch 2 cm! Lấy 6 - 2 = 4 cm nhé.",
+              "pattern": "MEASUREMENT_UNIT_ERROR"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-09-6",
+          "order": 6,
+          "prompt": "Đoạn thẳng AB dài 12 cm, đoạn thẳng CD dài 7 cm. Đoạn thẳng AB dài hơn đoạn thẳng CD bao nhiêu cm?",
+          "expectedAnswer": "5 cm",
+          "ruleHints": [
+            {
+              "hintText": "Muốn biết dài hơn bao nhiêu ta làm phép trừ: 12 - 7 = 5 cm.",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-09-7",
+          "order": 7,
+          "prompt": "Gang tay của em bé dài khoảng bao nhiêu?",
+          "expectedAnswer": "12 cm",
+          "ruleHints": [
+            {
+              "hintText": "120 cm là rất dài (hơn cả chiều cao của bé lớp 1), 1 cm thì quá ngắn như hạt gạo.",
+              "pattern": "MEASUREMENT_UNIT_ERROR"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-09-8",
+          "order": 8,
+          "prompt": "Tính: 14 cm - 4 cm = ? Điền số cm:",
+          "expectedAnswer": "10",
+          "ruleHints": [
+            {
+              "hintText": "14 - 4 = 10 cm.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-10",
+      "title": "Các số tròn chục từ 10 đến 90",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-10-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-10-1",
+          "order": 1,
+          "prompt": "5 chục que tính là số nào?",
+          "expectedAnswer": "50",
+          "ruleHints": [
+            {
+              "pattern": "PLACE_VALUE_SWAP",
+              "hintText": "5 chục có chữ số 0 ở hàng đơn vị: 50."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-10-2",
+          "order": 2,
+          "prompt": "Tính nhẩm: 30 + 20 = ?",
+          "expectedAnswer": "50",
+          "ruleHints": [
+            {
+              "hintText": "Nhẩm: 3 chục + 2 chục = 5 chục, viết là 50.",
+              "pattern": "PLACE_VALUE_SWAP"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-10-3",
+          "order": 3,
+          "prompt": "Chọn dấu so sánh đúng: 70 ... 40 + 30",
+          "expectedAnswer": "=",
+          "ruleHints": [
+            {
+              "pattern": "COMPARISON_INVERSION",
+              "hintText": "40 + 30 = 70, hai bên đều là 70 nên bằng nhau (=)."
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-10-4",
+          "order": 4,
+          "prompt": "Nối phép tính với kết quả đúng:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "hintText": "Trừ các chữ số hàng chục và thêm số 0 ở tận cùng.",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-10-5",
+          "order": 5,
+          "prompt": "Mô hình có 6 bó chục que tính. Bớt đi 2 bó chục thì còn mấy que tính?",
+          "expectedAnswer": "40",
+          "ruleHints": [
+            {
+              "hintText": "4 bó chục là 40 que tính (chứ không phải 4 que rời đâu nhé).",
+              "pattern": "PLACE_VALUE_SWAP"
+            }
+          ],
+          "interactionType": "ten_frame_bundle",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-10-6",
+          "order": 6,
+          "prompt": "Sắp xếp các số tròn chục theo thứ tự tăng dần: 80, 20, 60, 40",
+          "expectedAnswer": "20,40,60,80",
+          "ruleHints": [
+            {
+              "pattern": "NUMBER_ORDER_CONFUSION",
+              "hintText": "So sánh hàng chục: 2 chục < 4 chục < 6 chục < 8 chục."
+            }
+          ],
+          "interactionType": "number_line_order",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-10-7",
+          "order": 7,
+          "prompt": "Tính: 90 - 50 = ? Điền số:",
+          "expectedAnswer": "40",
+          "ruleHints": [
+            {
+              "hintText": "9 - 5 = 4, thêm số 0 là 40.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-10-8",
+          "order": 8,
+          "prompt": "Bác nông dân thu hoạch được 50 quả cam, đã bán đi 20 quả. Bác còn lại bao nhiêu quả cam?",
+          "expectedAnswer": "30 quả",
+          "ruleHints": [
+            {
+              "hintText": "Đã bán đi là bớt đi: 50 - 20 = 30 quả cam.",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-11",
+      "title": "Các số có hai chữ số đến 100",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-11-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-11-1",
+          "order": 1,
+          "prompt": "Số gồm 4 chục và 7 đơn vị viết là số nào?",
+          "expectedAnswer": "47",
+          "ruleHints": [
+            {
+              "pattern": "PLACE_VALUE_SWAP",
+              "hintText": "Chữ số hàng chục (4) viết trước, hàng đơn vị (7) viết sau: 47 (không phải 74)."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-11-2",
+          "order": 2,
+          "prompt": "Số 85 có chữ số hàng chục là mấy?",
+          "expectedAnswer": "8",
+          "ruleHints": [
+            {
+              "hintText": "Chữ số đứng bên trái là hàng chục (8), chữ số bên phải là hàng đơn vị (5).",
+              "pattern": "PLACE_VALUE_SWAP"
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-11-3",
+          "order": 3,
+          "prompt": "Chọn dấu so sánh đúng: 63 ... 36",
+          "expectedAnswer": ">",
+          "ruleHints": [
+            {
+              "hintText": "So sánh hàng chục trước: 6 chục lớn hơn 3 chục nên 63 > 36.",
+              "pattern": "COMPARISON_INVERSION"
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-11-4",
+          "order": 4,
+          "prompt": "Nối số với cách đọc đúng:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "pattern": "GENERAL_CALCULATION_ERROR",
+              "hintText": "Chú ý: 35 đọc là lăm, 71 đọc là mốt, 84 đọc là tư."
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-11-5",
+          "order": 5,
+          "prompt": "Mô hình có 3 bó chục và 4 que rời. Hỏi có tất cả bao nhiêu que tính?",
+          "expectedAnswer": "34",
+          "ruleHints": [
+            {
+              "hintText": "3 bó chục là 30, thêm 4 que rời là 34 que tính.",
+              "pattern": "PLACE_VALUE_SWAP"
+            }
+          ],
+          "interactionType": "ten_frame_bundle",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-11-6",
+          "order": 6,
+          "prompt": "Số liền trước của số 70 là số nào?",
+          "expectedAnswer": "69",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "hintText": "Đếm lùi từ 70 một đơn vị: số đứng trước 70 là 69."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-11-7",
+          "order": 7,
+          "prompt": "Sắp xếp dãy số sau theo thứ tự tăng dần: 52, 25, 78, 41",
+          "expectedAnswer": "25,41,52,78",
+          "ruleHints": [
+            {
+              "hintText": "So sánh hàng chục: 2 < 4 < 5 < 7.",
+              "pattern": "NUMBER_ORDER_CONFUSION"
+            }
+          ],
+          "interactionType": "number_line_order",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-11-8",
+          "order": 8,
+          "prompt": "Số lớn nhất có hai chữ số là số nào?",
+          "expectedAnswer": "99",
+          "ruleHints": [
+            {
+              "hintText": "Số 100 có 3 chữ số rồi, vậy số có hai chữ số lớn nhất là 99.",
+              "pattern": "GENERAL_CALCULATION_ERROR"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-g1-12",
+      "title": "Đồng hồ và Xem giờ đúng",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-g1-12-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-g1-12-1",
+          "order": 1,
+          "prompt": "Khi đồng hồ chỉ giờ đúng, kim dài (kim phút) luôn chỉ vào số mấy?",
+          "expectedAnswer": "Số 12",
+          "ruleHints": [
+            {
+              "hintText": "Kim dài chỉ đúng số 12 thì đó là giờ đúng (ví dụ 8 giờ đúng).",
+              "pattern": "MEASUREMENT_UNIT_ERROR"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-12-2",
+          "order": 2,
+          "prompt": "Kim ngắn chỉ số 7, kim dài chỉ số 12. Đồng hồ đang chỉ mấy giờ?",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "pattern": "MEASUREMENT_UNIT_ERROR",
+              "hintText": "Kim ngắn chỉ số nào thì là bấy nhiêu giờ: kim ngắn chỉ số 7 là 7 giờ."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-12-3",
+          "order": 3,
+          "prompt": "So sánh thời gian: 8 giờ sáng ... 10 giờ sáng (thời điểm nào sớm hơn?)",
+          "expectedAnswer": "<",
+          "ruleHints": [
+            {
+              "pattern": "COMPARISON_INVERSION",
+              "hintText": "8 bé hơn 10 nên 8 giờ sáng đến trước 10 giờ sáng."
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-12-4",
+          "order": 4,
+          "prompt": "Nối hoạt động trong ngày với giờ thích hợp:",
+          "expectedAnswer": "MATCHED_ALL",
+          "ruleHints": [
+            {
+              "pattern": "MEASUREMENT_UNIT_ERROR",
+              "hintText": "Suy nghĩ về thời gian sinh hoạt thực tế hàng ngày của em."
+            }
+          ],
+          "interactionType": "expression_match",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-12-5",
+          "order": 5,
+          "prompt": "Bé bắt đầu học bài lúc 8 giờ và học xong lúc 9 giờ. Bé đã học bài trong mấy giờ?",
+          "expectedAnswer": "1",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "hintText": "Từ 8 giờ đến 9 giờ là vừa tròn 1 giờ đồng hồ."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-12-6",
+          "order": 6,
+          "prompt": "Đồng hồ có kim ngắn chỉ vào số 3, kim dài chỉ vào số 12 là mấy giờ?",
+          "expectedAnswer": "3 giờ",
+          "ruleHints": [
+            {
+              "pattern": "MEASUREMENT_UNIT_ERROR",
+              "hintText": "Kim ngắn chỉ giờ, kim ngắn ở số 3 nên là 3 giờ."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-12-7",
+          "order": 7,
+          "prompt": "Một ngày có bao nhiêu giờ?",
+          "expectedAnswer": "24 giờ",
+          "ruleHints": [
+            {
+              "pattern": "MEASUREMENT_UNIT_ERROR",
+              "hintText": "Một ngày bắt đầu từ 12 giờ đêm này đến 12 giờ đêm hôm sau gồm 24 giờ."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-g1-12-8",
+          "order": 8,
+          "prompt": "Lúc 10 giờ, kim dài chỉ vào số 12, hỏi kim ngắn chỉ vào số mấy?",
+          "expectedAnswer": "10",
+          "ruleHints": [
+            {
+              "pattern": "MEASUREMENT_UNIT_ERROR",
+              "hintText": "10 giờ thì kim ngắn chỉ đúng số 10."
+            }
+          ],
+          "interactionType": "number_input",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-qa-e2e-1792853045735",
+      "title": "[Kiểm thử E2E] Ôn tập đếm và hình minh họa trực quan",
+      "status": "draft",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-qa-e2e-1792853045735-v1",
+      "draftVersionId": "version-lesson-qa-e2e-1792853045735-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-e2e-1",
+          "order": 1,
+          "prompt": "Thám tử Cáo nhìn thấy bao nhiêu bông hoa trong vườn?",
+          "expectedAnswer": "5",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-2",
+          "order": 2,
+          "prompt": "Có 3 chú thỏ, thêm 2 chú thỏ nữa. Có tất cả mấy chú thỏ?",
+          "expectedAnswer": "5",
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-3",
+          "order": 3,
+          "prompt": "Có đúng 7 chấm tròn màu đỏ. Đúng hay Sai?",
+          "expectedAnswer": "Đúng",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-4",
+          "order": 4,
+          "prompt": "So sánh số lượng cà rốt và số lượng quả cam:",
+          "expectedAnswer": ">",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-5",
+          "order": 5,
+          "prompt": "Hình minh họa dưới đây là tờ tiền mệnh giá bao nhiêu đồng?",
+          "expectedAnswer": "20 000 đồng",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-6",
+          "order": 6,
+          "prompt": "Đồng hồ chỉ mấy giờ?",
+          "expectedAnswer": "8 giờ",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-7",
+          "order": 7,
+          "prompt": "Gắn hình ảnh minh họa từ Thư viện dùng chung:",
+          "expectedAnswer": "B",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-8",
+          "order": 8,
+          "prompt": "Có 1 bó chục que tính và 3 que tính rời. Có tất cả bao nhiêu que tính?",
+          "expectedAnswer": "13",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-qa-e2e-1792853114472",
+      "title": "[Kiểm thử E2E] Ôn tập đếm và hình minh họa trực quan",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-qa-e2e-1792853114472-v1",
+      "draftVersionId": "version-lesson-qa-e2e-1792853114472-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-e2e-1",
+          "order": 1,
+          "prompt": "Thám tử Cáo nhìn thấy bao nhiêu bông hoa trong vườn?",
+          "expectedAnswer": "5",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-2",
+          "order": 2,
+          "prompt": "Có 3 chú thỏ, thêm 2 chú thỏ nữa. Có tất cả mấy chú thỏ?",
+          "expectedAnswer": "5",
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-3",
+          "order": 3,
+          "prompt": "Có đúng 7 chấm tròn màu đỏ. Đúng hay Sai?",
+          "expectedAnswer": "Đúng",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-4",
+          "order": 4,
+          "prompt": "So sánh số lượng cà rốt và số lượng quả cam:",
+          "expectedAnswer": ">",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-5",
+          "order": 5,
+          "prompt": "Hình minh họa dưới đây là tờ tiền mệnh giá bao nhiêu đồng?",
+          "expectedAnswer": "20 000 đồng",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-6",
+          "order": 6,
+          "prompt": "Đồng hồ chỉ mấy giờ?",
+          "expectedAnswer": "8 giờ",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-7",
+          "order": 7,
+          "prompt": "Gắn hình ảnh minh họa từ Thư viện dùng chung:",
+          "expectedAnswer": "B",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-8",
+          "order": 8,
+          "prompt": "Có 1 bó chục que tính và 3 que tính rời. Có tất cả bao nhiêu que tính?",
+          "expectedAnswer": "13",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-qa-e2e-1792853144036",
+      "title": "[Kiểm thử E2E] Ôn tập đếm và hình minh họa trực quan",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-qa-e2e-1792853144036-v1",
+      "draftVersionId": "version-lesson-qa-e2e-1792853144036-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-e2e-1",
+          "order": 1,
+          "prompt": "Thám tử Cáo nhìn thấy bao nhiêu bông hoa trong vườn?",
+          "expectedAnswer": "5",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-2",
+          "order": 2,
+          "prompt": "Có 3 chú thỏ, thêm 2 chú thỏ nữa. Có tất cả mấy chú thỏ?",
+          "expectedAnswer": "5",
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-3",
+          "order": 3,
+          "prompt": "Có đúng 7 chấm tròn màu đỏ. Đúng hay Sai?",
+          "expectedAnswer": "Đúng",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-4",
+          "order": 4,
+          "prompt": "So sánh số lượng cà rốt và số lượng quả cam:",
+          "expectedAnswer": ">",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-5",
+          "order": 5,
+          "prompt": "Hình minh họa dưới đây là tờ tiền mệnh giá bao nhiêu đồng?",
+          "expectedAnswer": "20 000 đồng",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-6",
+          "order": 6,
+          "prompt": "Đồng hồ chỉ mấy giờ?",
+          "expectedAnswer": "8 giờ",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-7",
+          "order": 7,
+          "prompt": "Gắn hình ảnh minh họa từ Thư viện dùng chung:",
+          "expectedAnswer": "B",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-8",
+          "order": 8,
+          "prompt": "Có 1 bó chục que tính và 3 que tính rời. Có tất cả bao nhiêu que tính?",
+          "expectedAnswer": "13",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-qa-e2e-1792853182937",
+      "title": "[Kiểm thử E2E] Ôn tập đếm và hình minh họa trực quan",
+      "status": "published",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-qa-e2e-1792853182937-v1",
+      "draftVersionId": "version-lesson-qa-e2e-1792853182937-v1",
+      "questionCount": 8,
+      "questions": [
+        {
+          "id": "q-e2e-1",
+          "order": 1,
+          "prompt": "Thám tử Cáo nhìn thấy bao nhiêu bông hoa trong vườn?",
+          "expectedAnswer": "5",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-2",
+          "order": 2,
+          "prompt": "Có 3 chú thỏ, thêm 2 chú thỏ nữa. Có tất cả mấy chú thỏ?",
+          "expectedAnswer": "5",
+          "interactionType": "number_input",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-3",
+          "order": 3,
+          "prompt": "Có đúng 7 chấm tròn màu đỏ. Đúng hay Sai?",
+          "expectedAnswer": "Đúng",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-4",
+          "order": 4,
+          "prompt": "So sánh số lượng cà rốt và số lượng quả cam:",
+          "expectedAnswer": ">",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-5",
+          "order": 5,
+          "prompt": "Hình minh họa dưới đây là tờ tiền mệnh giá bao nhiêu đồng?",
+          "expectedAnswer": "20 000 đồng",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-6",
+          "order": 6,
+          "prompt": "Đồng hồ chỉ mấy giờ?",
+          "expectedAnswer": "8 giờ",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-7",
+          "order": 7,
+          "prompt": "Gắn hình ảnh minh họa từ Thư viện dùng chung:",
+          "expectedAnswer": "B",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-e2e-8",
+          "order": 8,
+          "prompt": "Có 1 bó chục que tính và 3 que tính rời. Có tất cả bao nhiêu que tính?",
+          "expectedAnswer": "13",
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-reinforce-1792975183403",
+      "title": "Bài Củng Cố: Rèn Luyện Lỗi tính toán cơ bản, Đếm lệch 1 đơn vị",
+      "status": "draft",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-reinforce-1792975183403-v1",
+      "questionCount": 5,
+      "questions": [
+        {
+          "id": "q-rf-1792975183403-1",
+          "order": 1,
+          "prompt": "Quan sát hình vẽ và đếm xem có tất cả bao nhiêu củ cà rốt?",
+          "expectedAnswer": "6",
+          "interactionType": "multiple_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1792975183403-2",
+          "order": 2,
+          "prompt": "Điền dấu so sánh thích hợp (<, >, =) vào chỗ chấm: 8 ... 5",
+          "expectedAnswer": ">",
+          "interactionType": "comparison",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1792975183403-3",
+          "order": 3,
+          "prompt": "Trên đĩa có 6 chiếc kẹo, Nam lấy đi 2 chiếc kẹo. Hỏi trên đĩa còn lại mấy chiếc kẹo?",
+          "expectedAnswer": "4",
+          "interactionType": "multiple_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1792975183403-4",
+          "order": 4,
+          "prompt": "Tìm số thích hợp điền vào vị trí dấu hỏi chấm trên tia số: 5, 6, [ ? ], 8, 9",
+          "expectedAnswer": "7",
+          "interactionType": "multiple_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1792975183403-5",
+          "order": 5,
+          "prompt": "Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng. Hỏi có tất cả bao nhiêu bông hoa?",
+          "expectedAnswer": "7",
+          "interactionType": "multiple_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-reinforce-1793000748320",
+      "title": "Bài Củng Cố: Rèn Luyện Đếm lệch 1 đơn vị, Lỗi tính toán cơ bản",
+      "status": "draft",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-reinforce-1793000748320-v1",
+      "questionCount": 5,
+      "questions": [
+        {
+          "id": "q-rf-1793000748320-1",
+          "order": 1,
+          "prompt": "Quan sát hình vẽ và đếm xem có tất cả bao nhiêu củ cà rốt?",
+          "expectedAnswer": "6",
+          "interactionType": "multiple_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793000748320-2",
+          "order": 2,
+          "prompt": "Điền dấu so sánh thích hợp (<, >, =) vào chỗ chấm: 8 ... 5",
+          "expectedAnswer": ">",
+          "interactionType": "comparison",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793000748320-3",
+          "order": 3,
+          "prompt": "Trên đĩa có 6 chiếc kẹo, Nam lấy đi 2 chiếc kẹo. Hỏi trên đĩa còn lại mấy chiếc kẹo?",
+          "expectedAnswer": "4",
+          "interactionType": "multiple_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793000748320-4",
+          "order": 4,
+          "prompt": "Tìm số thích hợp điền vào vị trí dấu hỏi chấm trên tia số: 5, 6, [ ? ], 8, 9",
+          "expectedAnswer": "7",
+          "interactionType": "multiple_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793000748320-5",
+          "order": 5,
+          "prompt": "Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng. Hỏi có tất cả bao nhiêu bông hoa?",
+          "expectedAnswer": "7",
+          "interactionType": "multiple_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-reinforce-1793004209575",
+      "title": "Bài Củng Cố Toán 1: Phép Cộng và Đếm Trực Quan",
+      "status": "draft",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-reinforce-1793004209575-v1",
+      "questionCount": 5,
+      "questions": [
+        {
+          "id": "q-rf-1793004209575-1",
+          "order": 1,
+          "prompt": "Quan sát hình vẽ và đếm xem có tất cả bao nhiêu củ cà rốt?",
+          "expectedAnswer": "6",
+          "ruleHints": [
+            {
+              "hintText": "Hãy chỉ tay vào từng củ cà rốt và đếm chậm theo thứ tự từ trái sang phải nhé!",
+              "visualActionGuidance": "Chạm đếm từng hình trên màn hình theo nhịp 1-1.",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004209575-2",
+          "order": 2,
+          "prompt": "Điền dấu so sánh thích hợp (<, >, =) vào chỗ chấm: 8 ... 5",
+          "expectedAnswer": ">",
+          "ruleHints": [
+            {
+              "pattern": "COMPARISON_INVERSION",
+              "hintText": "Mũi nhọn luôn quay về phía số bé hơn (5), miệng mở rộng về phía số lớn hơn (8).",
+              "visualActionGuidance": "Bên nào có nhiều quả táo hơn thì miệng chú cá sẽ mở rộng về bên đó."
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004209575-3",
+          "order": 3,
+          "prompt": "Trên đĩa có 6 chiếc kẹo, Nam lấy đi 2 chiếc kẹo. Hỏi trên đĩa còn lại mấy chiếc kẹo?",
+          "expectedAnswer": "4",
+          "ruleHints": [
+            {
+              "hintText": "Bài toán \"lấy đi / còn lại\" là phép trừ (-): 6 - 2 = 4 chiếc kẹo.",
+              "pattern": "WRONG_OPERATOR",
+              "visualActionGuidance": "Bớt đi 2 chiếc kẹo từ 6 chiếc kẹo ban đầu."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004209575-4",
+          "order": 4,
+          "prompt": "Tìm số thích hợp điền vào vị trí dấu hỏi chấm trên tia số: 5, 6, [ ? ], 8, 9",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "hintText": "Đếm xuôi từ trái sang phải: 5, 6 rồi đến 7, 8, 9.",
+              "visualActionGuidance": "Quan sát các vạch chia tăng dần trên tia số.",
+              "pattern": "NUMBER_ORDER_CONFUSION"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004209575-5",
+          "order": 5,
+          "prompt": "Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng. Hỏi có tất cả bao nhiêu bông hoa?",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "hintText": "Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng, gộp lại ta làm phép tính cộng: 4 + 3 = 7 bông hoa.",
+              "visualActionGuidance": "Đếm 4 bông hoa đỏ bên trái và 3 bông hoa vàng bên phải để tìm tổng số bông hoa.",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-reinforce-1793004242391",
+      "title": "Bài Củng Cố Toán 1: Phép Cộng và Đếm Trực Quan",
+      "status": "draft",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-reinforce-1793004242391-v1",
+      "questionCount": 5,
+      "questions": [
+        {
+          "id": "q-rf-1793004242391-1",
+          "order": 1,
+          "prompt": "Quan sát hình vẽ và đếm xem có tất cả bao nhiêu củ cà rốt?",
+          "expectedAnswer": "6",
+          "ruleHints": [
+            {
+              "pattern": "COUNTING_OFF_BY_ONE",
+              "visualActionGuidance": "Chạm đếm từng hình trên màn hình theo nhịp 1-1.",
+              "hintText": "Hãy chỉ tay vào từng củ cà rốt và đếm chậm theo thứ tự từ trái sang phải nhé!"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004242391-2",
+          "order": 2,
+          "prompt": "Điền dấu so sánh thích hợp (<, >, =) vào chỗ chấm: 8 ... 5",
+          "expectedAnswer": ">",
+          "ruleHints": [
+            {
+              "hintText": "Mũi nhọn luôn quay về phía số bé hơn (5), miệng mở rộng về phía số lớn hơn (8).",
+              "pattern": "COMPARISON_INVERSION",
+              "visualActionGuidance": "Bên nào có nhiều quả táo hơn thì miệng chú cá sẽ mở rộng về bên đó."
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004242391-3",
+          "order": 3,
+          "prompt": "Trên đĩa có 6 chiếc kẹo, Nam lấy đi 2 chiếc kẹo. Hỏi trên đĩa còn lại mấy chiếc kẹo?",
+          "expectedAnswer": "4",
+          "ruleHints": [
+            {
+              "pattern": "WRONG_OPERATOR",
+              "hintText": "Bài toán \"lấy đi / còn lại\" là phép trừ (-): 6 - 2 = 4 chiếc kẹo.",
+              "visualActionGuidance": "Bớt đi 2 chiếc kẹo từ 6 chiếc kẹo ban đầu."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004242391-4",
+          "order": 4,
+          "prompt": "Tìm số thích hợp điền vào vị trí dấu hỏi chấm trên tia số: 5, 6, [ ? ], 8, 9",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "pattern": "NUMBER_ORDER_CONFUSION",
+              "hintText": "Đếm xuôi từ trái sang phải: 5, 6 rồi đến 7, 8, 9.",
+              "visualActionGuidance": "Quan sát các vạch chia tăng dần trên tia số."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004242391-5",
+          "order": 5,
+          "prompt": "Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng. Hỏi có tất cả bao nhiêu bông hoa?",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "visualActionGuidance": "Đếm 4 bông hoa đỏ bên trái và 3 bông hoa vàng bên phải để tìm tổng số bông hoa.",
+              "pattern": "WRONG_OPERATOR",
+              "hintText": "Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng, gộp lại ta làm phép tính cộng: 4 + 3 = 7 bông hoa."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    },
+    {
+      "id": "lesson-reinforce-1793004576352",
+      "title": "Bài Củng Cố: Rèn Luyện Đếm lệch 1 đơn vị, Lỗi tính toán cơ bản",
+      "status": "draft",
+      "currentVersion": 1,
+      "currentVersionId": "version-lesson-reinforce-1793004576352-v1",
+      "questionCount": 5,
+      "questions": [
+        {
+          "id": "q-rf-1793004576352-1",
+          "order": 1,
+          "prompt": "Quan sát hình vẽ và đếm xem có tất cả bao nhiêu củ cà rốt?",
+          "expectedAnswer": "6",
+          "ruleHints": [
+            {
+              "visualActionGuidance": "Chạm đếm từng hình trên màn hình theo nhịp 1-1.",
+              "hintText": "Hãy chỉ tay vào từng củ cà rốt và đếm chậm theo thứ tự từ trái sang phải nhé!",
+              "pattern": "COUNTING_OFF_BY_ONE"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004576352-2",
+          "order": 2,
+          "prompt": "Điền dấu so sánh thích hợp (<, >, =) vào chỗ chấm: 8 ... 5",
+          "expectedAnswer": ">",
+          "ruleHints": [
+            {
+              "pattern": "COMPARISON_INVERSION",
+              "hintText": "Mũi nhọn luôn quay về phía số bé hơn (5), miệng mở rộng về phía số lớn hơn (8).",
+              "visualActionGuidance": "Bên nào có nhiều quả táo hơn thì miệng chú cá sẽ mở rộng về bên đó."
+            }
+          ],
+          "interactionType": "operator_pick",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004576352-3",
+          "order": 3,
+          "prompt": "Trên đĩa có 6 chiếc kẹo, Nam lấy đi 2 chiếc kẹo. Hỏi trên đĩa còn lại mấy chiếc kẹo?",
+          "expectedAnswer": "4",
+          "ruleHints": [
+            {
+              "pattern": "WRONG_OPERATOR",
+              "visualActionGuidance": "Bớt đi 2 chiếc kẹo từ 6 chiếc kẹo ban đầu.",
+              "hintText": "Bài toán \"lấy đi / còn lại\" là phép trừ (-): 6 - 2 = 4 chiếc kẹo."
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004576352-4",
+          "order": 4,
+          "prompt": "Tìm số thích hợp điền vào vị trí dấu hỏi chấm trên tia số: 5, 6, [ ? ], 8, 9",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "visualActionGuidance": "Quan sát các vạch chia tăng dần trên tia số.",
+              "hintText": "Đếm xuôi từ trái sang phải: 5, 6 rồi đến 7, 8, 9.",
+              "pattern": "NUMBER_ORDER_CONFUSION"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        },
+        {
+          "id": "q-rf-1793004576352-5",
+          "order": 5,
+          "prompt": "Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng. Hỏi có tất cả bao nhiêu bông hoa?",
+          "expectedAnswer": "7",
+          "ruleHints": [
+            {
+              "visualActionGuidance": "Đếm 4 bông hoa đỏ bên trái và 3 bông hoa vàng bên phải để tìm tổng số bông hoa.",
+              "hintText": "Có 4 bông hoa màu đỏ và 3 bông hoa màu vàng, gộp lại ta làm phép tính cộng: 4 + 3 = 7 bông hoa.",
+              "pattern": "WRONG_OPERATOR"
+            }
+          ],
+          "interactionType": "single_choice",
+          "hasAudio": false
+        }
+      ]
+    }
+  ],
+  "class1bAssignments": [
+    {
+      "id": "assign-class-1b-lesson-g1-01",
+      "teacherId": "user-1792533985096",
+      "teacherName": "Hà Thị Xuân Nương",
+      "title": "[Toán 1] Các số từ 1 đến 5: Đếm và Nhận biết",
+      "dueDate": "2026-12-31",
+      "lessonId": "lesson-g1-01",
+      "environmentTag": "demo",
+      "classId": "class-1b",
+      "status": "open",
+      "lessonVersionId": "version-lesson-g1-01-v1",
+      "createdAt": "2026-10-20T08:10:18.804Z",
+      "className": "1B",
+      "grade": 1,
+      "dataOrigin": "real",
+      "updatedAt": "2026-10-26T01:06:00.999Z"
+    },
+    {
+      "id": "assign-class-1b-lesson-g1-02",
+      "classId": "class-1b",
+      "teacherName": "Hà Thị Xuân Nương",
+      "dataOrigin": "real",
+      "grade": 1,
+      "lessonId": "lesson-g1-02",
+      "dueDate": "2026-12-31",
+      "lessonVersionId": "version-lesson-g1-02-v1",
+      "teacherId": "user-1792533985096",
+      "environmentTag": "demo",
+      "status": "open",
+      "updatedAt": "2026-10-26T01:06:01.778Z",
+      "className": "1B",
+      "createdAt": "2026-10-20T08:10:18.820Z",
+      "title": "[Toán 1] Các số từ 6 đến 10 và Tách - Gộp số"
+    },
+    {
+      "id": "assign-class-1b-lesson-g1-03",
+      "dueDate": "2026-12-31",
+      "title": "[Toán 1] Phép cộng trong phạm vi 10",
+      "className": "1B",
+      "createdAt": "2026-10-20T08:10:18.836Z",
+      "classId": "class-1b",
+      "updatedAt": "2026-10-26T01:06:02.183Z",
+      "lessonId": "lesson-g1-03",
+      "grade": 1,
+      "teacherId": "user-1792533985096",
+      "teacherName": "Hà Thị Xuân Nương",
+      "lessonVersionId": "version-lesson-g1-03-v1",
+      "environmentTag": "demo",
+      "dataOrigin": "real",
+      "status": "open"
+    },
+    {
+      "id": "assign-class-1b-lesson-g1-04",
+      "teacherId": "user-1792533985096",
+      "revokedAt": "2026-10-26T05:47:22.701Z",
+      "dueDate": "2026-12-31",
+      "environmentTag": "demo",
+      "dataOrigin": "real",
+      "status": "archived",
+      "classId": "class-1b",
+      "revokeReason": "Thuộc Tuần 10 trở đi theo PPCT Toán 1 Kết nối tri thức. Thu hồi khỏi nhiệm vụ hoạt động của Lớp 1B.",
+      "grade": 1,
+      "createdAt": "2026-10-20T08:10:18.865Z",
+      "className": "1B",
+      "curriculumWeek": "Tuần 10 - 12 (Sau giữa kì 1)",
+      "lessonId": "lesson-g1-04",
+      "teacherName": "Hà Thị Xuân Nương",
+      "title": "[Toán 1] Phép trừ trong phạm vi 10",
+      "lessonVersionId": "version-lesson-g1-04-v1",
+      "updatedAt": "2026-10-26T07:57:42.463Z",
+      "archivedAt": "2026-10-26T07:57:42.463Z",
+      "archiveReason": "Lưu trữ đợt giao theo yêu cầu A4. Không tính vào tiến độ hiện tại, bảo lưu lịch sử làm bài."
+    },
+    {
+      "id": "assign-class-1b-lesson-g1-05",
+      "lessonVersionId": "version-lesson-g1-05-v1",
+      "environmentTag": "demo",
+      "title": "[Toán 1] Hình vuông, Hình tròn, Hình tam giác, Hình chữ nhật",
+      "dataOrigin": "real",
+      "teacherId": "user-1792533985096",
+      "lessonId": "lesson-g1-05",
+      "grade": 1,
+      "classId": "class-1b",
+      "updatedAt": "2026-10-26T01:06:02.910Z",
+      "teacherName": "Hà Thị Xuân Nương",
+      "dueDate": "2026-12-31",
+      "className": "1B",
+      "status": "open",
+      "createdAt": "2026-10-20T08:10:18.886Z"
+    },
+    {
+      "id": "assign-lesson-draft-1792910089741-class-1b-122978",
+      "className": "1B",
+      "createdAt": "2026-10-25T09:38:42.978Z",
+      "dataOrigin": "real",
+      "title": "[Toán 1] Bài tập Toán: Luyện tập các số 1 2 3 4 5",
+      "lessonVersionId": "version-lesson-draft-1792910089741-v2",
+      "updatedAt": "2026-10-25T09:38:42.978Z",
+      "classId": "class-1b",
+      "teacherId": "user-1792533985096",
+      "environmentTag": "production",
+      "teacherName": "Hà Thị Xuân Nương",
+      "status": "open",
+      "lessonId": "lesson-draft-1792910089741",
+      "dueDate": "2026-11-01",
+      "grade": 1
+    }
+  ]
+}

@@ -24,6 +24,7 @@ import {
   Sparkles,
   FolderOpen,
   Info,
+  Volume2,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { Lesson, LessonVersion, Question, InteractionType, MathErrorPattern, VisualAssetConfig, MediaItem } from '../../types';
@@ -31,6 +32,8 @@ import { VisualCounters } from '../activities/VisualCounters';
 import { MediaLibraryModal } from './MediaLibraryModal';
 import { AiDraftModal, AiDraftMeta } from './AiDraftModal';
 import { normalizeAssetUrl, getAssetCountUnit } from '../../lib/standardAssets';
+import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash } from '../../lib/vietnameseTts';
+import { playVietnameseAudio, stopVietnameseAudio } from '../../lib/vietnameseAudioPlayer';
 
 interface LessonEditorModalProps {
   isOpen: boolean;
@@ -94,6 +97,23 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
   const togglePreview = (qIdx: number) => {
     setPreviewOpenIdxs((prev) => ({ ...prev, [qIdx]: !(prev[qIdx] ?? true) }));
+  };
+
+  // Scope check: Audio playback only for Grade 1 Weeks 1-9
+  const isGrade1Scope = grade === 1 && isGrade1Weeks1To9({ grade: 1, title: topic });
+  const [playingEditorAudioId, setPlayingEditorAudioId] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      stopVietnameseAudio();
+      setPlayingEditorAudioId(null);
+    };
+  }, [isOpen]);
+
+  const handleSafeClose = () => {
+    stopVietnameseAudio();
+    setPlayingEditorAudioId(null);
+    onClose();
   };
 
   // Synchronize state whenever modal opens or lesson/lessonVersion changes
@@ -233,6 +253,23 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
   const handleUpdateQuestion = (index: number, field: keyof Question, value: any) => {
     const updated = [...questions];
     updated[index] = { ...updated[index], [field]: value };
+
+    // Invalidate outdated audio hash & url if prompt or ruleHints changed (Req IV.4)
+    if (field === 'prompt') {
+      const spoken = normalizeMathTextForSpeech(value, updated[index].options);
+      const hash = getAudioHash(spoken);
+      updated[index].audioHash = hash;
+      updated[index].audioUrl = `/audio/q_${hash}.mp3`;
+    } else if (field === 'ruleHints') {
+      const hint = value && value[0] ? value[0].hintText : '';
+      if (hint) {
+        const spokenHint = normalizeMathTextForSpeech(hint);
+        const hHash = getAudioHash(spokenHint);
+        updated[index].hintAudioHash = hHash;
+        updated[index].hintAudioUrl = `/audio/h_${hHash}.mp3`;
+      }
+    }
+
     setQuestions(updated);
   };
 
@@ -242,7 +279,59 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     const currentOpts = updated[qIdx].options ? [...updated[qIdx].options!] : ['', '', '', ''];
     currentOpts[optIdx] = val;
     updated[qIdx].options = currentOpts;
+
+    // Invalidate audio for question if text options changed
+    const spoken = normalizeMathTextForSpeech(updated[qIdx].prompt, currentOpts);
+    const hash = getAudioHash(spoken);
+    updated[qIdx].audioHash = hash;
+    updated[qIdx].audioUrl = `/audio/q_${hash}.mp3`;
+
     setQuestions(updated);
+  };
+
+  const handleToggleQuestionAudio = (q: Question, idx: number) => {
+    const key = `q-${idx}`;
+    if (playingEditorAudioId === key) {
+      stopVietnameseAudio();
+      setPlayingEditorAudioId(null);
+      return;
+    }
+    stopVietnameseAudio();
+    setPlayingEditorAudioId(key);
+
+    const spoken = normalizeMathTextForSpeech(q.prompt, q.options);
+    const hash = getAudioHash(spoken);
+    const url = q.audioUrl || `/audio/q_${hash}.mp3`;
+
+    playVietnameseAudio(
+      url,
+      spoken,
+      () => setPlayingEditorAudioId(key),
+      () => setPlayingEditorAudioId(null)
+    );
+  };
+
+  const handleToggleHintAudio = (q: Question, idx: number) => {
+    const key = `h-${idx}`;
+    if (playingEditorAudioId === key) {
+      stopVietnameseAudio();
+      setPlayingEditorAudioId(null);
+      return;
+    }
+    stopVietnameseAudio();
+    setPlayingEditorAudioId(key);
+
+    const hint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
+    const spoken = normalizeMathTextForSpeech(hint);
+    const hash = getAudioHash(spoken);
+    const url = q.hintAudioUrl || `/audio/h_${hash}.mp3`;
+
+    playVietnameseAudio(
+      url,
+      spoken,
+      () => setPlayingEditorAudioId(key),
+      () => setPlayingEditorAudioId(null)
+    );
   };
 
   // Pairs helpers (for expression_match)
@@ -321,6 +410,24 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
           ? `version-${lessonId}-v${nextVersionNumber}`
           : (lesson?.draftVersionId || `version-${lessonId}-v${nextVersionNumber}-draft`));
 
+    let finalQuestions = questions;
+    if (grade === 1 && isGrade1Weeks1To9({ grade: 1, title: topic })) {
+      finalQuestions = questions.map((q) => {
+        const spokenPrompt = normalizeMathTextForSpeech(q.prompt, q.options);
+        const pHash = getAudioHash(spokenPrompt);
+        const hint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
+        const spokenHint = hint ? normalizeMathTextForSpeech(hint) : '';
+        const hHash = spokenHint ? getAudioHash(spokenHint) : undefined;
+
+        return {
+          ...q,
+          audioHash: pHash,
+          audioUrl: `/audio/q_${pHash}.mp3`,
+          ...(hHash ? { hintAudioHash: hHash, hintAudioUrl: `/audio/h_${hHash}.mp3` } : {}),
+        };
+      });
+    }
+
     const versionDoc: LessonVersion = {
       id: versionId,
       lessonId,
@@ -329,7 +436,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       grade,
       topic,
       learningStandard,
-      questions,
+      questions: finalQuestions,
       isPublished: publish,
       publishedAt: publish ? new Date().toISOString() : undefined,
       createdBy: teacherId,
@@ -367,6 +474,8 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       setErrorMsg('Cần ít nhất 1 câu hỏi để xem trước.');
       return;
     }
+    stopVietnameseAudio();
+    setPlayingEditorAudioId(null);
     const { versionDoc } = buildCurrentVersionDoc(false);
     if (onPreviewLesson) {
       onPreviewLesson(versionDoc);
@@ -432,6 +541,8 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
     setIsSaving(true);
     try {
+      stopVietnameseAudio();
+      setPlayingEditorAudioId(null);
       const { lessonDoc, versionDoc } = buildCurrentVersionDoc(publish);
       await dataService.saveLessonVersion(lessonDoc, versionDoc);
       onSaved();
@@ -485,7 +596,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
             <button
               type="button"
               aria-label="Đóng cửa sổ biên tập"
-              onClick={onClose}
+              onClick={handleSafeClose}
               className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
             >
               <X className="w-5 h-5" />
@@ -696,9 +807,26 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
                     {/* Question Prompt */}
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">
-                        Đề bài / Lời dẫn câu hỏi *
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-600">
+                          Đề bài / Lời dẫn câu hỏi *
+                        </label>
+                        {isGrade1Scope && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleQuestionAudio(q, idx)}
+                            className={`p-1 px-2 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs ${
+                              playingEditorAudioId === `q-${idx}`
+                                ? 'bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-400 animate-pulse'
+                                : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
+                            }`}
+                            aria-label="Phát âm thanh câu hỏi"
+                            title="Nghe thử câu hỏi"
+                          >
+                            <Volume2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                       <textarea
                         rows={2}
                         value={q.prompt}
@@ -1584,9 +1712,26 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                     {/* Diagnostic Rule Hint & Explanation */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1">
-                          <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> Mẫu lỗi chẩn đoán &amp; Gợi ý Thám Tử
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-slate-600 flex items-center gap-1">
+                            <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> Mẫu lỗi chẩn đoán &amp; Gợi ý Thám Tử
+                          </label>
+                          {isGrade1Scope && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleHintAudio(q, idx)}
+                              className={`p-1 px-1.5 rounded-md text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs ${
+                                playingEditorAudioId === `h-${idx}`
+                                  ? 'bg-amber-200 text-amber-900 border-amber-400 animate-pulse'
+                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                              }`}
+                              aria-label="Phát âm thanh manh mối"
+                              title="Nghe thử manh mối"
+                            >
+                              <Volume2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                         <select
                           value={q.ruleHints?.[0]?.pattern || 'GENERAL_CALCULATION_ERROR'}
                           onChange={(e) => {
@@ -1639,7 +1784,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
         <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleSafeClose}
             className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm cursor-pointer transition-colors"
           >
             Đóng

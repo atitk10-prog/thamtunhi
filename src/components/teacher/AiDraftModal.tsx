@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Sparkles, X, AlertTriangle, Check, Loader2, RefreshCw, PlusCircle, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, X, AlertTriangle, Check, Loader2, RefreshCw, PlusCircle, HelpCircle, Volume2 } from 'lucide-react';
 import { Question } from '../../types';
 import { getAuthHeaders } from '../../lib/authSession';
+import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash } from '../../lib/vietnameseTts';
+import { playVietnameseAudio, stopVietnameseAudio } from '../../lib/vietnameseAudioPlayer';
 
 export interface AiDraftMeta {
   grade: 1 | 2;
@@ -46,9 +48,10 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [draftQuestions, setDraftQuestions] = useState<Question[]>([]);
+  const [playingDraftId, setPlayingDraftId] = useState<string | null>(null);
 
   // Automatically select recommended apply mode when modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       if (isPublishedLesson) {
         setApplyMode('create_new');
@@ -60,7 +63,45 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
       setConfirmReplace(false);
       setErrorMsg(null);
     }
+    return () => {
+      stopVietnameseAudio();
+      setPlayingDraftId(null);
+    };
   }, [isOpen, isPublishedLesson, existingQuestionCount]);
+
+  const handleSafeClose = () => {
+    stopVietnameseAudio();
+    setPlayingDraftId(null);
+    onClose();
+  };
+
+  const handleToggleDraftAudio = (q: Question, type: 'question' | 'hint', key: string) => {
+    if (playingDraftId === key) {
+      stopVietnameseAudio();
+      setPlayingDraftId(null);
+      return;
+    }
+    stopVietnameseAudio();
+    setPlayingDraftId(key);
+
+    let text = '';
+    let url = '';
+    if (type === 'question') {
+      text = normalizeMathTextForSpeech(q.prompt, q.options);
+      url = q.audioUrl || `/audio/q_${getAudioHash(text)}.mp3`;
+    } else {
+      const hint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
+      text = normalizeMathTextForSpeech(hint);
+      url = q.hintAudioUrl || `/audio/h_${getAudioHash(text)}.mp3`;
+    }
+
+    playVietnameseAudio(
+      url,
+      text,
+      () => setPlayingDraftId(key),
+      () => setPlayingDraftId(null)
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -69,6 +110,8 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
     : targetPattern;
 
   const handleGenerate = async () => {
+    stopVietnameseAudio();
+    setPlayingDraftId(null);
     setLoading(true);
     setErrorMsg(null);
     setDraftQuestions([]);
@@ -125,6 +168,8 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
         setErrorMsg('Vui lòng tích chọn ô xác nhận trước khi thay thế các câu hỏi hiện tại.');
         return;
       }
+      stopVietnameseAudio();
+      setPlayingDraftId(null);
       onApplyQuestions(draftQuestions, {
         grade,
         topic,
@@ -159,7 +204,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
           <button
             type="button"
             aria-label="Đóng AI Soạn Bài"
-            onClick={onClose}
+            onClick={handleSafeClose}
             className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
           >
             <X className="w-5 h-5" />
@@ -426,47 +471,92 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
               )}
 
               <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {draftQuestions.map((q, idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sky-600 font-black">Câu {idx + 1} [{q.interactionType}]</span>
-                        {q.visualConfig?.type === 'addition' && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-extrabold">
-                            ➕ {q.visualConfig.leftCount} + {q.visualConfig.rightCount}
-                          </span>
-                        )}
-                        {q.visualConfig?.type === 'subtraction' && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-extrabold">
-                            ➖ {q.visualConfig.leftCount} bớt {q.visualConfig.rightCount}
-                          </span>
-                        )}
-                        {q.visualConfig?.type === 'bundles' && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-extrabold">
-                            🥢 {q.visualConfig.tens ?? 0} chục + {q.visualConfig.ones ?? 0} que
-                          </span>
-                        )}
-                        {q.visualConfig?.type === 'counters' && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-extrabold">
-                            🍎 {q.visualConfig.count ?? 0} đồ vật
-                          </span>
-                        )}
-                        {(q.visualConfig?.type === 'none' || q.visualConfig?.requiresTeacherIllustration) && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-extrabold">
-                            💡 Cần bổ sung hình
-                          </span>
-                        )}
+                {draftQuestions.map((q, idx) => {
+                  const isGrade1Scope = grade === 1 && isGrade1Weeks1To9({ grade: 1, title: topic });
+                  const qKey = `q-${idx}`;
+                  const hKey = `h-${idx}`;
+                  const isQPlaying = playingDraftId === qKey;
+                  const isHPlaying = playingDraftId === hKey;
+
+                  return (
+                    <div key={idx} className="p-3 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sky-600 font-black">Câu {idx + 1} [{q.interactionType}]</span>
+                          {q.visualConfig?.type === 'addition' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-extrabold">
+                              ➕ {q.visualConfig.leftCount} + {q.visualConfig.rightCount}
+                            </span>
+                          )}
+                          {q.visualConfig?.type === 'subtraction' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-extrabold">
+                              ➖ {q.visualConfig.leftCount} bớt {q.visualConfig.rightCount}
+                            </span>
+                          )}
+                          {q.visualConfig?.type === 'bundles' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-extrabold">
+                              🥢 {q.visualConfig.tens ?? 0} chục + {q.visualConfig.ones ?? 0} que
+                            </span>
+                          )}
+                          {q.visualConfig?.type === 'counters' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-extrabold">
+                              🍎 {q.visualConfig.count ?? 0} đồ vật
+                            </span>
+                          )}
+                          {(q.visualConfig?.type === 'none' || q.visualConfig?.requiresTeacherIllustration) && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-extrabold">
+                              💡 Cần bổ sung hình
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isGrade1Scope && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDraftAudio(q, 'question', qKey)}
+                              className={`p-1 px-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs ${
+                                isQPlaying
+                                  ? 'bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-400 animate-pulse'
+                                  : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
+                              }`}
+                              aria-label="Phát âm thanh câu hỏi"
+                              title="Nghe câu hỏi"
+                            >
+                              <Volume2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <span className="text-emerald-700">Đáp án: <strong>{q.expectedAnswer}</strong></span>
+                        </div>
                       </div>
-                      <span className="text-emerald-700">Đáp án: <strong>{q.expectedAnswer}</strong></span>
+
+                      <p className="text-slate-800">{q.prompt}</p>
+
+                      {q.ruleHints && q.ruleHints[0] && (
+                        <div className="flex items-center justify-between gap-2 pt-0.5">
+                          <p className="text-[11px] text-amber-700 font-medium flex-1">
+                            💡 Manh mối thám tử: {q.ruleHints[0].hintText}
+                          </p>
+                          {isGrade1Scope && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDraftAudio(q, 'hint', hKey)}
+                              className={`p-1 px-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs shrink-0 ${
+                                isHPlaying
+                                  ? 'bg-amber-200 text-amber-900 border-amber-400'
+                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                              }`}
+                              aria-label="Phát âm thanh manh mối"
+                              title="Nghe manh mối"
+                            >
+                              <Volume2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-slate-800">{q.prompt}</p>
-                    {q.ruleHints && q.ruleHints[0] && (
-                      <p className="text-[11px] text-amber-700 font-medium">
-                        💡 Manh mối thám tử: {q.ruleHints[0].hintText}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -476,7 +566,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
         <div className="pt-3.5 border-t border-slate-100 flex items-center justify-end gap-3">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleSafeClose}
             className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm cursor-pointer transition-colors"
           >
             Đóng

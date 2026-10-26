@@ -5,6 +5,8 @@ import { Assignment, LessonVersion, Question, UserProfile, Attempt } from '../..
 import { dataService } from '../../lib/dataService';
 import { evaluateAnswer } from '../../lib/mathEngine';
 import { playCorrectSound, playIncorrectSound, playCompletedSound, isSoundEnabled, setSoundEnabled } from '../../lib/soundEffects';
+import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash } from '../../lib/vietnameseTts';
+import { playVietnameseAudio, stopVietnameseAudio } from '../../lib/vietnameseAudioPlayer';
 import { SingleChoiceQuestion } from '../activities/SingleChoiceQuestion';
 import { NumberInputQuestion } from '../activities/NumberInputQuestion';
 import { OperatorPickQuestion } from '../activities/OperatorPickQuestion';
@@ -30,7 +32,11 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   const questions: Question[] = lessonVersion.questions || [];
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Sound preference state
+  // Scope check: Only Grade 1 Weeks 1-9 have audio narration
+  const isGrade1Scope = isGrade1Weeks1To9(lessonVersion);
+  const [isQuestionAudioPlaying, setIsQuestionAudioPlaying] = useState(false);
+
+  // Sound preference state (background effects)
   const [soundActive, setSoundActive] = useState<boolean>(() => isSoundEnabled());
 
   // User input states for different question types
@@ -40,6 +46,50 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   const [matchedPairs, setMatchedPairs] = useState<Record<string, string>>({});
   const [tenFrameAnswer, setTenFrameAnswer] = useState('');
   const [numberLineAnswer, setNumberLineAnswer] = useState('');
+
+  // Stop any playing audio whenever question changes, assignment changes or on unmount
+  useEffect(() => {
+    stopVietnameseAudio();
+    setIsQuestionAudioPlaying(false);
+    return () => {
+      stopVietnameseAudio();
+    };
+  }, [currentIndex, assignment.id]);
+
+  const handleSafeExit = () => {
+    stopVietnameseAudio();
+    setIsQuestionAudioPlaying(false);
+    onExit();
+  };
+
+  const handleTogglePlayQuestionAudio = () => {
+    if (!currentQuestion) return;
+
+    if (isQuestionAudioPlaying) {
+      stopVietnameseAudio();
+      setIsQuestionAudioPlaying(false);
+      return;
+    }
+
+    const rawPrompt = currentQuestion.prompt
+      ? currentQuestion.prompt
+          .replace(/^\[ĐÃ SỬA BỞI GIÁO VIÊN\]\s*/i, '')
+          .replace(/^Khung\s*(?:5|10)\s*ô\s*:\s*/i, '')
+          .replace(/^(?:Trong\s*)?khung\s*(?:5|10)\s*ô\s*(?:có\s*)?/i, 'Có ')
+          .trim()
+      : '';
+
+    const spoken = normalizeMathTextForSpeech(rawPrompt, currentQuestion.options);
+    const url = currentQuestion.audioUrl || `/audio/q_${getAudioHash(spoken)}.mp3`;
+
+    setIsQuestionAudioPlaying(true);
+    playVietnameseAudio(
+      url,
+      spoken,
+      () => setIsQuestionAudioPlaying(true),
+      () => setIsQuestionAudioPlaying(false)
+    );
+  };
 
   // Attempt lifecycle
   const [attemptId, setAttemptId] = useState<string>('');
@@ -377,6 +427,8 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   };
 
   const handleRetryQuestion = () => {
+    stopVietnameseAudio();
+    setIsQuestionAudioPlaying(false);
     setFeedbackModal({ isOpen: false });
     // Reset specific input to give fresh attempt
     resetQuestionInputs();
@@ -445,7 +497,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       <div className="bg-gradient-to-r from-sky-500 via-sky-600 to-indigo-600 p-4 sm:p-5 text-white flex items-center justify-between shadow-md">
         <button
           type="button"
-          onClick={onExit}
+          onClick={handleSafeExit}
           className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-sm flex items-center gap-1.5 cursor-pointer transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Thoát
@@ -512,15 +564,31 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       {/* Question Content Body */}
       <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between">
         <div>
-          <h3 className="text-xl sm:text-2xl font-black text-slate-800 leading-snug mb-2">
-            {currentQuestion.prompt
-              ? currentQuestion.prompt
-                  .replace(/^\[ĐÃ SỬA BỞI GIÁO VIÊN\]\s*/i, '')
-                  .replace(/^Khung\s*(?:5|10)\s*ô\s*:\s*/i, '')
-                  .replace(/^(?:Trong\s*)?khung\s*(?:5|10)\s*ô\s*(?:có\s*)?/i, 'Có ')
-                  .trim()
-              : ''}
-          </h3>
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <h3 className="text-xl sm:text-2xl font-black text-slate-800 leading-snug flex-1">
+              {currentQuestion.prompt
+                ? currentQuestion.prompt
+                    .replace(/^\[ĐÃ SỬA BỞI GIÁO VIÊN\]\s*/i, '')
+                    .replace(/^Khung\s*(?:5|10)\s*ô\s*:\s*/i, '')
+                    .replace(/^(?:Trong\s*)?khung\s*(?:5|10)\s*ô\s*(?:có\s*)?/i, 'Có ')
+                    .trim()
+                : ''}
+            </h3>
+            {isGrade1Scope && (
+              <button
+                type="button"
+                onClick={handleTogglePlayQuestionAudio}
+                aria-label="Phát âm thanh câu hỏi"
+                className={`p-2.5 sm:p-3 rounded-2xl flex items-center justify-center cursor-pointer transition-all shrink-0 border shadow-xs ${
+                  isQuestionAudioPlaying
+                    ? 'bg-amber-100 text-amber-700 border-amber-300 ring-2 ring-amber-400 animate-pulse'
+                    : 'bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800 border-sky-200 active:scale-95'
+                }`}
+              >
+                <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+            )}
+          </div>
 
           {/* Render Activity based on interactionType */}
           <div className="my-4">
@@ -609,6 +677,8 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         pattern={feedbackModal.pattern}
         hintText={feedbackModal.hintText}
         visualGuidance={feedbackModal.visualGuidance}
+        hintAudioUrl={currentQuestion?.hintAudioUrl}
+        isGrade1Scope={isGrade1Scope}
         onRetry={handleRetryQuestion}
         canTryAgain={true}
       />
@@ -621,7 +691,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         firstTryCount={firstTryCount}
         postHintCount={postHintCount}
         durationSeconds={durationSeconds}
-        onFinish={onExit}
+        onFinish={handleSafeExit}
         onRetry={handleRetryMission}
       />
     </div>
