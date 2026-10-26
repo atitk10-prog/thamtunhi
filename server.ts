@@ -32,11 +32,39 @@ import {
   isGrade1Weeks1To9,
 } from './src/lib/vietnameseTtsServer.ts';
 
-const AUDIO_STORAGE_DIR = path.resolve(__dirname, 'public', 'audio');
-if (!fs.existsSync(AUDIO_STORAGE_DIR)) {
-  fs.mkdirSync(AUDIO_STORAGE_DIR, { recursive: true });
+// Resilient audio storage directory supporting local disk and serverless read-only environments
+const AUDIO_STORAGE_DIR = process.env.VERCEL
+  ? path.resolve('/tmp', 'audio')
+  : path.resolve(__dirname, 'public', 'audio');
+
+try {
+  if (!fs.existsSync(AUDIO_STORAGE_DIR)) {
+    fs.mkdirSync(AUDIO_STORAGE_DIR, { recursive: true });
+  }
+} catch {
+  // Gracefully handle read-only file systems in serverless environments (Vercel)
 }
 const audioMemoryCache = new Map<string, Buffer>();
+
+function saveAudioBufferSafe(filename: string, buf: Buffer) {
+  audioMemoryCache.set(filename, buf);
+  const candidateTargets = [
+    path.join(AUDIO_STORAGE_DIR, filename),
+    path.resolve('/tmp', 'audio', filename),
+  ];
+  for (const tPath of candidateTargets) {
+    try {
+      const pDir = path.dirname(tPath);
+      if (!fs.existsSync(pDir)) {
+        fs.mkdirSync(pDir, { recursive: true });
+      }
+      fs.writeFileSync(tPath, buf);
+      break;
+    } catch {
+      // Continue to next path if read-only
+    }
+  }
+}
 
 // Safe JSON loading compatible across Node.js 18, 20, 22, 24
 const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
@@ -1683,10 +1711,9 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có văn bản nào 
           const pHash = getAudioHash(spokenPrompt);
           const pFilename = `q_${pHash}.mp3`;
           const pPath = path.join(AUDIO_STORAGE_DIR, pFilename);
-          if (!fs.existsSync(pPath)) {
+          if (!fs.existsSync(pPath) && !audioMemoryCache.has(pFilename)) {
             const buf = await synthesizeVietnameseSpeech(spokenPrompt);
-            fs.writeFileSync(pPath, buf);
-            audioMemoryCache.set(pFilename, buf);
+            saveAudioBufferSafe(pFilename, buf);
           }
           q.audioUrl = `/audio/${pFilename}`;
           q.audioHash = pHash;
@@ -1697,10 +1724,9 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có văn bản nào 
             const hHash = getAudioHash(spokenHint);
             const hFilename = `h_${hHash}.mp3`;
             const hPath = path.join(AUDIO_STORAGE_DIR, hFilename);
-            if (!fs.existsSync(hPath)) {
+            if (!fs.existsSync(hPath) && !audioMemoryCache.has(hFilename)) {
               const buf = await synthesizeVietnameseSpeech(spokenHint);
-              fs.writeFileSync(hPath, buf);
-              audioMemoryCache.set(hFilename, buf);
+              saveAudioBufferSafe(hFilename, buf);
             }
             q.hintAudioUrl = `/audio/${hFilename}`;
             q.hintAudioHash = hHash;
@@ -5029,20 +5055,32 @@ app.get(['/api/audio/:filename', '/audio/:filename'], async (req: Request, res: 
       return res.end(mem);
     }
 
-    // 2. Disk storage
-    const filePath = path.join(AUDIO_STORAGE_DIR, filename);
-    if (fs.existsSync(filePath)) {
-      const buffer = fs.readFileSync(filePath);
-      if (buffer.length > 500) {
-        if (buffer.length < 1_000_000) {
-          audioMemoryCache.set(filename, buffer);
+    // 2. Disk storage - check multiple paths (AUDIO_STORAGE_DIR, public/audio, dist/audio, /tmp/audio)
+    const candidateDirs = [
+      AUDIO_STORAGE_DIR,
+      path.resolve(__dirname, 'public', 'audio'),
+      path.resolve(process.cwd(), 'public', 'audio'),
+      path.resolve(__dirname, 'dist', 'audio'),
+      path.resolve(process.cwd(), 'dist', 'audio'),
+      path.resolve('/tmp', 'audio'),
+    ];
+    for (const cDir of candidateDirs) {
+      try {
+        const cPath = path.join(cDir, filename);
+        if (fs.existsSync(cPath)) {
+          const buffer = fs.readFileSync(cPath);
+          if (buffer.length > 500) {
+            if (buffer.length < 1_000_000) {
+              audioMemoryCache.set(filename, buffer);
+            }
+            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Content-Length', buffer.length);
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            return res.end(buffer);
+          }
         }
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Content-Length', buffer.length);
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-        return res.end(buffer);
-      }
+      } catch {}
     }
 
     // 3. Dynamic synthesis if text query parameter is provided
@@ -5050,10 +5088,7 @@ app.get(['/api/audio/:filename', '/audio/:filename'], async (req: Request, res: 
     if (text) {
       const spoken = normalizeMathTextForSpeech(text);
       const buf = await synthesizeVietnameseSpeech(spoken);
-      try {
-        fs.writeFileSync(filePath, buf);
-      } catch {}
-      audioMemoryCache.set(filename, buf);
+      saveAudioBufferSafe(filename, buf);
       res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Content-Length', buf.length);
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -5096,10 +5131,7 @@ app.post('/api/audio/synthesize', requireAuth, requireRole(['teacher', 'admin'])
     }
 
     const buf = await synthesizeVietnameseSpeech(spoken);
-    try {
-      fs.writeFileSync(filePath, buf);
-    } catch {}
-    audioMemoryCache.set(filename, buf);
+    saveAudioBufferSafe(filename, buf);
 
     return res.json({
       ok: true,
