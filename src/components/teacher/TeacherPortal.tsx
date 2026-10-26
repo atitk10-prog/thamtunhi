@@ -826,10 +826,10 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                 <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-black text-slate-800">
-                      Các đợt giao bài đang hoạt động (Tuần 1–9)
+                      Các đợt giao bài tập
                     </h3>
                     <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                      Danh sách các nhiệm vụ học tập tuần 1–9 đang mở cho học sinh
+                      Danh sách các nhiệm vụ học tập đang mở cho học sinh
                     </p>
                   </div>
 
