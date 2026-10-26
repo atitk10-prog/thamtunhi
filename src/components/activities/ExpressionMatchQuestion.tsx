@@ -12,13 +12,13 @@ interface ExpressionMatchQuestionProps {
 
 // Standard asset map for counting sprites
 const ITEM_ASSET_MAP: Record<string, { url: string; fallbackEmoji: string; defaultLabel: string }> = {
-  orange: { url: '/assets/images/standard/food_orange.png', fallbackEmoji: '🍊', defaultLabel: 'Quả cam' },
-  flower: { url: '/assets/images/standard/nature_flower.png', fallbackEmoji: '🌸', defaultLabel: 'Bông hoa' },
-  rabbit: { url: '/assets/images/standard/animals_rabbit.png', fallbackEmoji: '🐰', defaultLabel: 'Chú thỏ' },
-  pencil: { url: '/assets/images/standard/school_pencil.png', fallbackEmoji: '✏️', defaultLabel: 'Bút chì' },
-  apple: { url: '/assets/images/standard/food_apple.png', fallbackEmoji: '🍎', defaultLabel: 'Quả táo' },
-  carrot: { url: '/assets/images/standard/food_carrot.png', fallbackEmoji: '🥕', defaultLabel: 'Củ cà rốt' },
-  counting_sticks: { url: '/assets/images/standard/counting_sticks_single.png', fallbackEmoji: '🥢', defaultLabel: 'Que tính' },
+  orange: { url: '/assets/toan-nhi/orange-fruit.png', fallbackEmoji: '🍊', defaultLabel: 'Quả cam' },
+  flower: { url: '/assets/toan-nhi/flower-red.png', fallbackEmoji: '🌸', defaultLabel: 'Bông hoa' },
+  rabbit: { url: '/assets/toan-nhi/rabbit-white.png', fallbackEmoji: '🐰', defaultLabel: 'Chú thỏ' },
+  pencil: { url: '/assets/toan-nhi/pencil-yellow.png', fallbackEmoji: '✏️', defaultLabel: 'Bút chì' },
+  apple: { url: '/assets/toan-nhi/apple-red.png', fallbackEmoji: '🍎', defaultLabel: 'Quả táo' },
+  carrot: { url: '/assets/toan-nhi/carrot-orange.png', fallbackEmoji: '🥕', defaultLabel: 'Củ cà rốt' },
+  counting_sticks: { url: '/assets/toan-nhi/counting-stick-single.png', fallbackEmoji: '🥢', defaultLabel: 'Que tính' },
 };
 
 /**

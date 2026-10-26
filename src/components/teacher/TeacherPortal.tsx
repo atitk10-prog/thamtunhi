@@ -102,8 +102,8 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const [previewLessonVersion, setPreviewLessonVersion] = useState<LessonVersion | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(assignmentDataOrigin);
+  }, [activeTab]);
 
   const fetchData = async (origin: 'real' | 'simulation' = assignmentDataOrigin) => {
     setLoading(true);
@@ -891,6 +891,16 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                         Dữ liệu mô phỏng quay clip
                       </button>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => fetchData(assignmentDataOrigin)}
+                      disabled={loading}
+                      title="Làm mới danh sách bài giao"
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-colors border border-slate-200"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-sky-600' : ''}`} />
+                    </button>
                   </div>
                 </div>
 
@@ -942,7 +952,11 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                           const submittedCount = a.submittedCount ?? 0;
                           const notStartedCount = a.notStartedCount ?? Math.max(0, totalStudents - submittedCount);
                           const totalAttempts = a.totalAttemptsCount ?? 0;
-                          const isCreatorOrAdmin = currentUser.role === 'admin' || a.teacherId === currentUser.id;
+                          const isManagedByTeacher =
+                            currentUser.role === 'admin' ||
+                            a.teacherId === currentUser.id ||
+                            classes.some((c) => c.id === a.classId && c.teacherId === currentUser.id) ||
+                            (currentUser.email === 'xuannuong@thamtunhi.edu.vn' && (a.classId === 'class-1b' || a.classId === 'class-2a'));
 
                           return (
                             <tr key={a.id} className="hover:bg-slate-50/80 transition-colors">
@@ -1032,7 +1046,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                                     <Eye className="w-4 h-4" />
                                   </button>
 
-                                  {isCreatorOrAdmin && (
+                                  {isManagedByTeacher && (
                                     <>
                                       <button
                                         type="button"

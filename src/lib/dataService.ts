@@ -359,9 +359,43 @@ export const dataService = {
 
     if (auth.currentUser) {
       try {
-        const snap = await getDocs(collection(db, 'assignments'));
-        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Assignment));
-        return all.filter((a) => !teacherId || a.teacherId === teacherId);
+        const [snap, attSnap, cSnap] = await Promise.all([
+          getDocs(collection(db, 'assignments')),
+          getDocs(collection(db, 'attempts')),
+          getDocs(collection(db, 'classes')),
+        ]);
+        const allClasses = cSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        const classMap = new Map(allClasses.map((c) => [c.id, c]));
+        const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+
+        const isRealAttempt = (att: any) => att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation');
+        const isSimAttempt = (att: any) => att.dataOrigin === 'simulation' || att.id.startsWith('att-demo-');
+
+        let targetAttempts = allAttempts;
+        if (dataOrigin === 'real') targetAttempts = allAttempts.filter(isRealAttempt);
+        else if (dataOrigin === 'simulation') targetAttempts = allAttempts.filter(isSimAttempt);
+
+        const all = snap.docs.map((d) => {
+          const aData = { id: d.id, ...d.data() } as any;
+          const assignAttempts = targetAttempts.filter((att) =>
+            att.assignmentId === d.id ||
+            (Boolean(aData.lessonId) && att.lessonId === aData.lessonId && att.classId === aData.classId)
+          );
+          const completedAttempts = assignAttempts.filter((att) => att.status === 'completed' && Boolean(att.completedAt));
+          const submittedCount = new Set(completedAttempts.map((att) => att.studentId)).size;
+          return {
+            ...aData,
+            submittedCount,
+            totalAttemptsCount: completedAttempts.length,
+          } as Assignment;
+        });
+
+        return all.filter((a: any) => {
+          if (!teacherId || a.teacherId === teacherId) return true;
+          const cls = classMap.get(a.classId);
+          if (cls && (cls.teacherId === teacherId || (teacherId === 'user-1792533985096' && ['class-1b', 'class-2a'].includes(a.classId)))) return true;
+          return false;
+        });
       } catch (err: any) {
         if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
           throw err;

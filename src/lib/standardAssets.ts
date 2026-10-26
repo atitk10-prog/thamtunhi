@@ -2000,6 +2000,14 @@ export function normalizeAssetUrl(rawUrl?: string): string | undefined {
 
   // 3. Map legacy media IDs
   const legacyMap: Record<string, string> = {
+    'food_carrot': '/assets/toan-nhi/carrot-orange.png',
+    'food_apple': '/assets/toan-nhi/apple-red.png',
+    'food_orange': '/assets/toan-nhi/orange-fruit.png',
+    'nature_flower': '/assets/toan-nhi/flower-red.png',
+    'animals_rabbit': '/assets/toan-nhi/rabbit-white.png',
+    'school_pencil': '/assets/toan-nhi/pencil-yellow.png',
+    'counting_sticks_single': '/assets/toan-nhi/counting-stick-single.png',
+    'counting_sticks_bundle': '/assets/toan-nhi/counting-stick-bundle10.png',
     'media-fruit-apple-red': '/assets/toan-nhi/apple-red.png',
     'media-fruit-orange': '/assets/toan-nhi/orange-fruit.png',
     'media-fruit-banana': '/assets/toan-nhi/banana-yellow.png',

@@ -102,12 +102,15 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       // 2. Fetch student attempts to check if an in-progress or completed attempt exists
       let newAttemptId = `att-${assignment.id}-${currentUser.id}`;
       
+      // Only preview if user is teacher, preview ID, or explicitly teacher preview mode
       const isPreview = Boolean(
-        assignment.id === 'preview-assignment' ||
-        assignment.id.startsWith('preview') ||
-        assignment.dataOrigin === 'simulation' ||
-        currentUser.displayName?.includes('(Xem trước)') ||
-        currentUser.role === 'teacher'
+        currentUser.role !== 'student' &&
+        (
+          assignment.id === 'preview-assignment' ||
+          assignment.id.startsWith('preview') ||
+          currentUser.displayName?.includes('(Xem trước)') ||
+          currentUser.role === 'teacher'
+        )
       );
 
       if (!isPreview) {

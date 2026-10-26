@@ -41,33 +41,68 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
   const promptLower = (questionPrompt || '').toLowerCase();
   if (promptLower.includes('cà rốt')) {
     icon = 'carrot';
-    customUrl = '/assets/images/standard/food_carrot.png';
+    customUrl = '/assets/toan-nhi/carrot-orange.png';
   } else if (promptLower.includes('que tính') || promptLower.includes('bó que')) {
     icon = 'counting_sticks';
-    customUrl = '/assets/images/standard/counting_sticks_single.png';
-  } else if (promptLower.includes('bông hoa') || promptLower.includes('cành hoa')) {
+    customUrl = '/assets/toan-nhi/counting-stick-single.png';
+  } else if (promptLower.includes('bông hoa') || promptLower.includes('cành hoa') || promptLower.includes('hoa')) {
     icon = 'flower';
-    customUrl = '/assets/images/standard/nature_flower.png';
-  } else if (promptLower.includes('chú thỏ') || promptLower.includes('con thỏ')) {
+    customUrl = '/assets/toan-nhi/flower-red.png';
+  } else if (promptLower.includes('chú thỏ') || promptLower.includes('con thỏ') || promptLower.includes('thỏ')) {
     icon = 'rabbit';
-    customUrl = '/assets/images/standard/animals_rabbit.png';
-  } else if (promptLower.includes('quả cam') || promptLower.includes('trái cam')) {
+    customUrl = '/assets/toan-nhi/rabbit-white.png';
+  } else if (promptLower.includes('quả cam') || promptLower.includes('trái cam') || promptLower.includes('cam')) {
     icon = 'orange';
-    customUrl = '/assets/images/standard/food_orange.png';
-  } else if (promptLower.includes('quả táo') || promptLower.includes('trái táo')) {
+    customUrl = '/assets/toan-nhi/orange-fruit.png';
+  } else if (promptLower.includes('quả táo') || promptLower.includes('trái táo') || promptLower.includes('táo đỏ') || promptLower.includes('táo')) {
     icon = 'apple';
-    customUrl = '/assets/images/standard/food_apple.png';
-  } else if (promptLower.includes('bút chì')) {
+    customUrl = '/assets/toan-nhi/apple-red.png';
+  } else if (promptLower.includes('chú cá') || promptLower.includes('con cá') || promptLower.includes('cá bơi') || promptLower.includes('cá')) {
+    icon = 'fish';
+    customUrl = '/assets/toan-nhi/fish-gold.png';
+  } else if (promptLower.includes('viên kẹo') || promptLower.includes('chiếc kẹo') || promptLower.includes('cái kẹo') || promptLower.includes('kẹo')) {
+    icon = 'candy';
+    customUrl = '/assets/toan-nhi/candy-wrapped.png';
+  } else if (promptLower.includes('ngôi sao') || promptLower.includes('sao')) {
+    icon = 'star';
+    customUrl = '/assets/toan-nhi/star-gold.png';
+  } else if (promptLower.includes('bút chì') || promptLower.includes('cây bút')) {
     icon = 'pencil';
-    customUrl = '/assets/images/standard/school_pencil.png';
+    customUrl = '/assets/toan-nhi/pencil-yellow.png';
+  } else if (promptLower.includes('quả chuối') || promptLower.includes('chuối')) {
+    icon = 'banana';
+    customUrl = '/assets/toan-nhi/banana-yellow.png';
+  } else if (promptLower.includes('chú gà') || promptLower.includes('gà con')) {
+    icon = 'chick';
+    customUrl = '/assets/toan-nhi/chick-yellow.png';
+  } else if (promptLower.includes('chú vịt') || promptLower.includes('vịt con')) {
+    icon = 'duck';
+    customUrl = '/assets/toan-nhi/duck-yellow.png';
   } else if (promptLower.includes('chấm tròn')) {
     icon = 'dot';
   }
 
   const matchedAsset = customUrl ? findStandardAsset(customUrl) : findStandardAssetByIcon(icon);
   const effectiveUrl = customUrl || matchedAsset?.url;
-  const effectiveLabel = config.imageAlt || matchedAsset?.title || (icon === 'carrot' ? 'Củ cà rốt' : (icon === 'dot' ? 'Chấm tròn' : 'Vật thể'));
+  const effectiveLabel = config.imageAlt || matchedAsset?.title || (icon === 'carrot' ? 'Củ cà rốt' : (icon === 'dot' ? 'Chấm tròn' : (icon === 'apple' ? 'Quả táo' : 'Vật thể')));
   const unitName = config.countUnit || (icon === 'carrot' || effectiveUrl?.includes('carrot') ? 'củ cà rốt' : (icon === 'dot' ? 'chấm tròn' : getAssetCountUnit(effectiveUrl || icon, 'vật thể')));
+
+  const fallbackIcons: Record<string, string> = {
+    apple: '🍎',
+    carrot: '🥕',
+    orange: '🍊',
+    flower: '🌸',
+    rabbit: '🐰',
+    pencil: '✏️',
+    counting_sticks: '🥢',
+    fish: '🐟',
+    candy: '🍬',
+    star: '⭐',
+    banana: '🍌',
+    chick: '🐥',
+    duck: '🦆',
+    dot: '●',
+  };
 
   // Render an individual item icon (High-res PNG asset from 60-pack, no crude emoji)
   const renderIcon = (index: number, keyPrefix = 'icon') => {
@@ -104,10 +139,10 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
             }}
           />
           <div
-            className="hidden w-10 h-10 rounded-xl bg-amber-50 border border-amber-300 text-amber-700 text-xs font-black items-center justify-center"
-            title="Tệp ảnh chưa sẵn sàng"
+            className="hidden w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-base font-black items-center justify-center select-none shadow-2xs"
+            title={effectiveLabel}
           >
-            ⚠️
+            {fallbackIcons[icon] || '●'}
           </div>
         </div>
       );
@@ -402,9 +437,9 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
                   className="flex flex-col items-center p-2 rounded-2xl bg-amber-50/80 border-2 border-amber-300 shadow-xs transition-transform hover:scale-105"
                 >
                   <img
-                    src="/assets/toan-nhi/math-counting-stick-bundle10.svg"
+                    src="/assets/toan-nhi/counting-stick-bundle10.png"
                     alt="Bó 10 que tính"
-                    className="w-16 h-28 object-contain filter drop-shadow-sm select-none"
+                    className="w-20 sm:w-24 h-28 sm:h-32 object-contain filter drop-shadow-sm select-none"
                     loading="lazy"
                   />
                   <span className="text-[11px] font-black text-amber-900 mt-1.5">
@@ -418,15 +453,15 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           {/* Plus separator when both tens and ones exist */}
           {ones > 0 && tens > 0 && <span className="text-2xl font-black text-slate-400">+</span>}
 
-          {/* Ones sticks with official SVG */}
+          {/* Ones sticks with official high-res PNG */}
           {ones > 0 && (
-            <div className="flex flex-wrap items-center justify-center gap-2 max-w-[260px]">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-[320px]">
               {Array.from({ length: ones }).map((_, i) => (
-                <div key={`one-${i}`} className="flex flex-col items-center">
+                <div key={`one-${i}`} className="flex flex-col items-center p-1 rounded-xl bg-amber-50/50 border border-amber-200 shadow-2xs">
                   <img
-                    src="/assets/toan-nhi/math-counting-stick-single.svg"
+                    src="/assets/toan-nhi/counting-stick-single.png"
                     alt={`Que tính ${i + 1}`}
-                    className="w-3.5 h-28 object-contain filter drop-shadow-xs transition-transform hover:scale-110 select-none"
+                    className="w-5 sm:w-6 h-28 sm:h-32 object-contain filter drop-shadow-xs transition-transform hover:scale-110 select-none"
                     loading="lazy"
                   />
                 </div>
