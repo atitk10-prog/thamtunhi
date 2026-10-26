@@ -2304,9 +2304,22 @@ app.get('/api/student/attempts', requireAuth, requireRole(['student', 'teacher',
       return res.status(403).json({ error: 'Từ chối truy cập: Học sinh chỉ có thể xem bài làm của chính mình.' });
     }
     const studentId = req.user?.role === 'student' ? req.user.uid : (req.query.studentId as string || req.user!.uid);
-    const q = query(collection(db, 'attempts'), where('studentId', '==', studentId));
+    const idsToQuery = [studentId];
+    if (studentId.startsWith('student-')) {
+      idsToQuery.push(studentId.replace('student-', ''));
+    } else {
+      idsToQuery.push('student-' + studentId);
+    }
+    const q = query(collection(db, 'attempts'), where('studentId', 'in', idsToQuery));
     const snap = await getDocs(q);
-    const attempts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const seen = new Set<string>();
+    const attempts: any[] = [];
+    snap.docs.forEach((d) => {
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        attempts.push({ id: d.id, ...d.data() });
+      }
+    });
     return res.json({ ok: true, attempts });
   } catch (err: any) {
     console.error('Fetch student attempts error:', err);

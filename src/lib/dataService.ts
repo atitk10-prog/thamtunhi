@@ -69,11 +69,26 @@ export const dataService = {
   },
 
   async fetchStudentAttempts(studentId: string): Promise<Attempt[]> {
+    const idsToQuery = [studentId];
+    if (studentId.startsWith('student-')) {
+      idsToQuery.push(studentId.replace('student-', ''));
+    } else {
+      idsToQuery.push('student-' + studentId);
+    }
+
     if (auth.currentUser) {
       try {
-        const q = query(collection(db, 'attempts'), where('studentId', '==', studentId));
+        const q = query(collection(db, 'attempts'), where('studentId', 'in', idsToQuery));
         const snap = await getDocs(q);
-        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Attempt));
+        const seen = new Set<string>();
+        const list: Attempt[] = [];
+        snap.docs.forEach((d) => {
+          if (!seen.has(d.id)) {
+            seen.add(d.id);
+            list.push({ id: d.id, ...d.data() } as Attempt);
+          }
+        });
+        return list;
       } catch (err: any) {
         if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
           throw err;

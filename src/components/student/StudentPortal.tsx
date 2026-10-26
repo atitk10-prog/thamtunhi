@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle, Clock, Award, LogOut, Sparkles, BookOpen, Key, RefreshCw, AlertCircle, Calendar } from 'lucide-react';
+import { Play, CheckCircle, Clock, Award, LogOut, Sparkles, BookOpen, Key, RefreshCw, AlertCircle, Calendar, BarChart3 } from 'lucide-react';
 import { Assignment, LessonVersion, Attempt, UserProfile } from '../../types';
 import { FoxDetective } from '../mascot/FoxDetective';
 import { MissionPlayer } from './MissionPlayer';
 import { StudentPinModal } from './StudentPinModal';
+import { StudentLessonProgressModal } from './StudentLessonProgressModal';
 import { dataService } from '../../lib/dataService';
 
 interface StudentPortalProps {
@@ -24,6 +25,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [activeAssignment, setActiveAssignment] = useState<Assignment | null>(null);
   const [activeLessonVersion, setActiveLessonVersion] = useState<LessonVersion | null>(null);
   const [loadingMission, setLoadingMission] = useState(false);
+
+  // Progress inspection modal for individual assignment
+  const [selectedProgressAssignment, setSelectedProgressAssignment] = useState<{
+    assignment: Assignment;
+    attempts: Attempt[];
+  } | null>(null);
 
   // PIN change modal
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -288,6 +295,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 return (cur.score ?? 0) > (best.score ?? 0) ? cur : best;
               }, null);
 
+              // Check if assignment is newly assigned within 48 hours
+              const isNewlyAssigned = Boolean(
+                assignment.assignedAt &&
+                Date.now() - new Date(assignment.assignedAt).getTime() < 48 * 3600 * 1000
+              );
+
               return (
                 <div
                   key={assignment.id}
@@ -301,47 +314,53 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 >
                   <div>
                     {/* Top status bar */}
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <span className="text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
-                        Toán Lớp {assignment.grade || currentUser.grade || 1}
-                      </span>
-
-                      {/* 4 Distinct Badges */}
-                      {isFinished ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Đã hoàn thành
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                          Toán Lớp {assignment.grade || currentUser.grade || 1}
                         </span>
-                      ) : isDueExpired ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
-                          <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Quá hạn
+                        {isNewlyAssigned && (
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500 text-white shadow-2xs animate-pulse">
+                            Mới giao
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 4 Distinct Badges per Requirements 1, 2, 3, 4 */}
+                      {completedCount > 1 ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-300 shadow-2xs">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Đã hoàn thành – {completedCount} lượt
+                        </span>
+                      ) : completedCount === 1 ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-300 shadow-2xs">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Đã hoàn thành – 1 lượt
                         </span>
                       ) : isStarted ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-amber-800 bg-amber-50 px-3 py-1 rounded-full border border-amber-300 shadow-2xs">
                           <Clock className="w-3.5 h-3.5 text-amber-600" /> Đang làm
                         </span>
+                      ) : isDueExpired ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 px-3 py-1 rounded-full border border-rose-300 shadow-2xs">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Chưa làm – 0 lượt (Quá hạn)
+                        </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                          <BookOpen className="w-3.5 h-3.5 text-slate-400" /> Chưa làm
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 shadow-2xs">
+                          <BookOpen className="w-3.5 h-3.5 text-slate-400" /> Chưa làm – 0 lượt
                         </span>
                       )}
                     </div>
 
-                    {/* Submission count tag (Requirement A4) */}
-                    {completedCount > 0 && (
-                      <div className="mb-2">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black">
-                          <Sparkles className="w-3 h-3 text-indigo-500" /> Đã làm {completedCount} lần
-                        </span>
+                    {/* In-progress status details */}
+                    {completedCount === 0 && isStarted && (
+                      <div className="mb-2 p-2 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 font-bold flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Đang làm dở dang • Chưa hoàn thành lượt nào (0 lượt)</span>
                       </div>
                     )}
-
-                    {/* Latest attempt timestamp (Requirement 2) */}
-                    {isFinished && latestCompletedAttempt?.completedAt && (
-                      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                        <Clock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                        <span>
-                          Lần làm gần nhất: <strong className="text-slate-700">{new Date(latestCompletedAttempt.completedAt).toLocaleDateString('vi-VN')} {new Date(latestCompletedAttempt.completedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</strong>
-                        </span>
+                    {completedCount > 0 && inProgressAttempt && (
+                      <div className="mb-2 p-2 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-900 font-bold flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span>Đang có lượt làm lại dở dang (Lượt {completedCount + 1})</span>
                       </div>
                     )}
 
@@ -357,24 +376,36 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       </div>
                     )}
 
-                    {/* Best and Latest score display */}
+                    {/* Best and Latest score display & latest submission time (Requirements 3 & 4) */}
                     {isFinished && bestAttempt && (
-                      <div className="my-3 p-3 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-1.5">
+                      <div className="my-3 p-3.5 rounded-2xl bg-gradient-to-br from-amber-50/90 to-amber-100/30 border-2 border-amber-200/90 space-y-2">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
-                            <Award className="w-4 h-4 text-amber-600" /> Điểm cao nhất:
+                          <div className="flex items-center gap-1.5 text-amber-950 font-extrabold text-xs">
+                            <Award className="w-4 h-4 text-amber-600 shrink-0" /> Điểm cao nhất:
                           </div>
-                          <span className="text-sm font-black text-amber-900">
+                          <span className="text-sm font-black text-amber-950 bg-amber-100/90 px-2 py-0.5 rounded-lg border border-amber-300">
                             {bestAttempt.score ?? 0}/{bestAttempt.maxScore && bestAttempt.maxScore > 0 ? bestAttempt.maxScore : (bestAttempt.totalQuestions ? bestAttempt.totalQuestions * 10 : 80)}
                           </span>
                         </div>
-                        {latestCompletedAttempt && completedCount > 1 && (
-                          <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-xs">
-                            <div className="flex items-center gap-1.5 text-slate-600 font-bold">
-                              <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> Điểm gần nhất:
+
+                        {completedCount > 1 && latestCompletedAttempt && (
+                          <div className="flex items-center justify-between pt-1.5 border-t border-amber-200/70 text-xs">
+                            <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                              <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> Điểm gần nhất:
                             </div>
                             <span className="font-black text-slate-800">
                               {latestCompletedAttempt.score ?? 0}/{latestCompletedAttempt.maxScore && latestCompletedAttempt.maxScore > 0 ? latestCompletedAttempt.maxScore : (latestCompletedAttempt.totalQuestions ? latestCompletedAttempt.totalQuestions * 10 : 80)}
+                            </span>
+                          </div>
+                        )}
+
+                        {latestCompletedAttempt?.completedAt && (
+                          <div className="flex items-center justify-between pt-1.5 border-t border-amber-200/60 text-[11px] text-slate-600 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-400 shrink-0" /> Lần nộp gần nhất:
+                            </span>
+                            <span className="font-bold text-slate-800">
+                              {new Date(latestCompletedAttempt.completedAt).toLocaleDateString('vi-VN')} {new Date(latestCompletedAttempt.completedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                         )}
@@ -393,8 +424,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     </div>
                   </div>
 
-                  {/* Action button */}
-                  <div className="mt-6 pt-4 border-t border-slate-100">
+                  {/* Actions: Progress inspection & Mission Player launch */}
+                  <div className="mt-5 pt-4 border-t border-slate-100 space-y-2">
                     <button
                       type="button"
                       disabled={loadingMission}
@@ -418,6 +449,17 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                           : 'Bắt đầu phá án'}
                       </span>
                     </button>
+
+                    {/* Requirement 7: Inspect individual assignment progress */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProgressAssignment({ assignment, attempts: assignmentAttempts })}
+                      className="w-full py-2 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center gap-1.5 border border-sky-200 cursor-pointer transition-colors"
+                      title="Xem lịch sử chi tiết các lần nộp bài này"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Xem tiến độ bài này ({completedCount} lần nộp)</span>
+                    </button>
                   </div>
                 </div>
               );
@@ -425,6 +467,16 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           </div>
         )}
       </main>
+
+      {/* Individual Lesson Progress Modal (Requirement 7) */}
+      {selectedProgressAssignment && (
+        <StudentLessonProgressModal
+          isOpen={Boolean(selectedProgressAssignment)}
+          assignment={selectedProgressAssignment.assignment}
+          attempts={selectedProgressAssignment.attempts}
+          onClose={() => setSelectedProgressAssignment(null)}
+        />
+      )}
 
       {/* Student PIN / Password Change Modal */}
       <StudentPinModal

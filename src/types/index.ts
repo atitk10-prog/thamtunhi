@@ -313,6 +313,7 @@ export interface Attempt {
   score: number; // Thang 10 hoặc tổng điểm
   maxScore: number;
   totalQuestions?: number;
+  correctCount?: number;
   firstAttemptCorrectCount: number;
   postHintCorrectCount: number;
   totalAttemptsMade: number;
