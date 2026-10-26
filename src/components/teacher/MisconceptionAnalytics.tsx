@@ -132,8 +132,10 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
   const isRealCompletedAttempt = (att: Attempt) =>
     att.dataOrigin !== 'simulation' &&
     att.dataOrigin !== 'test' &&
+    !(att as any).isArchivedTest &&
     !att.id.startsWith('att-demo-') &&
     !att.id.includes('-test-') &&
+    !att.studentId?.startsWith('student-test-') &&
     att.status === 'completed' &&
     Boolean(att.completedAt);
 
@@ -187,6 +189,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
   const filteredAssignments = useMemo(() => {
     return assignments.filter((asg) => {
       if (asg.dataOrigin === 'simulation') return false;
+      if (asg.status !== 'open' || asg.status === 'cancelled' || asg.status === 'archived') return false;
       if (selectedClass !== 'all' && asg.classId !== selectedClass) return false;
       if (selectedWeek !== 'all' && String((asg as any).week) !== String(selectedWeek)) return false;
       if (selectedAcademicYear !== 'all') {
@@ -218,9 +221,10 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
 
   const totalAssignmentsCount = filteredAssignments.length;
 
-  // Target students assigned in selected scope
+  // Target students assigned in selected scope (strictly exclude test accounts and blanks)
   const targetStudents = useMemo(() => {
     return studentsList.filter((s) => {
+      if (!s.displayName?.trim() || !s.studentCode?.trim() || s.studentCode === '—' || s.studentCode.startsWith('HSQA')) return false;
       if (selectedClass !== 'all' && s.classId !== selectedClass) return false;
       if (selectedStudent !== 'all' && s.id !== selectedStudent) return false;
       return true;
@@ -254,58 +258,48 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
     ? Math.round((totalPostHint / (totalFirstTry + totalPostHint)) * 100)
     : 0;
 
-  // --- STUDENT LEVEL DETAILED PROGRESS (Requirement A) ---
+  // --- STUDENT LEVEL DETAILED PROGRESS (Requirement A, B, C) ---
   const studentSummaries: StudentSummary[] = useMemo(() => {
     const map = new Map<string, StudentSummary>();
 
-    // Seed with all assigned students
-    targetStudents.forEach((st) => {
-      map.set(st.id, {
-        studentId: st.id,
-        studentName: st.displayName || 'Học sinh',
-        studentCode: st.studentCode || '',
-        classId: st.classId || '',
-        totalAssigned: totalAssignmentsCount,
-        completedAssignmentsCount: 0,
-        totalSubmissions: 0,
-        avgScore: 0,
-        bestScore: 0,
-        lastScore: 0,
-        firstScore: 0,
-        progressScore: 0,
-        primaryErrorPattern: 'Không có lỗi',
-        lastCompletedAt: null,
+    // Seed ONLY with legitimate students from targetStudents
+    targetStudents
+      .filter((st) => st.displayName?.trim() && st.studentCode?.trim() && !st.studentCode.startsWith('HSQA') && st.studentCode !== '—')
+      .forEach((st) => {
+        map.set(st.id, {
+          studentId: st.id,
+          studentName: st.displayName.trim(),
+          studentCode: st.studentCode?.trim() || '',
+          classId: st.classId || '',
+          totalAssigned: totalAssignmentsCount,
+          completedAssignmentsCount: 0,
+          totalSubmissions: 0,
+          avgScore: 0,
+          bestScore: 0,
+          lastScore: 0,
+          firstScore: 0,
+          progressScore: 0,
+          primaryErrorPattern: 'Chưa làm',
+          lastCompletedAt: null,
+        });
       });
-    });
 
     // Group completed attempts by student
     const studentAttemptsMap = new Map<string, Attempt[]>();
     completedAttemptsList.forEach((att) => {
+      // Must be a recognized student in our map (strictly isolates unlinked test attempts)
+      if (!map.has(att.studentId)) return;
       const list = studentAttemptsMap.get(att.studentId) || [];
       list.push(att);
       studentAttemptsMap.set(att.studentId, list);
     });
 
     studentAttemptsMap.forEach((attList, stId) => {
+      const stRecord = map.get(stId);
+      if (!stRecord) return; // Never create a dummy row for unverified IDs
+
       // Sort chronologically (oldest first)
       attList.sort((a, b) => new Date(a.completedAt || a.startedAt || 0).getTime() - new Date(b.completedAt || b.startedAt || 0).getTime());
-
-      const stRecord = map.get(stId) || {
-        studentId: stId,
-        studentName: attList[0]?.studentName || 'Học sinh',
-        studentCode: attList[0]?.studentCode || '',
-        classId: attList[0]?.classId || '',
-        totalAssigned: totalAssignmentsCount,
-        completedAssignmentsCount: 0,
-        totalSubmissions: 0,
-        avgScore: 0,
-        bestScore: 0,
-        lastScore: 0,
-        firstScore: 0,
-        progressScore: 0,
-        primaryErrorPattern: 'Không có lỗi',
-        lastCompletedAt: null,
-      };
 
       const scoresPct = attList.map((a) => {
         const max = a.maxScore && a.maxScore > 0 ? a.maxScore : (a.totalQuestions ? a.totalQuestions * 10 : 80);
@@ -341,7 +335,10 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
       map.set(stId, stRecord);
     });
 
-    return Array.from(map.values()).sort((a, b) => b.totalSubmissions - a.totalSubmissions || b.avgScore - a.avgScore);
+    return Array.from(map.values()).sort((a, b) => {
+      // Sort in canonical order by studentCode (HS1B01 -> HS1B12)
+      return (a.studentCode || '').localeCompare(b.studentCode || '', undefined, { numeric: true });
+    });
   }, [targetStudents, completedAttemptsList, totalAssignmentsCount, filteredInsights]);
 
   // Overall student progress statistics
@@ -1171,12 +1168,22 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
                           {st.completedAssignmentsCount}/{st.totalAssigned}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-center font-black">{st.totalSubmissions}</td>
-                      <td className="py-3 px-4 text-center font-black text-sky-700">{st.avgScore}%</td>
-                      <td className="py-3 px-4 text-center font-black text-emerald-700">{st.bestScore}%</td>
-                      <td className="py-3 px-4 text-center font-black text-indigo-700">{st.lastScore}%</td>
+                      <td className="py-3 px-4 text-center font-black">
+                        {st.totalSubmissions > 0 ? st.totalSubmissions : <span className="text-slate-400 font-normal">0</span>}
+                      </td>
+                      <td className="py-3 px-4 text-center font-black text-sky-700">
+                        {st.totalSubmissions > 0 ? `${st.avgScore}%` : <span className="text-slate-400 font-normal">Chưa có</span>}
+                      </td>
+                      <td className="py-3 px-4 text-center font-black text-emerald-700">
+                        {st.totalSubmissions > 0 ? `${st.bestScore}%` : <span className="text-slate-400 font-normal">Chưa có</span>}
+                      </td>
+                      <td className="py-3 px-4 text-center font-black text-indigo-700">
+                        {st.totalSubmissions > 0 ? `${st.lastScore}%` : <span className="text-slate-400 font-normal">Chưa có</span>}
+                      </td>
                       <td className="py-3 px-4 text-center">
-                        {st.totalSubmissions > 1 ? (
+                        {st.totalSubmissions === 0 ? (
+                          <span className="text-slate-400 text-[11px] font-semibold">Chưa làm</span>
+                        ) : st.totalSubmissions > 1 ? (
                           st.progressScore > 0 ? (
                             <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-black text-[11px]">
                               <ArrowUpRight className="w-3 h-3" /> +{st.progressScore}%
@@ -1194,7 +1201,15 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
                           <span className="text-slate-400 text-[11px] font-semibold">1 lần làm</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-rose-700 font-semibold">{st.primaryErrorPattern}</td>
+                      <td className="py-3 px-4 text-slate-500 font-semibold">
+                        {st.totalSubmissions > 0 ? (
+                          <span className={st.primaryErrorPattern === 'Không có lỗi' ? 'text-emerald-600' : 'text-rose-700'}>
+                            {st.primaryErrorPattern}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-normal">Chưa làm</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}

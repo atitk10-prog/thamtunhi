@@ -277,8 +277,11 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
     }
   };
 
-  // Filter students
+  // Filter students: strictly require valid name, valid code, exclude HSQA test accounts and blanks (Requirement C)
   const filteredStudents = students.filter((s) => {
+    if (!s.displayName?.trim() || !s.studentCode?.trim() || s.studentCode === '—' || s.studentCode.startsWith('HSQA')) {
+      return false;
+    }
     const matchesSearch =
       !searchQuery.trim() ||
       s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -356,7 +359,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
               Danh sách Học Sinh Lớp {classroom.name}
             </h2>
             <p className="text-xs font-semibold text-slate-500">
-              Sĩ số thực tế: <strong className="text-sky-700">{students.length} học sinh</strong> (xác thực từ cơ sở dữ liệu tài khoản)
+              Sĩ số thực tế: <strong className="text-sky-700">{filteredStudents.length} học sinh</strong> (xác thực từ cơ sở dữ liệu tài khoản)
             </p>
           </div>
         </div>
@@ -521,17 +524,23 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
 
                       <td className="px-5 py-4">
                         <div className="flex flex-col items-center gap-1">
-                          <div className="flex items-center justify-center gap-1 text-[11px] font-extrabold">
-                            <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100" title="Đã hoàn thành">
-                              Xong: {student.completedCount}
+                          {student.completedCount === 0 && student.inProgressCount === 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-500 border border-slate-200">
+                              Chưa làm
                             </span>
-                            <span className="text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-100" title="Đang làm dở">
-                              Đang làm: {student.inProgressCount}
-                            </span>
-                            <span className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" title="Chưa làm">
-                              Chưa: {notStarted}
-                            </span>
-                          </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1 text-[11px] font-extrabold">
+                              <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100" title="Đã hoàn thành">
+                                Xong: {student.completedCount}
+                              </span>
+                              <span className="text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-100" title="Đang làm dở">
+                                Đang làm: {student.inProgressCount}
+                              </span>
+                              <span className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" title="Chưa làm">
+                                Chưa: {notStarted}
+                              </span>
+                            </div>
+                          )}
                           <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-0.5">
                             <div
                               className="h-full bg-emerald-500 rounded-full"
@@ -544,14 +553,14 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
                       </td>
 
                       <td className="px-5 py-4 text-center">
-                        {student.avgScore !== null ? (
+                        {student.completedCount > 0 && student.avgScore !== null ? (
                           <span className={`text-xs font-black px-2 py-0.5 rounded-lg ${
                             student.avgScore >= 80 ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-800'
                           }`}>
                             ⭐ {student.avgScore}%
                           </span>
                         ) : (
-                          <span className="text-xs font-semibold text-slate-400">Chưa có</span>
+                          <span className="text-xs font-semibold text-slate-400">Chưa làm</span>
                         )}
                       </td>
 
@@ -1045,7 +1054,7 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
                 <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-center">
                   <div className="text-xs font-extrabold text-amber-800 uppercase">Điểm trung bình</div>
                   <div className="text-2xl font-black text-amber-900 mt-1">
-                    {detailStudent.avgScore !== null ? `⭐ ${detailStudent.avgScore}%` : 'Chưa có'}
+                    {detailStudent.completedCount > 0 && detailStudent.avgScore !== null ? `⭐ ${detailStudent.avgScore}%` : 'Chưa làm'}
                   </div>
                 </div>
               </div>

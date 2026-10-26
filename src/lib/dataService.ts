@@ -398,6 +398,7 @@ export const dataService = {
         });
 
         return all.filter((a: any) => {
+          if (a.status !== 'open' || a.status === 'cancelled' || a.status === 'archived') return false;
           if (!teacherId || a.teacherId === teacherId) return true;
           const cls = classMap.get(a.classId);
           if (cls && (cls.teacherId === teacherId || (teacherId === 'user-1792533985096' && ['class-1b', 'class-2a'].includes(a.classId)))) return true;

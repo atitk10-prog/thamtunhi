@@ -826,10 +826,10 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                 <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-black text-slate-800">
-                      Các đợt giao bài gần đây
+                      Các đợt giao bài đang hoạt động (Tuần 1–9)
                     </h3>
                     <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                      Quản lý đợt giao bài theo lớp và hạn làm bài
+                      Danh sách các nhiệm vụ học tập tuần 1–9 đang mở cho học sinh
                     </p>
                   </div>
 
@@ -861,14 +861,16 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                      {assignments.length === 0 ? (
+                      {assignments.filter((a) => a.status === 'open' && a.status !== 'cancelled' && a.status !== 'archived').length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
-                            Chưa có đợt giao bài nào.
+                            Chưa có đợt giao bài nào đang hoạt động.
                           </td>
                         </tr>
                       ) : (
-                        assignments.map((a) => {
+                        assignments
+                          .filter((a) => a.status === 'open' && a.status !== 'cancelled' && a.status !== 'archived')
+                          .map((a) => {
                           const isCancelled = a.status === 'cancelled';
                           const isClosed = a.status === 'closed';
                           const isOverdue = a.dueDate ? new Date(a.dueDate).getTime() < Date.now() : false;

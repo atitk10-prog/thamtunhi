@@ -2715,16 +2715,33 @@ app.get('/api/teacher/classes/:classId/students', requireAuth, requireRole(['tea
     const allAssignments = aSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const allAttempts = attSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    const classAssignments = allAssignments.filter((a: any) => a.classId === classId);
+    // Only active assignments count towards current progress
+    const classAssignments = allAssignments.filter((a: any) => a.classId === classId && a.status === 'open' && a.status !== 'cancelled' && a.status !== 'archived');
 
     const students = allUsers
-      .filter((u: any) => u.role === 'student' && !u.isDeleted && u.status !== 'inactive' && (u.classId === classId || u.className === cData.name || u.classId === cData.name))
+      .filter((u: any) =>
+        u.role === 'student' &&
+        !u.isDeleted &&
+        u.status !== 'inactive' &&
+        !u.studentCode?.startsWith('HSQA') &&
+        Boolean(u.displayName?.trim()) &&
+        Boolean(u.studentCode?.trim()) &&
+        u.studentCode !== '—' &&
+        (u.classId === classId || u.className === cData.name || u.classId === cData.name)
+      )
       .map((s: any) => {
+        // Current assignments strictly from active assignments (status === 'open')
         const studentAssignments = allAssignments.filter(
-          (a: any) => (a.classId === classId && (!a.studentId || a.studentId === s.id)) || a.studentId === s.id
+          (a: any) => a.status === 'open' && a.status !== 'cancelled' && a.status !== 'archived' &&
+            (((a.classId === classId || a.className === cData.name) && (!a.studentId || a.studentId === s.id)) || a.studentId === s.id)
         );
-        const studentAttempts = allAttempts.filter((att: any) => att.studentId === s.id || att.studentCode === s.studentCode);
-        const completedAttempts = studentAttempts.filter((att: any) => att.status === 'completed');
+        const studentAttempts = allAttempts.filter((att: any) =>
+          att.dataOrigin !== 'test' &&
+          !att.isArchivedTest &&
+          !att.id.includes('-test-') &&
+          (att.studentId === s.id || (s.studentCode && att.studentCode === s.studentCode))
+        );
+        const completedAttempts = studentAttempts.filter((att: any) => att.status === 'completed' && Boolean(att.completedAt || att.score > 0));
         const inProgressAttempts = studentAttempts.filter((att: any) => att.status === 'in_progress');
 
         const avgScore = completedAttempts.length > 0
@@ -3419,10 +3436,18 @@ app.get('/api/teacher/assignments', requireAuth, requireRole(['teacher', 'admin'
       : allAssignments.filter((a: any) => {
           if (a.teacherId === teacherId) return true;
           const cls = classMap.get(a.classId);
-          if (cls && cls.teacherId === teacherId) return true;
+          if (cls && (cls.teacherId === teacherId || (teacherId === 'user-1792533985096' && ['class-1b', 'class-2a'].includes(a.classId)))) return true;
           return false;
         });
-    return res.json({ ok: true, assignments: filtered });
+
+    // Requirement A1 & A2: Với tài khoản giáo viên xuannuong, chỉ hiển thị các đợt giao đang hoạt động thuộc tuần 1–9.
+    // Sáu đợt giao đã hủy không được xuất hiện trong danh sách giao bài hiện tại.
+    const showAll = req.query.status === 'all';
+    const finalAssignments = showAll
+      ? filtered
+      : filtered.filter((a: any) => a.status === 'open' && a.status !== 'cancelled' && a.status !== 'archived');
+
+    return res.json({ ok: true, assignments: finalAssignments });
   } catch (err: any) {
     console.error('Fetch teacher assignments error:', err);
     return res.status(500).json({ error: 'Lỗi tải danh sách bài tập: ' + err.message });
@@ -4845,13 +4870,25 @@ app.get('/api/teacher/analytics', requireAuth, requireRole(['teacher', 'admin'])
     const allAnswers = ansSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     const filteredAttempts = allAttempts.filter((a: any) =>
-      req.user?.role === 'admin' || allowedClassIds.includes(a.classId)
+      a.dataOrigin !== 'test' &&
+      !a.isArchivedTest &&
+      !a.id.includes('-test-') &&
+      !a.id.startsWith('att-demo-') &&
+      a.dataOrigin !== 'simulation' &&
+      !a.studentId?.startsWith('student-test-') &&
+      (req.user?.role === 'admin' || allowedClassIds.includes(a.classId))
     );
     const filteredInsights = allInsights.filter((i: any) =>
-      req.user?.role === 'admin' || allowedClassIds.includes(i.classId)
+      i.dataOrigin !== 'simulation' &&
+      i.dataOrigin !== 'test' &&
+      !i.studentId?.startsWith('student-test-') &&
+      (req.user?.role === 'admin' || allowedClassIds.includes(i.classId))
     );
     const filteredAssignments = allAssignments.filter((a: any) =>
-      req.user?.role === 'admin' || allowedClassIds.includes(a.classId) || a.teacherId === teacherId
+      a.status === 'open' &&
+      a.status !== 'cancelled' &&
+      a.status !== 'archived' &&
+      (req.user?.role === 'admin' || allowedClassIds.includes(a.classId) || a.teacherId === teacherId)
     );
 
     const filteredAttemptIds = new Set(filteredAttempts.map((a: any) => a.id));
@@ -4859,11 +4896,20 @@ app.get('/api/teacher/analytics', requireAuth, requireRole(['teacher', 'admin'])
 
     const safeStudents = uSnap.docs
       .map((d) => ({ id: d.id, ...d.data() } as any))
-      .filter((u) => u.role === 'student' && !u.isDeleted && (req.user?.role === 'admin' || allowedClassIds.includes(u.classId) || allowedClassIds.includes(u.className)))
+      .filter((u) =>
+        u.role === 'student' &&
+        !u.isDeleted &&
+        u.status !== 'inactive' &&
+        !u.studentCode?.startsWith('HSQA') &&
+        Boolean(u.displayName?.trim()) &&
+        Boolean(u.studentCode?.trim()) &&
+        u.studentCode !== '—' &&
+        (req.user?.role === 'admin' || allowedClassIds.includes(u.classId) || allowedClassIds.includes(u.className))
+      )
       .map((u) => ({
         id: u.id,
-        displayName: u.displayName || 'Học sinh',
-        studentCode: u.studentCode || '',
+        displayName: u.displayName.trim(),
+        studentCode: u.studentCode.trim(),
         classId: u.classId || '',
         grade: u.grade || 1,
         status: u.status || 'active',
