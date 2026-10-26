@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hình vuông màu đỏ">
+  <defs>
+    <radialGradient id="squareShape" cx=".3" cy=".2">
+      <stop stop-color="#ff8e8e"/>
+      <stop offset=".65" stop-color="#ea3b3b"/>
+      <stop offset="1" stop-color="#b71c1c"/>
+    </radialGradient>
+  </defs>
+  <rect x="64" y="64" width="384" height="384" rx="28" fill="url(#squareShape)" stroke="#9c1515" stroke-width="9"/>
+  <path d="M102 142h220" stroke="#ffffff" stroke-width="12" opacity=".62" stroke-linecap="round" fill="none"/>
+</svg>

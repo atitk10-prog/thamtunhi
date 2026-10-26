@@ -436,7 +436,7 @@ app.post('/api/auth/teacher-login', async (req: Request, res: Response) => {
     );
     let snap = await getDocs(q);
 
-    if (snap.empty && (cleanEmail.includes('xuannuong') || cleanEmail === 'xuannuong')) {
+    if (snap.empty && (cleanEmail === 'xuannuong' || cleanEmail === 'xuannuong@thamtunhi.edu.vn' || cleanEmail === 'xuannuong@gmail.com')) {
       snap = await getDocs(query(collection(db, 'users'), where('email', '==', 'xuannuong@gmail.com')));
     }
 
@@ -3610,8 +3610,8 @@ app.put('/api/teacher/assignments/:id', requireAuth, requireRole(['teacher', 'ad
     const assignData: any = assignSnap.data();
 
     // Permission check: admin, creator, or homeroom teacher of the class
-    const clsSnap = await getDoc(doc(db, 'classes', assignData.classId));
-    const isClassTeacher = clsSnap.exists() && (clsSnap.data()?.teacherId === req.user?.uid || (Boolean(req.user?.email?.includes('xuannuong')) && ['class-1b', 'class-2a'].includes(assignData.classId)));
+    const isXuannuongTeacher = req.user?.email === 'xuannuong@gmail.com' || req.user?.email === 'xuannuong@thamtunhi.edu.vn';
+    const isClassTeacher = clsSnap.exists() && (clsSnap.data()?.teacherId === req.user?.uid || (isXuannuongTeacher && ['class-1b', 'class-2a'].includes(assignData.classId)));
     if (req.user?.role !== 'admin' && assignData.teacherId !== req.user?.uid && !isClassTeacher) {
       return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền chỉnh sửa bài giao của giáo viên khác.' });
     }
@@ -3671,9 +3671,8 @@ app.post('/api/teacher/assignments/:id/cancel', requireAuth, requireRole(['teach
     }
     const assignData: any = assignSnap.data();
 
-    // Permission check: admin, creator, or homeroom teacher of the class
-    const clsSnap = await getDoc(doc(db, 'classes', assignData.classId));
-    const isClassTeacher = clsSnap.exists() && (clsSnap.data()?.teacherId === req.user?.uid || (Boolean(req.user?.email?.includes('xuannuong')) && ['class-1b', 'class-2a'].includes(assignData.classId)));
+    const isXuannuongTeacher = req.user?.email === 'xuannuong@gmail.com' || req.user?.email === 'xuannuong@thamtunhi.edu.vn';
+    const isClassTeacher = clsSnap.exists() && (clsSnap.data()?.teacherId === req.user?.uid || (isXuannuongTeacher && ['class-1b', 'class-2a'].includes(assignData.classId)));
     if (req.user?.role !== 'admin' && assignData.teacherId !== req.user?.uid && !isClassTeacher) {
       return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền hủy bài giao của giáo viên khác.' });
     }
@@ -3716,9 +3715,8 @@ app.delete('/api/teacher/assignments/:id', requireAuth, requireRole(['teacher', 
     }
     const assignData: any = assignSnap.data();
 
-    // Permission check: admin, creator, or homeroom teacher of the class
-    const clsSnap = await getDoc(doc(db, 'classes', assignData.classId));
-    const isClassTeacher = clsSnap.exists() && (clsSnap.data()?.teacherId === req.user?.uid || (Boolean(req.user?.email?.includes('xuannuong')) && ['class-1b', 'class-2a'].includes(assignData.classId)));
+    const isXuannuongTeacher = req.user?.email === 'xuannuong@gmail.com' || req.user?.email === 'xuannuong@thamtunhi.edu.vn';
+    const isClassTeacher = clsSnap.exists() && (clsSnap.data()?.teacherId === req.user?.uid || (isXuannuongTeacher && ['class-1b', 'class-2a'].includes(assignData.classId)));
     if (req.user?.role !== 'admin' && assignData.teacherId !== req.user?.uid && !isClassTeacher) {
       return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền xóa bài giao của giáo viên khác.' });
     }
@@ -3766,8 +3764,8 @@ app.get('/api/teacher/assignments/:id/progress', requireAuth, requireRole(['teac
     const classDoc = await getDoc(doc(db, 'classes', assignment.classId));
     const classroom: any = classDoc.exists() ? { id: classDoc.id, ...classDoc.data() } : null;
 
-    // Permission check: admin, creator, or homeroom teacher of the class
-    const isClassTeacher = classroom && (classroom.teacherId === req.user?.uid || (Boolean(req.user?.email?.includes('xuannuong')) && ['class-1b', 'class-2a'].includes(assignment.classId)));
+    const isXuannuongTeacher = req.user?.email === 'xuannuong@gmail.com' || req.user?.email === 'xuannuong@thamtunhi.edu.vn';
+    const isClassTeacher = classroom && (classroom.teacherId === req.user?.uid || (isXuannuongTeacher && ['class-1b', 'class-2a'].includes(assignment.classId)));
     if (req.user?.role !== 'admin' && assignment.teacherId !== req.user?.uid && !isClassTeacher) {
       return res.status(403).json({ error: 'Từ chối: Thầy/Cô không có quyền xem tiến độ của bài giao này.' });
     }
