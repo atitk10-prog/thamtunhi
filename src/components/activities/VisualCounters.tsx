@@ -275,105 +275,35 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
     );
   }
 
-  // 3. Discrete Counter Model (Only when question asks for dots, replacing answer-revealing grid frames)
+  // 3. Discrete Counter Model (Bỏ khung Five-Frame / Ten-Frame, hiển thị trực quan đồ vật thật)
   const isFrame = config.type === 'ten_frame' || config.type === 'five_frame';
   if (isFrame) {
-    const count = config.count ?? (config.ones ?? 0);
+    const count = Math.max(0, config.count ?? (config.ones ?? 0));
+    const effectiveDisplayUnit = icon === 'dot' ? 'đồ vật' : unitName;
 
-    // If question is about a specific object (carrots, sticks, flowers, etc.) rather than dots, render actual objects
-    if (icon !== 'dot') {
-      return (
-        <div className="my-4 p-5 bg-sky-50/80 rounded-2xl border-2 border-sky-100 max-w-lg mx-auto">
-          <div className="text-xs uppercase tracking-wider font-extrabold text-sky-700 mb-3 text-center">
-            {isTeacherView ? `Mô hình quan sát: ${count} ${unitName}` : `Quan sát các ${unitName} và đếm:`}
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {Array.from({ length: Math.min(count, 30) }).map((_, i) => renderIcon(i, 'frame-obj'))}
-          </div>
-        </div>
-      );
-    }
-
-    const dotColor = config.dotColor || 'blue';
-    const isDual = dotColor === 'dual' || (typeof config.leftCount === 'number' && typeof config.rightCount === 'number' && (config.leftCount > 0 || config.rightCount > 0));
-    const redCount = config.leftCount ?? (isDual ? Math.floor(count / 2) : 0);
-    const blueCount = config.rightCount ?? (isDual ? count - redCount : 0);
-
-    if (isDual) {
+    if (count === 0) {
       return (
         <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-md mx-auto">
-          <div className="text-xs font-black uppercase tracking-wider text-sky-800 text-center mb-3">
-            {isTeacherView ? `Mô hình chấm tròn (${redCount} chấm đỏ + ${blueCount} chấm xanh)` : 'Quan sát các chấm tròn:'}
+          <div className="text-xs font-black uppercase tracking-wider text-sky-800 text-center mb-2">
+            {isTeacherView ? `Mô hình đếm (0 ${effectiveDisplayUnit})` : 'Khay quan sát đồ vật'}
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 p-4 bg-white/90 rounded-2xl border-2 border-sky-200 shadow-inner">
-            <div className="flex flex-col items-center">
-              <div className="text-[11px] font-black text-rose-700 mb-1.5 uppercase">
-                {isTeacherView ? `${redCount} chấm đỏ` : 'Nhóm chấm đỏ'}
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-2 max-w-[140px]">
-                {Array.from({ length: redCount }).map((_, i) => (
-                  <div
-                    key={`dot-red-${i}`}
-                    className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-rose-700 text-white shadow-sm flex items-center justify-center text-sm font-bold transition-transform hover:scale-110 select-none"
-                  >
-                    ●
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="text-2xl font-black text-slate-400">+</div>
-            <div className="flex flex-col items-center">
-              <div className="text-[11px] font-black text-sky-700 mb-1.5 uppercase">
-                {isTeacherView ? `${blueCount} chấm xanh` : 'Nhóm chấm xanh'}
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-2 max-w-[140px]">
-                {Array.from({ length: blueCount }).map((_, i) => (
-                  <div
-                    key={`dot-blue-${i}`}
-                    className="w-9 h-9 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 border-2 border-blue-700 text-white shadow-sm flex items-center justify-center text-sm font-bold transition-transform hover:scale-110 select-none"
-                  >
-                    ●
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
+            <span className="text-2xl mb-1">🧺</span>
+            <span className="text-sm font-black text-slate-700">0 {effectiveDisplayUnit}</span>
+            <span className="text-xs font-semibold text-slate-400 mt-0.5">(Khay rỗng – Số lượng: 0)</span>
           </div>
         </div>
       );
     }
 
-    const dotClasses: Record<string, string> = {
-      blue: 'bg-gradient-to-br from-sky-400 to-blue-600 border-2 border-blue-700 text-white',
-      red: 'bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-rose-700 text-white',
-      green: 'bg-gradient-to-br from-emerald-400 to-emerald-600 border-2 border-emerald-700 text-white',
-      amber: 'bg-gradient-to-br from-amber-400 to-amber-600 border-2 border-amber-700 text-white',
-    };
-    const dotClass = dotClasses[dotColor] || dotClasses.blue;
-
     return (
-      <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-md mx-auto">
-        <div className="text-xs font-black uppercase tracking-wider text-sky-700 text-center mb-2">
-          {isTeacherView ? `Mô hình chấm tròn đếm (${count} chấm tròn)` : 'Quan sát và đếm các chấm tròn:'}
+      <div className="my-4 p-5 bg-sky-50/80 rounded-2xl border-2 border-sky-100 max-w-lg mx-auto">
+        <div className="text-xs uppercase tracking-wider font-extrabold text-sky-700 mb-3 text-center">
+          {isTeacherView ? `Mô hình quan sát trực quan: ${count} ${effectiveDisplayUnit}` : `Quan sát các ${effectiveDisplayUnit} và đếm:`}
         </div>
-        {count === 0 ? (
-          <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
-            <span className="text-2xl mb-1">⚪</span>
-            <span className="text-xs font-semibold text-slate-400">
-              {isTeacherView ? '(0 chấm tròn – Bảng đếm rỗng)' : '(Bảng đếm rỗng – Chưa có chấm tròn)'}
-            </span>
-          </div>
-        ) : (
-          <div className="p-4 bg-white/90 rounded-2xl border-2 border-sky-200 shadow-inner flex flex-wrap items-center justify-center gap-3 min-h-[70px]">
-            {Array.from({ length: count }).map((_, i) => (
-              <div
-                key={`dot-${i}`}
-                className={`w-9 h-9 rounded-full ${dotClass} shadow-sm flex items-center justify-center text-sm font-bold animate-in zoom-in-50 transition-transform hover:scale-110 select-none`}
-              >
-                ●
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {Array.from({ length: Math.min(count, 30) }).map((_, i) => renderIcon(i, 'direct-count-obj'))}
+        </div>
       </div>
     );
   }
@@ -776,38 +706,46 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
       }
     };
 
+    const getBanknoteImageUrl = (denom: number) => {
+      const map: Record<number, string> = {
+        100: '/assets/toan-nhi/money-100-front.png',
+        200: '/assets/toan-nhi/money-200-front.png',
+        500: '/assets/toan-nhi/money-500-front.png',
+        1000: '/assets/toan-nhi/money-1000.png',
+        2000: '/assets/toan-nhi/money-2000.png',
+        5000: '/assets/toan-nhi/money-5000.png',
+        10000: '/assets/toan-nhi/money-10000.png',
+        20000: '/assets/toan-nhi/money-20000.png',
+        50000: '/assets/toan-nhi/money-50000.png',
+        100000: '/assets/toan-nhi/money-100000.png',
+        200000: '/assets/toan-nhi/money-200000.png',
+        500000: '/assets/toan-nhi/money-500000.png',
+      };
+      return map[denom] || '/assets/toan-nhi/money-1000.png';
+    };
+
     return (
       <div className="my-5 p-5 bg-gradient-to-b from-amber-50/70 to-emerald-50/40 rounded-3xl border-2 border-emerald-200/80 max-w-xl mx-auto shadow-xs">
         <div className="text-xs uppercase tracking-wider font-extrabold text-emerald-800 mb-3 text-center flex items-center justify-center gap-1.5">
-          <span>🪙</span> Tiền Việt Nam (VNĐ) trực quan
+          <span>🪙</span> Tiền Việt Nam (VNĐ) nguyên bản SGK
         </div>
         <div className="flex flex-wrap items-center justify-center gap-4">
           {bills.map((item, bIdx) => {
             const style = getBanknoteStyle(item.denomination);
             const count = Math.min(item.count || 1, 10);
+            const imgUrl = getBanknoteImageUrl(item.denomination);
+
             return (
               <div key={bIdx} className="flex flex-col items-center">
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   {Array.from({ length: count }).map((_, cIdx) => (
-                    <div
-                      key={cIdx}
-                      className={`relative w-40 h-22 sm:w-44 sm:h-24 rounded-xl border-2 ${style.border} ${style.bg} p-2 shadow-md flex flex-col justify-between transition-transform hover:scale-105`}
-                    >
-                      <div className="text-[7.5px] font-black tracking-tighter text-slate-700 text-center uppercase leading-tight truncate">
-                        CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
-                      </div>
-                      <div className="flex items-center justify-between px-1">
-                        <div className="w-6 h-6 rounded-full border border-amber-600/40 bg-amber-400/20 flex items-center justify-center text-[9px] font-black text-amber-700">
-                          ★
-                        </div>
-                        <div className={`text-base sm:text-lg font-black tracking-tight ${style.text}`}>
-                          {item.denomination.toLocaleString('vi-VN')}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-[8px] font-black text-slate-600 px-1">
-                        <span>NGÂN HÀNG NHÀ NƯỚC</span>
-                        <span className="uppercase text-emerald-700 font-extrabold">ĐỒNG</span>
-                      </div>
+                    <div key={cIdx} className="relative transition-transform hover:scale-105 filter drop-shadow-md">
+                      <img
+                        src={imgUrl}
+                        alt={`Tờ tiền ${style.name} (${style.label})`}
+                        className="h-20 sm:h-24 w-auto object-contain rounded-lg border border-slate-200/90 shadow-sm select-none"
+                        loading="lazy"
+                      />
                     </div>
                   ))}
                 </div>

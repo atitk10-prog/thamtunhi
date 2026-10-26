@@ -1573,7 +1573,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                 <div className="text-[10px] font-black uppercase text-slate-400 mb-1 text-center tracking-wider">
                                   Màn hình học sinh sẽ nhìn thấy:
                                 </div>
-                                <VisualCounters config={q.visualConfig} isTeacherView={true} />
+                                <VisualCounters config={q.visualConfig} isTeacherView={true} questionPrompt={q.prompt} />
                               </div>
                             )}
                           </div>
