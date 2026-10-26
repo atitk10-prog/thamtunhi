@@ -1,0 +1,397 @@
+{
+  "lesson": {
+    "durationMinutes": 20,
+    "grade": 1,
+    "currentVersion": 3,
+    "learningStandard": "Rèn luyện kỹ năng và khắc phục mẫu lỗi theo chuẩn GDPT 2018",
+    "title": "Bài tập Toán: Luyện tập các số 1 2 3 4 5 (v3)",
+    "isPublished": true,
+    "totalQuestions": 5,
+    "environmentTag": "production",
+    "description": "Bài học do AI hỗ trợ soạn nháp với 4 câu hỏi theo chuẩn GDPT 2018.",
+    "updatedAt": "2026-10-26T05:03:33.042Z",
+    "id": "lesson-draft-1792910089741",
+    "currentVersionId": "version-lesson-draft-1792910089741-v3",
+    "createdAt": "2026-10-25T06:34:49.741Z",
+    "createdBy": "user-1792533985096",
+    "status": "published",
+    "dataOrigin": "real",
+    "topic": "So hoc - Phep cong trong pham vi 10"
+  },
+  "v2": {
+    "title": "Bài tập Toán: Luyện tập các số 1 2 3 4 5",
+    "publishedAt": "2026-10-25T06:35:35.167Z",
+    "updatedAt": "2026-10-26T16:05:21.522Z",
+    "grade": 1,
+    "id": "version-lesson-draft-1792910089741-v2",
+    "dataOrigin": "real",
+    "createdBy": "user-1792533985096",
+    "isPublished": true,
+    "versionNumber": 2,
+    "learningStandard": "Rèn luyện kỹ năng và khắc phục mẫu lỗi theo chuẩn GDPT 2018",
+    "topic": "Luyện tập các số 1 2 3 4 5",
+    "questions": [
+      {
+        "ruleHints": [
+          {
+            "pattern": "COUNTING_OFF_BY_ONE",
+            "hintText": "Bé hãy đếm thật cẩn thận từng quả táo, đừng bỏ sót quả nào nhé!",
+            "visualActionGuidance": "Chạm vào từng quả táo trên màn hình để đếm từ 1 đến 4."
+          }
+        ],
+        "skillTag": "Luyện tập các số 1 2 3 4 5",
+        "interactionType": "single_choice",
+        "hintAudioHash": "67a907b27884aefb",
+        "options": [
+          "3",
+          "4",
+          "5",
+          "2"
+        ],
+        "order": 1,
+        "prompt": "Bé hãy đếm xem có tất cả bao nhiêu quả táo trong hình nhé?",
+        "explanation": "Bé đếm lần lượt các quả táo từ trái qua phải: 1, 2, 3, 4. Vậy có tất cả 4 quả táo.",
+        "id": "q-math-1",
+        "difficulty": "medium",
+        "audioHash": "baae5490ee3b328f",
+        "hintAudioUrl": "/audio/h_67a907b27884aefb.mp3",
+        "visualConfig": {
+          "iconName": "apple",
+          "type": "counters",
+          "count": 4
+        },
+        "audioUrl": "/audio/q_baae5490ee3b328f.mp3",
+        "acceptableAnswers": [
+          "4"
+        ],
+        "expectedAnswer": "4"
+      },
+      {
+        "audioUrl": "/audio/q_c14fee9f5abcf7a8.mp3",
+        "ruleHints": [
+          {
+            "visualActionGuidance": "Đếm nhóm chim thứ nhất rồi đếm tiếp nhóm chim thứ hai.",
+            "hintText": "Bài toán hỏi 'tất cả' tức là chúng ta gộp lại với nhau để tính tổng đấy bé ạ!",
+            "pattern": "WORD_PROBLEM_WRONG_OPERATION"
+          }
+        ],
+        "prompt": "Trên cành có 2 con chim, có thêm 3 con chim bay đến nữa. Hỏi có tất cả bao nhiêu con chim?",
+        "id": "q-math-2",
+        "hintAudioHash": "eb9a3f445e4f49cf",
+        "difficulty": "medium",
+        "expectedAnswer": "5",
+        "acceptableAnswers": [
+          "5"
+        ],
+        "hintAudioUrl": "/audio/h_eb9a3f445e4f49cf.mp3",
+        "visualConfig": {
+          "rightCount": 3,
+          "type": "addition",
+          "iconName": "bird",
+          "leftCount": 2
+        },
+        "explanation": "Ta gộp 2 con chim với 3 con chim được tất cả 5 con chim. Phép tính là: 2 + 3 = 5.",
+        "order": 2,
+        "audioHash": "c14fee9f5abcf7a8",
+        "skillTag": "Luyện tập các số 1 2 3 4 5",
+        "interactionType": "single_choice",
+        "options": [
+          "4",
+          "5",
+          "3",
+          "1"
+        ]
+      },
+      {
+        "acceptableAnswers": [
+          "<"
+        ],
+        "expectedAnswer": "<",
+        "audioUrl": "/audio/q_f4ab0621ebc45d7f.mp3",
+        "options": [
+          "+",
+          "-",
+          "=",
+          ">",
+          "<"
+        ],
+        "order": 3,
+        "audioHash": "f4ab0621ebc45d7f",
+        "explanation": "Số 3 đứng trước số 5 khi đếm số nên 3 nhỏ hơn 5. Ta điền dấu bé hơn (<).",
+        "hintAudioUrl": "/audio/h_2d6bf505429285cd.mp3",
+        "visualConfig": {
+          "type": "comparison",
+          "rightCount": 5,
+          "leftCount": 3,
+          "iconName": "star"
+        },
+        "difficulty": "medium",
+        "prompt": "Bé hãy điền dấu thích hợp vào ô trống: 3 ... 5",
+        "ruleHints": [
+          {
+            "pattern": "COMPARISON_INVERSION",
+            "hintText": "Bé hãy nhớ miệng của dấu lớn luôn há ra ăn số lớn hơn nhé!",
+            "visualActionGuidance": "So sánh số lượng ngôi sao ở nhóm trái và nhóm phải."
+          }
+        ],
+        "hintAudioHash": "2d6bf505429285cd",
+        "id": "q-math-3",
+        "interactionType": "operator_pick",
+        "skillTag": "Luyện tập các số 1 2 3 4 5"
+      },
+      {
+        "explanation": "Khung 5 ô đã được lấp đầy cả 5 ô bằng củ cà rốt. Vậy số lượng là 5.",
+        "hintAudioHash": "3d94b93cd6efc551",
+        "difficulty": "medium",
+        "hintAudioUrl": "/audio/h_3d94b93cd6efc551.mp3",
+        "visualConfig": {
+          "dotColor": "orange",
+          "gridSize": 5,
+          "count": 5,
+          "type": "five_frame"
+        },
+        "ruleHints": [
+          {
+            "hintText": "Khung có tất cả 5 ô và đều có hình cà rốt ở trong đó bé ơi!",
+            "visualActionGuidance": "Đếm lần lượt từng ô trong khung từ trái sang phải.",
+            "pattern": "COUNTING_OFF_BY_ONE"
+          }
+        ],
+        "interactionType": "number_input",
+        "audioUrl": "/audio/q_e9b7b62c2a8a0b19.mp3",
+        "expectedAnswer": "5",
+        "skillTag": "Luyện tập các số 1 2 3 4 5",
+        "acceptableAnswers": [
+          "5"
+        ],
+        "id": "q-math-4",
+        "prompt": "Bé hãy đếm số lượng củ cà rốt có trong khung năm ô dưới đây nhé!",
+        "order": 4,
+        "audioHash": "e9b7b62c2a8a0b19"
+      }
+    ],
+    "environmentTag": "production",
+    "lessonId": "lesson-draft-1792910089741"
+  },
+  "v3": {
+    "dataOrigin": "real",
+    "versionNumber": 3,
+    "topic": "So hoc - Phep cong trong pham vi 10",
+    "isPublished": true,
+    "learningStandard": "Rèn luyện kỹ năng và khắc phục mẫu lỗi theo chuẩn GDPT 2018",
+    "updatedAt": "2026-10-26T16:05:22.894Z",
+    "environmentTag": "production",
+    "lessonId": "lesson-draft-1792910089741",
+    "title": "Bài tập Toán: Luyện tập các số 1 2 3 4 5 (v3)",
+    "questions": [
+      {
+        "audioHash": "e5f3d2be152c4981",
+        "skillTag": "Luyện tập các số 1 2 3 4 5",
+        "hintAudioHash": "67a907b27884aefb",
+        "interactionType": "single_choice",
+        "acceptableAnswers": [
+          "4"
+        ],
+        "id": "q-math-1",
+        "expectedAnswer": "5",
+        "options": [
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "hintAudioUrl": "/audio/h_67a907b27884aefb.mp3",
+        "prompt": "2 + 3 = ?",
+        "visualConfig": {
+          "count": 4,
+          "type": "counters",
+          "iconName": "apple"
+        },
+        "ruleHints": [
+          {
+            "pattern": "COUNTING_OFF_BY_ONE",
+            "hintText": "Bé hãy đếm thật cẩn thận từng quả táo, đừng bỏ sót quả nào nhé!",
+            "visualActionGuidance": "Chạm vào từng quả táo trên màn hình để đếm từ 1 đến 4."
+          }
+        ],
+        "difficulty": "medium",
+        "audioUrl": "/audio/q_e5f3d2be152c4981.mp3",
+        "explanation": "Bé đếm lần lượt các quả táo từ trái qua phải: 1, 2, 3, 4. Vậy có tất cả 4 quả táo.",
+        "order": 1
+      },
+      {
+        "interactionType": "single_choice",
+        "skillTag": "Luyện tập các số 1 2 3 4 5",
+        "order": 2,
+        "hintAudioUrl": "/audio/h_eb9a3f445e4f49cf.mp3",
+        "id": "q-math-2",
+        "audioHash": "07e2fb5eaa0665fe",
+        "visualConfig": {
+          "iconName": "bird",
+          "type": "addition",
+          "rightCount": 3,
+          "leftCount": 2
+        },
+        "expectedAnswer": "8",
+        "hintAudioHash": "eb9a3f445e4f49cf",
+        "prompt": "4 + 4 = ?",
+        "explanation": "Ta gộp 2 con chim với 3 con chim được tất cả 5 con chim. Phép tính là: 2 + 3 = 5.",
+        "difficulty": "medium",
+        "audioUrl": "/audio/q_07e2fb5eaa0665fe.mp3",
+        "ruleHints": [
+          {
+            "pattern": "WORD_PROBLEM_WRONG_OPERATION",
+            "visualActionGuidance": "Đếm nhóm chim thứ nhất rồi đếm tiếp nhóm chim thứ hai.",
+            "hintText": "Bài toán hỏi 'tất cả' tức là chúng ta gộp lại với nhau để tính tổng đấy bé ạ!"
+          }
+        ],
+        "options": [
+          "6",
+          "7",
+          "8",
+          "9"
+        ],
+        "acceptableAnswers": [
+          "5"
+        ]
+      },
+      {
+        "id": "q-math-3",
+        "acceptableAnswers": [
+          "<"
+        ],
+        "options": [
+          "+",
+          "-",
+          "=",
+          ">",
+          "<"
+        ],
+        "interactionType": "operator_pick",
+        "ruleHints": [
+          {
+            "pattern": "COMPARISON_INVERSION",
+            "visualActionGuidance": "So sánh số lượng ngôi sao ở nhóm trái và nhóm phải.",
+            "hintText": "Bé hãy nhớ miệng của dấu lớn luôn há ra ăn số lớn hơn nhé!"
+          }
+        ],
+        "expectedAnswer": "<",
+        "explanation": "Số 3 đứng trước số 5 khi đếm số nên 3 nhỏ hơn 5. Ta điền dấu bé hơn (<).",
+        "audioUrl": "/audio/q_f4ab0621ebc45d7f.mp3",
+        "audioHash": "f4ab0621ebc45d7f",
+        "hintAudioHash": "2d6bf505429285cd",
+        "difficulty": "medium",
+        "prompt": "Bé hãy điền dấu thích hợp vào ô trống: 3 ... 5",
+        "skillTag": "Luyện tập các số 1 2 3 4 5",
+        "hintAudioUrl": "/audio/h_2d6bf505429285cd.mp3",
+        "visualConfig": {
+          "leftCount": 3,
+          "rightCount": 5,
+          "iconName": "star",
+          "type": "comparison"
+        },
+        "order": 3
+      },
+      {
+        "id": "q-math-4",
+        "visualConfig": {
+          "count": 5,
+          "type": "counters",
+          "iconName": "carrot"
+        },
+        "audioHash": "e9b7b62c2a8a0b19",
+        "skillTag": "Luyện tập các số 1 2 3 4 5",
+        "difficulty": "medium",
+        "hintAudioUrl": "/audio/h_3d94b93cd6efc551.mp3",
+        "explanation": "Khung 5 ô đã được lấp đầy cả 5 ô bằng củ cà rốt. Vậy số lượng là 5.",
+        "acceptableAnswers": [
+          "5"
+        ],
+        "expectedAnswer": "5",
+        "interactionType": "number_input",
+        "order": 4,
+        "prompt": "Bé hãy đếm số lượng củ cà rốt có trong khung năm ô dưới đây nhé!",
+        "hintAudioHash": "3d94b93cd6efc551",
+        "ruleHints": [
+          {
+            "visualActionGuidance": "Đếm lần lượt từng ô trong khung từ trái sang phải.",
+            "hintText": "Khung có tất cả 5 ô và đều có hình cà rốt ở trong đó bé ơi!",
+            "pattern": "COUNTING_OFF_BY_ONE"
+          }
+        ],
+        "audioUrl": "/audio/q_e9b7b62c2a8a0b19.mp3"
+      },
+      {
+        "hintAudioUrl": "/audio/h_97da58cbc86158fb.mp3",
+        "order": 5,
+        "difficulty": "medium",
+        "explanation": "Giải thích chi tiết các bước tính.",
+        "skillTag": "So hoc - Phep cong trong pham vi 10",
+        "audioHash": "b16d99d0e9d2baa2",
+        "acceptableAnswers": [
+          "10"
+        ],
+        "hintAudioHash": "97da58cbc86158fb",
+        "prompt": "Câu hỏi toán số 5",
+        "interactionType": "number_input",
+        "audioUrl": "/audio/q_b16d99d0e9d2baa2.mp3",
+        "expectedAnswer": "10",
+        "ruleHints": [
+          {
+            "pattern": "GENERAL_CALCULATION_ERROR",
+            "hintText": "Hãy quan sát kỹ và kiểm tra lại từng bước tính."
+          }
+        ],
+        "id": "q-custom-1792990816583-5"
+      }
+    ],
+    "publishedAt": "2026-10-26T05:03:33.042Z",
+    "id": "version-lesson-draft-1792910089741-v3",
+    "grade": 1,
+    "createdBy": "user-1792533985096"
+  },
+  "assignment": {
+    "updatedAt": "2026-10-25T09:38:42.978Z",
+    "className": "1B",
+    "status": "open",
+    "classId": "class-1b",
+    "teacherName": "Hà Thị Xuân Nương",
+    "id": "assign-lesson-draft-1792910089741-class-1b-122978",
+    "teacherId": "user-1792533985096",
+    "grade": 1,
+    "environmentTag": "production",
+    "createdAt": "2026-10-25T09:38:42.978Z",
+    "dueDate": "2026-11-01",
+    "title": "[Toán 1] Bài tập Toán: Luyện tập các số 1 2 3 4 5",
+    "lessonId": "lesson-draft-1792910089741",
+    "lessonVersionId": "version-lesson-draft-1792910089741-v2",
+    "dataOrigin": "real"
+  },
+  "attemptsCount": 4,
+  "attemptsSample": [
+    {
+      "id": "att-assign-lesson-draft-1792910089741-class-1b-122978-student-hs1b12",
+      "lessonVersionId": "version-lesson-draft-1792910089741-v2",
+      "studentId": "student-hs1b12",
+      "score": 37
+    },
+    {
+      "id": "att-assign-lesson-draft-1792910089741-class-1b-122978-student-hs1b12-1792932215314",
+      "lessonVersionId": "version-lesson-draft-1792910089741-v2",
+      "studentId": "student-hs1b12",
+      "score": 40
+    },
+    {
+      "id": "att-assign-lesson-draft-1792910089741-class-1b-122978-student-hs1b12-1792974921124",
+      "lessonVersionId": "version-lesson-draft-1792910089741-v2",
+      "studentId": "student-hs1b12",
+      "score": 37
+    },
+    {
+      "id": "att-assign-lesson-draft-1792910089741-class-1b-122978-student-hs1b12-1792983477364",
+      "lessonVersionId": "version-lesson-draft-1792910089741-v2",
+      "studentId": "student-hs1b12",
+      "score": 0
+    }
+  ]
+}

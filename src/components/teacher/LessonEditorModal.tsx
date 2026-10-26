@@ -32,7 +32,7 @@ import { VisualCounters } from '../activities/VisualCounters';
 import { MediaLibraryModal } from './MediaLibraryModal';
 import { AiDraftModal, AiDraftMeta } from './AiDraftModal';
 import { normalizeAssetUrl, getAssetCountUnit } from '../../lib/standardAssets';
-import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash } from '../../lib/vietnameseTts';
+import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash, getQuestionSpokenText, getHintSpokenText } from '../../lib/vietnameseTts';
 import { playVietnameseAudio, stopVietnameseAudio } from '../../lib/vietnameseAudioPlayer';
 
 interface LessonEditorModalProps {
@@ -254,16 +254,15 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     const updated = [...questions];
     updated[index] = { ...updated[index], [field]: value };
 
-    // Invalidate outdated audio hash & url if prompt or ruleHints changed (Req IV.4)
-    if (field === 'prompt') {
-      const spoken = normalizeMathTextForSpeech(value, updated[index].options);
+    // Invalidate outdated audio hash & url if prompt, customSpokenPrompt, ruleHints, or customSpokenHint changed (Req IV.4 & Req D)
+    if (field === 'prompt' || field === 'customSpokenPrompt') {
+      const spoken = getQuestionSpokenText(updated[index]);
       const hash = getAudioHash(spoken);
       updated[index].audioHash = hash;
       updated[index].audioUrl = `/audio/q_${hash}.mp3`;
-    } else if (field === 'ruleHints') {
-      const hint = value && value[0] ? value[0].hintText : '';
-      if (hint) {
-        const spokenHint = normalizeMathTextForSpeech(hint);
+    } else if (field === 'ruleHints' || field === 'customSpokenHint') {
+      const spokenHint = getHintSpokenText(updated[index]);
+      if (spokenHint) {
         const hHash = getAudioHash(spokenHint);
         updated[index].hintAudioHash = hHash;
         updated[index].hintAudioUrl = `/audio/h_${hHash}.mp3`;
@@ -281,7 +280,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     updated[qIdx].options = currentOpts;
 
     // Invalidate audio for question if text options changed
-    const spoken = normalizeMathTextForSpeech(updated[qIdx].prompt, currentOpts);
+    const spoken = getQuestionSpokenText(updated[qIdx]);
     const hash = getAudioHash(spoken);
     updated[qIdx].audioHash = hash;
     updated[qIdx].audioUrl = `/audio/q_${hash}.mp3`;
@@ -299,9 +298,9 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     stopVietnameseAudio();
     setPlayingEditorAudioId(key);
 
-    const spoken = normalizeMathTextForSpeech(q.prompt, q.options);
+    const spoken = getQuestionSpokenText(q);
     const hash = getAudioHash(spoken);
-    const url = q.audioUrl || `/audio/q_${hash}.mp3`;
+    const url = `/audio/q_${hash}.mp3?text=${encodeURIComponent(spoken)}`;
 
     playVietnameseAudio(
       url,
@@ -321,10 +320,9 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     stopVietnameseAudio();
     setPlayingEditorAudioId(key);
 
-    const hint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
-    const spoken = normalizeMathTextForSpeech(hint);
+    const spoken = getHintSpokenText(q);
     const hash = getAudioHash(spoken);
-    const url = q.hintAudioUrl || `/audio/h_${hash}.mp3`;
+    const url = `/audio/h_${hash}.mp3?text=${encodeURIComponent(spoken)}`;
 
     playVietnameseAudio(
       url,
@@ -413,10 +411,9 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     let finalQuestions = questions;
     if (grade === 1 && isGrade1Weeks1To9({ grade: 1, title: topic })) {
       finalQuestions = questions.map((q) => {
-        const spokenPrompt = normalizeMathTextForSpeech(q.prompt, q.options);
+        const spokenPrompt = getQuestionSpokenText(q);
         const pHash = getAudioHash(spokenPrompt);
-        const hint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
-        const spokenHint = hint ? normalizeMathTextForSpeech(hint) : '';
+        const spokenHint = getHintSpokenText(q);
         const hHash = spokenHint ? getAudioHash(spokenHint) : undefined;
 
         return {
@@ -536,6 +533,108 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       if (q.interactionType === 'expression_match' && (!q.pairs || q.pairs.length < 2)) {
         setErrorMsg(`Câu hỏi số ${i + 1} (ghép nối) cần ít nhất 2 cặp thẻ.`);
         return;
+      }
+
+      // Strict Pre-Publish Pedagogical & Consistency Validation (Req A, B, D)
+      if (publish) {
+        const vc = q.visualConfig;
+        const hasAuto = vc && vc.type !== 'none' && vc.type !== 'image' && !vc.imageUrl;
+        const numericAnswer = parseInt(safeAnswer, 10);
+
+        // 1. Check visual counter & math match
+        if (hasAuto && !isNaN(numericAnswer)) {
+          if ((vc.type === 'counters' || vc.type === 'five_frame' || vc.type === 'ten_frame') && vc.count !== undefined) {
+            // If the prompt is a counting question or doesn't have an addition formula overriding
+            const isAddFormula = safePrompt.includes('+');
+            if (!isAddFormula && vc.count !== numericAnswer) {
+              setErrorMsg(`Câu hỏi số ${i + 1}: Số lượng hình minh họa (${vc.count}) không khớp với đáp án chuẩn (${safeAnswer}). Vui lòng sửa lại trước khi xuất bản.`);
+              return;
+            }
+          } else if (vc.type === 'addition') {
+            const left = vc.leftCount ?? 0;
+            const right = vc.rightCount ?? 0;
+            const sum = left + right;
+            if (sum !== numericAnswer) {
+              setErrorMsg(`Câu hỏi số ${i + 1}: Tổng số lượng 2 nhóm hình (${left} + ${right} = ${sum}) không khớp với đáp án chuẩn (${safeAnswer}). Vui lòng sửa lại trước khi xuất bản.`);
+              return;
+            }
+          } else if (vc.type === 'subtraction') {
+            const left = vc.leftCount ?? 0;
+            const right = vc.rightCount ?? 0;
+            const diff = left - right;
+            if (diff !== numericAnswer) {
+              setErrorMsg(`Câu hỏi số ${i + 1}: Phép tính trừ trong hình (${left} - ${right} = ${diff}) không khớp với đáp án chuẩn (${safeAnswer}). Vui lòng sửa lại trước khi xuất bản.`);
+              return;
+            }
+          }
+        }
+
+        // 2. Check frame conflicts
+        const isFrame = vc?.type === 'ten_frame' || vc?.type === 'five_frame';
+        const isFive = vc?.type === 'five_frame' || vc?.gridSize === 5;
+        if (isFrame) {
+          if (isFive && safePrompt.toLowerCase().includes('khung 10 ô')) {
+            setErrorMsg(`Câu hỏi số ${i + 1}: Đề bài nhắc đến Khung 10 ô nhưng hình minh họa đang cấu hình Khung 5 ô.`);
+            return;
+          }
+          if (!isFive && safePrompt.toLowerCase().includes('khung 5 ô')) {
+            setErrorMsg(`Câu hỏi số ${i + 1}: Đề bài nhắc đến Khung 5 ô nhưng hình minh họa đang cấu hình Khung 10 ô.`);
+            return;
+          }
+        }
+
+        // 3. Check caption leaking answer
+        if (vc?.caption && safeAnswer && vc.caption.toLowerCase().includes(safeAnswer.toLowerCase())) {
+          setErrorMsg(`Câu hỏi số ${i + 1}: Chú thích hình minh họa đang chứa đáp án "${safeAnswer}". Hãy chỉnh sửa chú thích để tránh làm lộ kết quả.`);
+          return;
+        }
+
+        // 4. Check Grade 1 Range (e.g. Range 1-5)
+        const isRange1To5 = topic.toLowerCase().includes('1 2 3 4 5') ||
+          topic.toLowerCase().includes('phạm vi 5') ||
+          title.toLowerCase().includes('1 2 3 4 5') ||
+          title.toLowerCase().includes('phạm vi 5');
+
+        if (isRange1To5) {
+          if (!isNaN(numericAnswer) && (numericAnswer < 0 || numericAnswer > 5)) {
+            setErrorMsg(`Câu hỏi số ${i + 1}: Đáp án (${safeAnswer}) nằm ngoài phạm vi các số 1–5 của bài học.`);
+            return;
+          }
+          if (q.options && Array.isArray(q.options)) {
+            for (const opt of q.options) {
+              const optNum = parseInt(String(opt).trim(), 10);
+              if (!isNaN(optNum) && (optNum < 0 || optNum > 5)) {
+                setErrorMsg(`Câu hỏi số ${i + 1}: Lựa chọn (${opt}) vượt quá phạm vi các số 1–5 của bài học.`);
+                return;
+              }
+            }
+          }
+          const addMatch = safePrompt.match(/(\d+)\s*\+\s*(\d+)/);
+          if (addMatch) {
+            const a = parseInt(addMatch[1], 10);
+            const b = parseInt(addMatch[2], 10);
+            if (a + b > 5 || a > 5 || b > 5) {
+              setErrorMsg(`Câu hỏi số ${i + 1}: Phép tính "${addMatch[0]}" vượt quá phạm vi các số 1–5 của bài học.`);
+              return;
+            }
+          }
+        }
+
+        // 5. Check Hints: Absolutely NO Answer Leaks (Req B)
+        if (q.ruleHints && Array.isArray(q.ruleHints)) {
+          for (const h of q.ruleHints) {
+            const hText = (h.hintText || '').trim();
+            // Check for complete math formulas like 2 + 3 = 5 or 4 + 4 = 8
+            if (/\b\d+\s*[\+\-]\s*\d+\s*=\s*\d+\b/.test(hText)) {
+              setErrorMsg(`Câu hỏi số ${i + 1}: Manh mối "${hText}" chứa phép tính giải hoàn chỉnh. Hãy chỉ dẫn cách đếm/suy nghĩ, không đưa ra đáp án.`);
+              return;
+            }
+            if (/đáp án là|kết quả là|phép tính là|chọn đáp án/i.test(hText)) {
+              setErrorMsg(`Câu hỏi số ${i + 1}: Manh mối có dấu hiệu làm lộ kết quả. Vui lòng chỉnh lại lời hướng dẫn.`);
+              return;
+            }
+          }
+        }
       }
     }
 
@@ -834,6 +933,41 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                         placeholder="Nhập nội dung đề bài tiếng Việt..."
                         className="w-full p-2.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden"
                       />
+
+                      {/* Custom Spoken Prompt for Grade 1 */}
+                      {isGrade1Scope && (
+                        <div className="mt-2 p-2 rounded-xl bg-sky-50/70 border border-sky-200">
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[11px] font-bold text-sky-900 flex items-center gap-1.5">
+                              <Volume2 className="w-3.5 h-3.5 text-sky-600" />
+                              Lời đọc tự động câu hỏi (tự động phát cho học sinh Lớp 1)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleQuestionAudio(q, idx)}
+                              className={`px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs ${
+                                playingEditorAudioId === `q-${idx}`
+                                  ? 'bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-400 animate-pulse'
+                                  : 'bg-white hover:bg-sky-100 text-sky-700 border-sky-300'
+                              }`}
+                              title="Nghe thử lời đọc câu hỏi"
+                            >
+                              <Volume2 className="w-3 h-3" />
+                              <span>{playingEditorAudioId === `q-${idx}` ? 'Đang đọc...' : 'Nghe thử'}</span>
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={q.customSpokenPrompt ?? ''}
+                            onChange={(e) => handleUpdateQuestion(idx, 'customSpokenPrompt', e.target.value)}
+                            placeholder={`Mặc định: ${normalizeMathTextForSpeech(q.prompt, q.options)}`}
+                            className="w-full h-7 px-2.5 rounded-lg border border-sky-200 bg-white text-xs font-medium text-slate-800 focus:border-sky-500 focus:outline-hidden"
+                          />
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Để trống để dùng lời đọc chuẩn hóa tự động. Giáo viên có thể tùy chỉnh câu từ nếu cần.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Meta row: InteractionType, ExpectedAnswer, SkillTag, Difficulty */}
@@ -1052,6 +1186,22 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                         vc.count !== undefined &&
                         (vc.type === 'counters' || vc.type === 'ten_frame' || vc.type === 'five_frame') &&
                         numericAnswer !== vc.count;
+
+                      const additionWarning =
+                        !isNaN(numericAnswer) &&
+                        hasAuto &&
+                        vc?.type === 'addition' &&
+                        vc.leftCount !== undefined &&
+                        vc.rightCount !== undefined &&
+                        (vc.leftCount + vc.rightCount) !== numericAnswer;
+
+                      const subtractionWarning =
+                        !isNaN(numericAnswer) &&
+                        hasAuto &&
+                        vc?.type === 'subtraction' &&
+                        vc.leftCount !== undefined &&
+                        vc.rightCount !== undefined &&
+                        (vc.leftCount - vc.rightCount) !== numericAnswer;
 
                       const isFrame = vc?.type === 'ten_frame' || vc?.type === 'five_frame';
                       const isFive = vc?.type === 'five_frame' || vc?.gridSize === 5;
@@ -1649,6 +1799,30 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                             </div>
                           )}
 
+                          {additionWarning && (
+                            <div className="p-2.5 bg-rose-50 border-2 border-rose-200 rounded-xl text-rose-800 text-xs font-bold flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <span>Cảnh báo sai lệch phép cộng: </span>
+                                <span className="font-semibold">
+                                  Mô hình gồm {vc?.leftCount} + {vc?.rightCount} = {(vc?.leftCount ?? 0) + (vc?.rightCount ?? 0)} vật thể, nhưng đáp án câu hỏi là &ldquo;{q.expectedAnswer}&rdquo;. Vui lòng chỉnh số lượng hoặc đáp án cho đồng nhất trước khi xuất bản.
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {subtractionWarning && (
+                            <div className="p-2.5 bg-rose-50 border-2 border-rose-200 rounded-xl text-rose-800 text-xs font-bold flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <span>Cảnh báo sai lệch phép trừ: </span>
+                                <span className="font-semibold">
+                                  Mô hình gồm {vc?.leftCount} − {vc?.rightCount} = {(vc?.leftCount ?? 0) - (vc?.rightCount ?? 0)} vật thể, nhưng đáp án câu hỏi là &ldquo;{q.expectedAnswer}&rdquo;. Vui lòng chỉnh số lượng hoặc đáp án cho đồng nhất trước khi xuất bản.
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
                           {frameConflictWarning && (
                             <div className="p-2.5 bg-rose-50 border-2 border-rose-200 rounded-xl text-rose-800 text-xs font-bold flex items-start gap-2">
                               <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
@@ -1756,6 +1930,41 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                           placeholder="Lời gợi ý thân thiện khi học sinh chọn sai..."
                           className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs font-medium"
                         />
+
+                        {/* Custom Spoken Hint for Grade 1 */}
+                        {isGrade1Scope && (
+                          <div className="mt-1.5 p-1.5 rounded-lg bg-amber-50/80 border border-amber-200/90 text-xs">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="text-[10px] font-bold text-amber-900 flex items-center gap-1">
+                                <Volume2 className="w-3 h-3 text-amber-600" />
+                                Lời đọc manh mối (tự động phát khi học sinh chọn sai)
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleHintAudio(q, idx)}
+                                className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs ${
+                                  playingEditorAudioId === `h-${idx}`
+                                    ? 'bg-amber-200 text-amber-900 border-amber-400 animate-pulse'
+                                    : 'bg-white hover:bg-amber-100 text-amber-800 border-amber-300'
+                                }`}
+                                title="Nghe thử lời đọc manh mối"
+                              >
+                                <Volume2 className="w-2.5 h-2.5" />
+                                <span>{playingEditorAudioId === `h-${idx}` ? 'Đang đọc...' : 'Nghe thử'}</span>
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={q.customSpokenHint ?? ''}
+                              onChange={(e) => handleUpdateQuestion(idx, 'customSpokenHint', e.target.value)}
+                              placeholder={`Mặc định: ${q.ruleHints?.[0]?.hintText ? normalizeMathTextForSpeech(q.ruleHints[0].hintText) : 'Chưa có gợi ý'}`}
+                              className="w-full h-6 px-2 rounded-md border border-amber-200 bg-white text-[10px] font-medium text-slate-800 focus:border-amber-500 focus:outline-hidden"
+                            />
+                            <p className="text-[9px] text-slate-400 mt-0.5">
+                              Để trống để dùng lời đọc tự động theo manh mối trên.
+                            </p>
+                          </div>
+                        )}
                       </div>
 
 

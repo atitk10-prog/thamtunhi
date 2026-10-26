@@ -195,8 +195,10 @@ export interface Question {
   }[];
   audioUrl?: string;
   audioHash?: string;
+  customSpokenPrompt?: string; // Tùy chỉnh lời đọc câu hỏi của giáo viên
   hintAudioUrl?: string;
   hintAudioHash?: string;
+  customSpokenHint?: string; // Tùy chỉnh lời đọc manh mối của giáo viên
 }
 
 export interface LessonStats {

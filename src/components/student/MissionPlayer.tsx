@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Volume2, ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck, Play } from 'lucide-react';
 
 import { Assignment, LessonVersion, Question, UserProfile, Attempt } from '../../types';
 import { dataService } from '../../lib/dataService';
@@ -36,8 +36,18 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   const isGrade1Scope = isGrade1Weeks1To9(lessonVersion);
   const [isQuestionAudioPlaying, setIsQuestionAudioPlaying] = useState(false);
 
-  // Sound preference state (background effects)
-  const [soundActive, setSoundActive] = useState<boolean>(() => isSoundEnabled());
+  // Track if student/teacher has clicked 'Bắt đầu làm bài' to unlock browser audio autoplay
+  const [hasStartedMission, setHasStartedMission] = useState<boolean>(() => {
+    if (!isGrade1Weeks1To9(lessonVersion)) {
+      return true;
+    }
+    try {
+      const cachedStarted = sessionStorage.getItem(`thamtunhi_mission_started_${assignment.id}_${currentUser.id}`);
+      return cachedStarted === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   // User input states for different question types
   const [singleChoiceAnswer, setSingleChoiceAnswer] = useState('');
@@ -47,40 +57,18 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   const [tenFrameAnswer, setTenFrameAnswer] = useState('');
   const [numberLineAnswer, setNumberLineAnswer] = useState('');
 
-  // Stop any playing audio whenever question changes, assignment changes or on unmount
-  useEffect(() => {
+  const playCurrentQuestionAudio = (q: Question) => {
     stopVietnameseAudio();
-    setIsQuestionAudioPlaying(false);
-    return () => {
-      stopVietnameseAudio();
-    };
-  }, [currentIndex, assignment.id]);
-
-  const handleSafeExit = () => {
-    stopVietnameseAudio();
-    setIsQuestionAudioPlaying(false);
-    onExit();
-  };
-
-  const handleTogglePlayQuestionAudio = () => {
-    if (!currentQuestion) return;
-
-    if (isQuestionAudioPlaying) {
-      stopVietnameseAudio();
-      setIsQuestionAudioPlaying(false);
-      return;
-    }
-
-    const rawPrompt = currentQuestion.prompt
-      ? currentQuestion.prompt
+    const rawPrompt = q.prompt
+      ? q.prompt
           .replace(/^\[ĐÃ SỬA BỞI GIÁO VIÊN\]\s*/i, '')
           .replace(/^Khung\s*(?:5|10)\s*ô\s*:\s*/i, '')
           .replace(/^(?:Trong\s*)?khung\s*(?:5|10)\s*ô\s*(?:có\s*)?/i, 'Có ')
           .trim()
       : '';
 
-    const spoken = normalizeMathTextForSpeech(rawPrompt, currentQuestion.options);
-    const url = currentQuestion.audioUrl || `/audio/q_${getAudioHash(spoken)}.mp3`;
+    const spoken = q.customSpokenPrompt || normalizeMathTextForSpeech(rawPrompt, q.options);
+    const url = q.audioUrl || `/audio/q_${getAudioHash(spoken)}.mp3`;
 
     setIsQuestionAudioPlaying(true);
     playVietnameseAudio(
@@ -111,6 +99,48 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   // Finished state
   const [isCompleted, setIsCompleted] = useState(false);
   const [durationSeconds, setDurationSeconds] = useState(0);
+
+  const handleStartMissionWithAudio = () => {
+    setHasStartedMission(true);
+    try {
+      sessionStorage.setItem(`thamtunhi_mission_started_${assignment.id}_${currentUser.id}`, 'true');
+    } catch {}
+    if (currentQuestion && isGrade1Scope) {
+      playCurrentQuestionAudio(currentQuestion);
+    }
+  };
+
+  // Autoplay on question transitions and when mission starts
+  useEffect(() => {
+    stopVietnameseAudio();
+    setIsQuestionAudioPlaying(false);
+
+    if (isGrade1Scope && hasStartedMission && currentQuestion && !isCompleted && !feedbackModal.isOpen) {
+      const timer = setTimeout(() => {
+        playCurrentQuestionAudio(currentQuestion);
+      }, 300);
+      return () => {
+        clearTimeout(timer);
+        stopVietnameseAudio();
+      };
+    }
+  }, [currentIndex, hasStartedMission, isCompleted]);
+
+  const handleSafeExit = () => {
+    stopVietnameseAudio();
+    setIsQuestionAudioPlaying(false);
+    onExit();
+  };
+
+  const handleTogglePlayQuestionAudio = () => {
+    if (!currentQuestion) return;
+    if (isQuestionAudioPlaying) {
+      stopVietnameseAudio();
+      setIsQuestionAudioPlaying(false);
+      return;
+    }
+    playCurrentQuestionAudio(currentQuestion);
+  };
 
   // Preview Mode flag (Teacher viewing curriculum without student telemetry)
   const isPreview = Boolean(
@@ -527,149 +557,152 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         />
       </div>
 
-      {/* Question Counter & Audio Narration */}
+      {/* Question Counter (Clean header without confusing sound toggle button - Req C.7) */}
       <div className="px-6 pt-5 pb-2 flex items-center justify-between">
         <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-sky-700 bg-sky-50 px-3 py-1 rounded-xl border border-sky-200">
           Câu {currentIndex + 1} / {questions.length}
         </span>
-
-        <button
-          type="button"
-          onClick={() => {
-            const next = !soundActive;
-            setSoundActive(next);
-            setSoundEnabled(next);
-          }}
-          className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 cursor-pointer transition-colors border shadow-xs ${
-            soundActive
-              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-500 border-slate-300'
-          }`}
-          title={soundActive ? 'Âm thanh: Đang Bật (Chạm để Tắt)' : 'Âm thanh: Đang Tắt (Chạm để Bật)'}
-        >
-          {soundActive ? (
-            <>
-              <Volume2 className="w-4 h-4 text-emerald-600" />
-              <span>Âm thanh: Bật</span>
-            </>
-          ) : (
-            <>
-              <VolumeX className="w-4 h-4 text-slate-400" />
-              <span>Âm thanh: Tắt</span>
-            </>
-          )}
-        </button>
       </div>
 
-      {/* Question Content Body */}
-      <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between">
-        <div>
-          <div className="flex items-start justify-between gap-3 mb-2">
-            <h3 className="text-xl sm:text-2xl font-black text-slate-800 leading-snug flex-1">
-              {currentQuestion.prompt
-                ? currentQuestion.prompt
-                    .replace(/^\[ĐÃ SỬA BỞI GIÁO VIÊN\]\s*/i, '')
-                    .replace(/^Khung\s*(?:5|10)\s*ô\s*:\s*/i, '')
-                    .replace(/^(?:Trong\s*)?khung\s*(?:5|10)\s*ô\s*(?:có\s*)?/i, 'Có ')
-                    .trim()
-                : ''}
+      {/* Main Mission Body: Start Activation Screen OR Question Content */}
+      {!hasStartedMission && isGrade1Scope ? (
+        <div className="flex-1 p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in duration-300">
+          <div className="w-24 h-24 rounded-3xl bg-sky-100 border-2 border-sky-200 flex items-center justify-center text-5xl shadow-sm">
+            🦊
+          </div>
+          <div className="space-y-2">
+            <span className="px-3.5 py-1.5 rounded-full bg-sky-50 text-sky-700 font-extrabold text-xs uppercase tracking-wider border border-sky-200">
+              {lessonVersion.topic}
+            </span>
+            <h3 className="text-2xl sm:text-3xl font-black text-slate-800">
+              {lessonVersion.title}
             </h3>
-            {isGrade1Scope && (
-              <button
-                type="button"
-                onClick={handleTogglePlayQuestionAudio}
-                aria-label="Phát âm thanh câu hỏi"
-                className={`p-2.5 sm:p-3 rounded-2xl flex items-center justify-center cursor-pointer transition-all shrink-0 border shadow-xs ${
-                  isQuestionAudioPlaying
-                    ? 'bg-amber-100 text-amber-700 border-amber-300 ring-2 ring-amber-400 animate-pulse'
-                    : 'bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800 border-sky-200 active:scale-95'
-                }`}
-              >
-                <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-            )}
+            <p className="text-sm font-bold text-slate-600 max-w-md mx-auto">
+              Cáo Thám Tử sẽ đồng hành và tự động đọc câu hỏi, hướng dẫn cho em trong bài học. Bấm nút bên dưới để bắt đầu nhé!
+            </p>
           </div>
-
-          {/* Render Activity based on interactionType */}
-          <div className="my-4">
-            {currentQuestion.interactionType === 'single_choice' && (
-              <SingleChoiceQuestion
-                question={currentQuestion}
-                selectedAnswer={singleChoiceAnswer}
-                onSelectAnswer={setSingleChoiceAnswer}
-                disabled={isSubmitting}
-              />
-            )}
-
-            {currentQuestion.interactionType === 'number_input' && (
-              <NumberInputQuestion
-                question={currentQuestion}
-                value={numberInputValue}
-                onChange={setNumberInputValue}
-                disabled={isSubmitting}
-              />
-            )}
-
-            {currentQuestion.interactionType === 'operator_pick' && (
-              <OperatorPickQuestion
-                question={currentQuestion}
-                selectedOperator={operatorValue}
-                onSelectOperator={setOperatorValue}
-                disabled={isSubmitting}
-              />
-            )}
-
-            {currentQuestion.interactionType === 'expression_match' && (
-              <ExpressionMatchQuestion
-                question={currentQuestion}
-                matchedPairs={matchedPairs}
-                onPairsChange={setMatchedPairs}
-                disabled={isSubmitting}
-              />
-            )}
-
-            {currentQuestion.interactionType === 'ten_frame_bundle' && (
-              <TenFrameBundleQuestion
-                question={currentQuestion}
-                selectedAnswer={tenFrameAnswer}
-                onSelectAnswer={setTenFrameAnswer}
-                disabled={isSubmitting}
-              />
-            )}
-
-            {currentQuestion.interactionType === 'number_line_order' && (
-              <NumberLineOrderQuestion
-                question={currentQuestion}
-                answer={numberLineAnswer}
-                onAnswerChange={setNumberLineAnswer}
-                disabled={isSubmitting}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Bottom Submission Action */}
-        <div className="pt-6 border-t border-slate-100 flex items-center justify-end">
           <button
             type="button"
-            disabled={!isAnswerProvided() || isSubmitting}
-            onClick={handleSubmitQuestion}
-            className={`min-h-[52px] px-8 py-3.5 rounded-2xl text-lg font-black flex items-center gap-2 shadow-lg transition-all cursor-pointer ${
-              isAnswerProvided() && !isSubmitting
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white shadow-emerald-200'
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-            }`}
+            onClick={handleStartMissionWithAudio}
+            className="px-8 py-4 rounded-2xl bg-amber-400 hover:bg-amber-500 text-slate-900 font-black text-lg sm:text-xl shadow-lg shadow-amber-200 ring-4 ring-amber-300 active:scale-95 cursor-pointer transition-all flex items-center gap-3"
           >
-            {isSubmitting ? (
-              <span>Đang kiểm tra...</span>
-            ) : (
-              <>
-                <span>Trả lời</span> <ArrowRight className="w-5 h-5" />
-              </>
-            )}
+            <Play className="w-6 h-6 fill-current" />
+            <span>Bắt đầu làm bài</span>
           </button>
         </div>
-      </div>
+      ) : (
+        /* Question Content Body */
+        <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between">
+          <div>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h3 className="text-xl sm:text-2xl font-black text-slate-800 leading-snug flex-1">
+                {currentQuestion?.prompt
+                  ? currentQuestion.prompt
+                      .replace(/^\[ĐÃ SỬA BỞI GIÁO VIÊN\]\s*/i, '')
+                      .replace(/^Khung\s*(?:5|10)\s*ô\s*:\s*/i, '')
+                      .replace(/^(?:Trong\s*)?khung\s*(?:5|10)\s*ô\s*(?:có\s*)?/i, 'Có ')
+                      .trim()
+                  : ''}
+              </h3>
+              {isGrade1Scope && currentQuestion && (
+                <button
+                  type="button"
+                  onClick={handleTogglePlayQuestionAudio}
+                  aria-label="Phát âm thanh câu hỏi"
+                  className={`p-2.5 sm:p-3 rounded-2xl flex items-center justify-center cursor-pointer transition-all shrink-0 border shadow-xs ${
+                    isQuestionAudioPlaying
+                      ? 'bg-amber-100 text-amber-700 border-amber-300 ring-2 ring-amber-400 animate-pulse'
+                      : 'bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800 border-sky-200 active:scale-95'
+                  }`}
+                >
+                  <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              )}
+            </div>
+
+            {/* Render Activity based on interactionType */}
+            {currentQuestion && (
+              <div className="my-4">
+                {currentQuestion.interactionType === 'single_choice' && (
+                  <SingleChoiceQuestion
+                    question={currentQuestion}
+                    selectedAnswer={singleChoiceAnswer}
+                    onSelectAnswer={setSingleChoiceAnswer}
+                    disabled={isSubmitting}
+                  />
+                )}
+
+                {currentQuestion.interactionType === 'number_input' && (
+                  <NumberInputQuestion
+                    question={currentQuestion}
+                    value={numberInputValue}
+                    onChange={setNumberInputValue}
+                    disabled={isSubmitting}
+                  />
+                )}
+
+                {currentQuestion.interactionType === 'operator_pick' && (
+                  <OperatorPickQuestion
+                    question={currentQuestion}
+                    selectedOperator={operatorValue}
+                    onSelectOperator={setOperatorValue}
+                    disabled={isSubmitting}
+                  />
+                )}
+
+                {currentQuestion.interactionType === 'expression_match' && (
+                  <ExpressionMatchQuestion
+                    question={currentQuestion}
+                    matchedPairs={matchedPairs}
+                    onPairsChange={setMatchedPairs}
+                    disabled={isSubmitting}
+                  />
+                )}
+
+                {currentQuestion.interactionType === 'ten_frame_bundle' && (
+                  <TenFrameBundleQuestion
+                    question={currentQuestion}
+                    selectedAnswer={tenFrameAnswer}
+                    onSelectAnswer={setTenFrameAnswer}
+                    disabled={isSubmitting}
+                  />
+                )}
+
+                {currentQuestion.interactionType === 'number_line_order' && (
+                  <NumberLineOrderQuestion
+                    question={currentQuestion}
+                    answer={numberLineAnswer}
+                    onAnswerChange={setNumberLineAnswer}
+                    disabled={isSubmitting}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Submission Action */}
+          <div className="pt-6 border-t border-slate-100 flex items-center justify-end">
+            <button
+              type="button"
+              disabled={!isAnswerProvided() || isSubmitting}
+              onClick={handleSubmitQuestion}
+              className={`min-h-[52px] px-8 py-3.5 rounded-2xl text-lg font-black flex items-center gap-2 shadow-lg transition-all cursor-pointer ${
+                isAnswerProvided() && !isSubmitting
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white shadow-emerald-200'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+              }`}
+            >
+              {isSubmitting ? (
+                <span>Đang kiểm tra...</span>
+              ) : (
+                <>
+                  <span>Trả lời</span> <ArrowRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Diagnostic Feedback Modal */}
       <DetectiveFeedbackModal

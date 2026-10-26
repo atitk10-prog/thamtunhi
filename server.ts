@@ -6297,7 +6297,7 @@ app.get('/api/admin/export', requireAuth, requireRole(['admin']), async (req: Au
 
 // Configure Vite middleware in development or serve static in production
 const isProduction = process.env.NODE_ENV === 'production';
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '3005', 10);
 
 async function startServer() {
   if (!isProduction) {

@@ -1,0 +1,899 @@
+[
+  {
+    "versionId": "version-lesson-g1-01-v1",
+    "title": "Các số từ 1 đến 5: Đếm và Nhận biết",
+    "grade": 1,
+    "topic": "Số và Phép tính trong phạm vi 10",
+    "questionCount": 8,
+    "questions": [
+      {
+        "index": 1,
+        "id": "q-g1-01-1",
+        "prompt": "Thám tử Cáo nhìn thấy có bao nhiêu quả táo đỏ trên cây?",
+        "expectedAnswer": "4",
+        "options": [
+          "3",
+          "4",
+          "5",
+          "6"
+        ],
+        "visualConfig": {
+          "iconName": "apple",
+          "count": 4,
+          "type": "counters"
+        },
+        "hint": "Hãy chỉ tay vào từng quả táo và đếm lại thật chậm: 1, 2, 3, 4 nhé!",
+        "issues": []
+      },
+      {
+        "index": 2,
+        "id": "q-g1-01-2",
+        "prompt": "Đếm số chú cá bơi trong bể và điền số thích hợp vào ô trống:",
+        "expectedAnswer": "3",
+        "options": [],
+        "visualConfig": {
+          "count": 3,
+          "type": "counters",
+          "iconName": "fish"
+        },
+        "hint": "Đếm từng chú cá một: 1, 2, 3 chú cá nhé!",
+        "issues": []
+      },
+      {
+        "index": 3,
+        "id": "q-g1-01-3",
+        "prompt": "So sánh số lượng: 4 ngôi sao và 2 ngôi sao. Chọn dấu thích hợp (> , < , =):",
+        "expectedAnswer": ">",
+        "options": [
+          ">",
+          "<",
+          "="
+        ],
+        "visualConfig": {
+          "rightLabel": "2 ngôi sao",
+          "leftCount": 4,
+          "leftLabel": "4 ngôi sao",
+          "iconName": "star",
+          "type": "comparison",
+          "rightCount": 2
+        },
+        "hint": "Mũi nhọn luôn chĩa về số nhỏ hơn (2), miệng mở rộng về số lớn hơn (4) nhé!",
+        "issues": []
+      },
+      {
+        "index": 4,
+        "id": "q-g1-01-4",
+        "prompt": "Nối hình có số lượng tương ứng với chữ số đúng:",
+        "expectedAnswer": "MATCHED_ALL",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Hãy đếm lại từng nhóm đồ vật trước khi chọn số tương ứng nhé.",
+        "issues": []
+      },
+      {
+        "index": 5,
+        "id": "q-g1-01-5",
+        "prompt": "Có mấy chấm tròn màu xanh?",
+        "expectedAnswer": "5",
+        "options": [
+          "3",
+          "4",
+          "5"
+        ],
+        "visualConfig": {
+          "ones": 5,
+          "count": 5,
+          "type": "ten_frame",
+          "tens": 0
+        },
+        "hint": "Khung 5 ô được lấp đầy tức là có đúng 5 chấm tròn em nhé.",
+        "issues": []
+      },
+      {
+        "index": 6,
+        "id": "q-g1-01-6",
+        "prompt": "Sắp xếp các số sau theo thứ tự từ bé đến lớn: 3, 1, 4, 2",
+        "expectedAnswer": "1,2,3,4",
+        "options": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "visualConfig": {},
+        "hint": "Bắt đầu từ số nhỏ nhất là 1, tiếp theo là 2, rồi đến 3, lớn nhất là 4.",
+        "issues": []
+      },
+      {
+        "index": 7,
+        "id": "q-g1-01-7",
+        "prompt": "Thám tử có 2 viên kẹo, được tặng thêm 1 viên kẹo. Hỏi có tất cả mấy viên kẹo?",
+        "expectedAnswer": "3",
+        "options": [],
+        "visualConfig": {
+          "type": "word_story",
+          "storyText": "Có 2 viên kẹo, thêm 1 viên kẹo nữa."
+        },
+        "hint": "\"Thêm vào\" tức là chúng mình gộp lại để làm phép tính cộng. Em hãy lấy 2 viên kẹo cộng thêm 1 viên kẹo nữa nhé!",
+        "issues": []
+      },
+      {
+        "index": 8,
+        "id": "q-g1-01-8",
+        "prompt": "Số nào đứng liền sau số 4?",
+        "expectedAnswer": "5",
+        "options": [
+          "3",
+          "4",
+          "5",
+          "6"
+        ],
+        "visualConfig": {},
+        "hint": "Số liền sau là số đứng ngay phía sau khi đếm xuôi: 3, 4 rồi đến 5.",
+        "issues": []
+      }
+    ]
+  },
+  {
+    "versionId": "version-lesson-g1-01-v2",
+    "title": "Các số từ 1 đến 5: Đếm và Nhận biết",
+    "grade": 1,
+    "topic": "Số và Phép tính trong phạm vi 10",
+    "questionCount": 8,
+    "questions": [
+      {
+        "index": 1,
+        "id": "q-g1-01-1",
+        "prompt": "Thám tử Cáo nhìn thấy có bao nhiêu quả táo đỏ trên cây?",
+        "expectedAnswer": "4",
+        "options": [
+          "3",
+          "4",
+          "5",
+          "6"
+        ],
+        "visualConfig": {
+          "iconName": "apple",
+          "count": 4,
+          "type": "counters"
+        },
+        "hint": "Hãy chỉ tay vào từng quả táo và đếm lại thật chậm: 1, 2, 3, 4 nhé!",
+        "issues": []
+      },
+      {
+        "index": 2,
+        "id": "q-g1-01-2",
+        "prompt": "Đếm số chú cá bơi trong bể và điền số thích hợp vào ô trống:",
+        "expectedAnswer": "3",
+        "options": [],
+        "visualConfig": {
+          "count": 3,
+          "type": "counters",
+          "iconName": "fish"
+        },
+        "hint": "Đếm từng chú cá một: 1, 2, 3 chú cá nhé!",
+        "issues": []
+      },
+      {
+        "index": 3,
+        "id": "q-g1-01-3",
+        "prompt": "Quan sát hai nhóm ngôi sao và chọn dấu thích hợp (> , < , =) để so sánh:",
+        "expectedAnswer": ">",
+        "options": [
+          ">",
+          "<",
+          "="
+        ],
+        "visualConfig": {
+          "iconName": "star",
+          "leftCount": 4,
+          "leftLabel": "Nhóm A",
+          "rightCount": 2,
+          "rightLabel": "Nhóm B",
+          "type": "comparison"
+        },
+        "hint": "Mũi nhọn luôn chĩa về số nhỏ hơn (2), miệng mở rộng về số lớn hơn (4) nhé!",
+        "issues": []
+      },
+      {
+        "index": 4,
+        "id": "q-g1-01-4",
+        "prompt": "Nối nhóm hình có số lượng tương ứng với chữ số đúng:",
+        "expectedAnswer": "MATCHED_ALL",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Hãy đếm lại từng nhóm đồ vật trước khi chọn số tương ứng nhé.",
+        "issues": []
+      },
+      {
+        "index": 5,
+        "id": "q-g1-01-5",
+        "prompt": "Có mấy chấm tròn màu xanh?",
+        "expectedAnswer": "5",
+        "options": [
+          "3",
+          "4",
+          "5"
+        ],
+        "visualConfig": {
+          "gridSize": 5,
+          "tens": 0,
+          "dotColor": "blue",
+          "count": 5,
+          "ones": 5,
+          "type": "ten_frame"
+        },
+        "hint": "Khung 5 ô được lấp đầy tức là có đúng 5 chấm tròn em nhé.",
+        "issues": []
+      },
+      {
+        "index": 6,
+        "id": "q-g1-01-6",
+        "prompt": "Sắp xếp các số sau theo thứ tự từ bé đến lớn: 3, 1, 4, 2",
+        "expectedAnswer": "1,2,3,4",
+        "options": [
+          "3",
+          "1",
+          "4",
+          "2"
+        ],
+        "visualConfig": {},
+        "hint": "Bắt đầu từ số nhỏ nhất là 1, tiếp theo là 2, rồi đến 3, lớn nhất là 4.",
+        "issues": []
+      },
+      {
+        "index": 7,
+        "id": "q-g1-01-7",
+        "prompt": "Thám tử có 2 viên kẹo, được tặng thêm 1 viên kẹo. Hỏi có tất cả mấy viên kẹo?",
+        "expectedAnswer": "3",
+        "options": [],
+        "visualConfig": {
+          "type": "word_story",
+          "storyText": "Có 2 viên kẹo, thêm 1 viên kẹo nữa."
+        },
+        "hint": "\"Thêm vào\" tức là chúng mình gộp lại để làm phép tính cộng. Em hãy lấy 2 viên kẹo cộng thêm 1 viên kẹo nữa nhé!",
+        "issues": []
+      },
+      {
+        "index": 8,
+        "id": "q-g1-01-8",
+        "prompt": "Số nào đứng liền sau số 4?",
+        "expectedAnswer": "5",
+        "options": [
+          "3",
+          "4",
+          "5",
+          "6"
+        ],
+        "visualConfig": {},
+        "hint": "Số liền sau là số đứng ngay phía sau khi đếm xuôi: 3, 4 rồi đến 5.",
+        "issues": []
+      }
+    ]
+  },
+  {
+    "versionId": "version-lesson-g1-02-v1",
+    "title": "Các số từ 6 đến 10 và Tách - Gộp số",
+    "grade": 1,
+    "topic": "Số và Phép tính trong phạm vi 10",
+    "questionCount": 8,
+    "questions": [
+      {
+        "index": 1,
+        "id": "q-g1-02-1",
+        "prompt": "Đếm số lượng que tính màu vàng:",
+        "expectedAnswer": "7",
+        "options": [
+          "6",
+          "7",
+          "8",
+          "9"
+        ],
+        "visualConfig": {
+          "count": 7,
+          "type": "counters",
+          "iconName": "block"
+        },
+        "hint": "Đếm lại từng que: 1, 2, 3, 4, 5, 6, 7 que tính.",
+        "issues": []
+      },
+      {
+        "index": 2,
+        "id": "q-g1-02-2",
+        "prompt": "Gộp 4 và 3 được mấy? Điền số vào ô trống:",
+        "expectedAnswer": "7",
+        "options": [],
+        "visualConfig": {},
+        "hint": "4 que thêm 3 que nữa là 7 que tính nhé.",
+        "issues": []
+      },
+      {
+        "index": 3,
+        "id": "q-g1-02-3",
+        "prompt": "Chọn dấu thích hợp để điền vào chỗ chấm: 8 ... 10",
+        "expectedAnswer": "<",
+        "options": [
+          "<",
+          ">",
+          "="
+        ],
+        "visualConfig": {},
+        "hint": "8 ít hơn 10 nên mũi nhọn chĩa về số 8 nhé: 8 < 10.",
+        "issues": []
+      },
+      {
+        "index": 4,
+        "id": "q-g1-02-4",
+        "prompt": "Nối sơ đồ tách gộp với kết quả tương ứng:",
+        "expectedAnswer": "MATCHED_ALL",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Hãy đếm que tính để kiểm tra lại sơ đồ tách gộp nhé.",
+        "issues": []
+      },
+      {
+        "index": 5,
+        "id": "q-g1-02-5",
+        "prompt": "Cần thêm mấy chấm tròn nữa để có tất cả 10 chấm tròn (hiện có 8 chấm)?",
+        "expectedAnswer": "2",
+        "options": [
+          "1",
+          "2",
+          "3"
+        ],
+        "visualConfig": {
+          "ones": 8,
+          "count": 8,
+          "tens": 0,
+          "type": "ten_frame"
+        },
+        "hint": "Quan sát các ô còn trống trong khung 10: có đúng 2 ô trắng.",
+        "issues": []
+      },
+      {
+        "index": 6,
+        "id": "q-g1-02-6",
+        "prompt": "Trên trục số từ 0 đến 10, số nào đứng ngay liền trước số 9?",
+        "expectedAnswer": "8",
+        "options": [],
+        "visualConfig": {
+          "min": 0,
+          "target": 8,
+          "type": "number_line",
+          "max": 10
+        },
+        "hint": "Số liền trước là số nhỏ hơn 1 đơn vị: 9 bớt 1 còn 8.",
+        "issues": []
+      },
+      {
+        "index": 7,
+        "id": "q-g1-02-7",
+        "prompt": "Cành cây có 7 chú chim, bay đi 2 chú chim. Hỏi còn lại bao nhiêu chú chim?",
+        "expectedAnswer": "5",
+        "options": [
+          "4",
+          "5",
+          "6",
+          "9"
+        ],
+        "visualConfig": {
+          "storyText": "Có 7 con chim, 2 con bay đi.",
+          "type": "word_story"
+        },
+        "hint": "Chim bay đi tức là bớt đi, chúng mình cần làm phép tính trừ. Em hãy lấy 7 chú chim bớt đi 2 chú chim nhé!",
+        "issues": []
+      },
+      {
+        "index": 8,
+        "id": "q-g1-02-8",
+        "prompt": "Sắp xếp dãy số sau theo thứ tự giảm dần (từ lớn đến bé): 6, 10, 8, 7",
+        "expectedAnswer": "10,8,7,6",
+        "options": [
+          "10",
+          "8",
+          "7",
+          "6"
+        ],
+        "visualConfig": {},
+        "hint": "Số lớn nhất là 10, rồi đến 8, đến 7, bé nhất là 6.",
+        "issues": []
+      }
+    ]
+  },
+  {
+    "versionId": "version-lesson-g1-03-v1",
+    "title": "Phép cộng trong phạm vi 10",
+    "grade": 1,
+    "topic": "Phép cộng và phép trừ phạm vi 10",
+    "questionCount": 8,
+    "questions": [
+      {
+        "index": 1,
+        "id": "q-g1-03-1",
+        "prompt": "Tính kết quả: 3 + 4 = ?",
+        "expectedAnswer": "7",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Đếm tiếp từ 3 thêm 4 bước: 4, 5, 6, 7 nhé!",
+        "issues": []
+      },
+      {
+        "index": 2,
+        "id": "q-g1-03-2",
+        "prompt": "Chọn phép tính thích hợp cho bức tranh: Có 5 quả bóng bay đỏ và 3 quả bóng bay xanh.",
+        "expectedAnswer": "5 + 3 = 8",
+        "options": [
+          "5 + 3 = 8",
+          "5 - 3 = 2",
+          "5 + 2 = 7",
+          "3 + 3 = 6"
+        ],
+        "visualConfig": {
+          "type": "word_story",
+          "storyText": "🎈 Có 5 quả bóng bay đỏ và 3 quả bóng bay xanh."
+        },
+        "hint": "Cần gộp cả hai loại bóng lại nên ta dùng phép cộng: 5 + 3 = 8.",
+        "issues": []
+      },
+      {
+        "index": 3,
+        "id": "q-g1-03-3",
+        "prompt": "Điền dấu so sánh thích hợp vào chỗ chấm: 4 + 2 ... 7",
+        "expectedAnswer": "<",
+        "options": [
+          "<",
+          ">",
+          "="
+        ],
+        "visualConfig": {},
+        "hint": "Tính 4 + 2 = 6 trước. Vì 6 bé hơn 7 nên 6 < 7.",
+        "issues": []
+      },
+      {
+        "index": 4,
+        "id": "q-g1-03-4",
+        "prompt": "Nối phép tính với kết quả đúng:",
+        "expectedAnswer": "MATCHED_ALL",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Đếm que tính hoặc ngón tay để nhẩm từng phép tính.",
+        "issues": []
+      },
+      {
+        "index": 5,
+        "id": "q-g1-03-5",
+        "prompt": "5 chấm đỏ và 4 chấm xanh. Có tất cả mấy chấm tròn?",
+        "expectedAnswer": "9",
+        "options": [
+          "8",
+          "9",
+          "10"
+        ],
+        "visualConfig": {
+          "ones": 9,
+          "count": 9,
+          "tens": 0,
+          "type": "ten_frame"
+        },
+        "hint": "Khung 10 ô chỉ còn thiếu 1 ô trống duy nhất, tức là có 9 chấm!",
+        "issues": []
+      },
+      {
+        "index": 6,
+        "id": "q-g1-03-6",
+        "prompt": "Điền số còn thiếu vào chỗ chấm: 6 + ... = 9",
+        "expectedAnswer": "3",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Từ 6 đếm tiếp mấy bước để đến 9? 7, 8, 9 (3 bước).",
+        "issues": []
+      },
+      {
+        "index": 7,
+        "id": "q-g1-03-7",
+        "prompt": "Chú thỏ nhảy từ vạch 2 sang phải 5 bước trên trục số. Thỏ dừng lại ở số mấy?",
+        "expectedAnswer": "7",
+        "options": [],
+        "visualConfig": {
+          "min": 0,
+          "target": 7,
+          "type": "number_line",
+          "max": 10
+        },
+        "hint": "2 nhảy thêm 5 bước: 3, 4, 5, 6, 7.",
+        "issues": []
+      },
+      {
+        "index": 8,
+        "id": "q-g1-03-8",
+        "prompt": "Mai có 4 bông hoa, Lan tặng Mai 4 bông hoa nữa. Hỏi Mai có tất cả bao nhiêu bông hoa?",
+        "expectedAnswer": "8",
+        "options": [
+          "6",
+          "7",
+          "8",
+          "9"
+        ],
+        "visualConfig": {},
+        "hint": "Được tặng thêm tức là gộp lại để làm phép tính cộng. Em hãy lấy số hoa của Mai cộng với số hoa của Lan nhé!",
+        "issues": []
+      }
+    ]
+  },
+  {
+    "versionId": "version-lesson-g1-05-v1",
+    "title": "Hình vuông, Hình tròn, Hình tam giác, Hình chữ nhật",
+    "grade": 1,
+    "topic": "Hình học trực quan",
+    "questionCount": 8,
+    "questions": [
+      {
+        "index": 1,
+        "id": "q-g1-05-1",
+        "prompt": "Biển báo giao thông hình gì có 3 cạnh và 3 góc nhọn?",
+        "expectedAnswer": "Hình tam giác",
+        "options": [
+          "Hình tam giác",
+          "Hình vuông",
+          "Hình tròn",
+          "Hình chữ nhật"
+        ],
+        "visualConfig": {},
+        "hint": "Tam giác có 3 cạnh nối với nhau tạo thành 3 góc.",
+        "issues": []
+      },
+      {
+        "index": 2,
+        "id": "q-g1-05-2",
+        "prompt": "Đồng hồ treo tường hình tròn không có cạnh nào. Đúng hay Sai?",
+        "expectedAnswer": "Đúng",
+        "options": [
+          "Đúng",
+          "Sai"
+        ],
+        "visualConfig": {},
+        "hint": "Hình tròn cong tròn đều, lăn được và không có góc nhọn.",
+        "issues": []
+      },
+      {
+        "index": 3,
+        "id": "q-g1-05-3",
+        "prompt": "Khung ảnh có 4 cạnh dài bằng nhau là hình gì?",
+        "expectedAnswer": "Hình vuông",
+        "options": [
+          "Hình vuông",
+          "Hình chữ nhật",
+          "Hình tam giác",
+          "Hình tròn"
+        ],
+        "visualConfig": {},
+        "hint": "Hình vuông có 4 cạnh dài bằng nhau, còn hình chữ nhật có 2 cạnh dài và 2 cạnh ngắn.",
+        "issues": []
+      },
+      {
+        "index": 4,
+        "id": "q-g1-05-4",
+        "prompt": "Nối tên hình với đồ vật quen thuộc trong lớp học:",
+        "expectedAnswer": "MATCHED_ALL",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Quan sát hình dạng viền ngoài của đồ vật.",
+        "issues": []
+      },
+      {
+        "index": 5,
+        "id": "q-g1-05-5",
+        "prompt": "Một hình chữ nhật có bao nhiêu cạnh?",
+        "expectedAnswer": "4",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Đếm 4 cạnh xung quanh hình chữ nhật nhé!",
+        "issues": []
+      },
+      {
+        "index": 6,
+        "id": "q-g1-05-6",
+        "prompt": "Ghép 2 hình tam giác nhỏ bằng nhau có thể tạo thành hình gì?",
+        "expectedAnswer": "Hình vuông",
+        "options": [
+          "Hình vuông",
+          "Hình tròn"
+        ],
+        "visualConfig": {},
+        "hint": "Hình tròn không thể ghép từ các hình tam giác có cạnh thẳng được.",
+        "issues": []
+      },
+      {
+        "index": 7,
+        "id": "q-g1-05-7",
+        "prompt": "Bánh xe đạp có hình gì để lăn tròn được trên đường?",
+        "expectedAnswer": "Hình tròn",
+        "options": [
+          "Hình tròn",
+          "Hình vuông",
+          "Hình tam giác"
+        ],
+        "visualConfig": {},
+        "hint": "Chỉ có hình tròn mới lăn được bon bon trên đường.",
+        "issues": []
+      },
+      {
+        "index": 8,
+        "id": "q-g1-05-8",
+        "prompt": "Một ngôi nhà được vẽ bằng: 1 hình tam giác (mái nhà) và 1 hình vuông (thân nhà). Có tất cả mấy hình?",
+        "expectedAnswer": "2",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Ngôi nhà gồm có phần mái và phần thân. Em hãy đếm lần lượt từng hình xem có tất cả mấy hình nhé!",
+        "issues": []
+      }
+    ]
+  },
+  {
+    "versionId": "version-lesson-draft-1792910089741-v2",
+    "title": "Bài tập Toán: Luyện tập các số 1 2 3 4 5",
+    "grade": 1,
+    "topic": "Luyện tập các số 1 2 3 4 5",
+    "questionCount": 4,
+    "questions": [
+      {
+        "index": 1,
+        "id": "q-math-1",
+        "prompt": "Bé hãy đếm xem có tất cả bao nhiêu quả táo trong hình nhé?",
+        "expectedAnswer": "4",
+        "options": [
+          "3",
+          "4",
+          "5",
+          "2"
+        ],
+        "visualConfig": {
+          "count": 4,
+          "iconName": "apple",
+          "type": "counters"
+        },
+        "hint": "Bé hãy đếm thật cẩn thận từng quả táo, đừng bỏ sót quả nào nhé!",
+        "issues": []
+      },
+      {
+        "index": 2,
+        "id": "q-math-2",
+        "prompt": "Trên cành có 2 con chim, có thêm 3 con chim bay đến nữa. Hỏi có tất cả bao nhiêu con chim?",
+        "expectedAnswer": "5",
+        "options": [
+          "4",
+          "5",
+          "3",
+          "1"
+        ],
+        "visualConfig": {
+          "leftCount": 2,
+          "rightCount": 3,
+          "type": "addition",
+          "iconName": "bird"
+        },
+        "hint": "Bài toán hỏi 'tất cả' tức là chúng ta gộp lại với nhau để tính tổng đấy bé ạ!",
+        "issues": []
+      },
+      {
+        "index": 3,
+        "id": "q-math-3",
+        "prompt": "Bé hãy điền dấu thích hợp vào ô trống: 3 ... 5",
+        "expectedAnswer": "<",
+        "options": [
+          "+",
+          "-",
+          "=",
+          ">",
+          "<"
+        ],
+        "visualConfig": {
+          "rightCount": 5,
+          "leftCount": 3,
+          "type": "comparison",
+          "iconName": "star"
+        },
+        "hint": "Bé hãy nhớ miệng của dấu lớn luôn há ra ăn số lớn hơn nhé!",
+        "issues": []
+      },
+      {
+        "index": 4,
+        "id": "q-math-4",
+        "prompt": "Bé hãy đếm số lượng củ cà rốt có trong khung năm ô dưới đây nhé!",
+        "expectedAnswer": "5",
+        "options": [],
+        "visualConfig": {
+          "dotColor": "orange",
+          "count": 5,
+          "type": "five_frame",
+          "gridSize": 5
+        },
+        "hint": "Khung có tất cả 5 ô và đều có hình cà rốt ở trong đó bé ơi!",
+        "issues": []
+      }
+    ]
+  },
+  {
+    "versionId": "version-lesson-draft-1792910089741-v3",
+    "title": "Bài tập Toán: Luyện tập các số 1 2 3 4 5 (v3)",
+    "grade": 1,
+    "topic": "So hoc - Phep cong trong pham vi 10",
+    "questionCount": 5,
+    "questions": [
+      {
+        "index": 1,
+        "id": "q-math-1",
+        "prompt": "2 + 3 = ?",
+        "expectedAnswer": "5",
+        "options": [
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "visualConfig": {
+          "count": 4,
+          "iconName": "apple",
+          "type": "counters"
+        },
+        "hint": "Bé hãy đếm thật cẩn thận từng quả táo, đừng bỏ sót quả nào nhé!",
+        "issues": []
+      },
+      {
+        "index": 2,
+        "id": "q-math-2",
+        "prompt": "4 + 4 = ?",
+        "expectedAnswer": "8",
+        "options": [
+          "6",
+          "7",
+          "8",
+          "9"
+        ],
+        "visualConfig": {
+          "iconName": "bird",
+          "leftCount": 2,
+          "rightCount": 3,
+          "type": "addition"
+        },
+        "hint": "Bài toán hỏi 'tất cả' tức là chúng ta gộp lại với nhau để tính tổng đấy bé ạ!",
+        "issues": [
+          "Hình phép cộng (2 + 3 = 5) không khớp đáp án (8)"
+        ]
+      },
+      {
+        "index": 3,
+        "id": "q-math-3",
+        "prompt": "Bé hãy điền dấu thích hợp vào ô trống: 3 ... 5",
+        "expectedAnswer": "<",
+        "options": [
+          "+",
+          "-",
+          "=",
+          ">",
+          "<"
+        ],
+        "visualConfig": {
+          "leftCount": 3,
+          "rightCount": 5,
+          "type": "comparison",
+          "iconName": "star"
+        },
+        "hint": "Bé hãy nhớ miệng của dấu lớn luôn há ra ăn số lớn hơn nhé!",
+        "issues": []
+      },
+      {
+        "index": 4,
+        "id": "q-math-4",
+        "prompt": "Bé hãy đếm số lượng củ cà rốt có trong khung năm ô dưới đây nhé!",
+        "expectedAnswer": "5",
+        "options": [],
+        "visualConfig": {
+          "iconName": "carrot",
+          "count": 5,
+          "type": "counters"
+        },
+        "hint": "Khung có tất cả 5 ô và đều có hình cà rốt ở trong đó bé ơi!",
+        "issues": []
+      },
+      {
+        "index": 5,
+        "id": "q-custom-1792990816583-5",
+        "prompt": "Câu hỏi toán số 5",
+        "expectedAnswer": "10",
+        "options": [],
+        "visualConfig": {},
+        "hint": "Hãy quan sát kỹ và kiểm tra lại từng bước tính.",
+        "issues": []
+      }
+    ]
+  },
+  {
+    "versionId": "version-lesson-draft-1792910089741-v4",
+    "title": "Bài tập Toán: Luyện tập các số 1 2 3 4 5",
+    "grade": 1,
+    "topic": "Luyện tập các số 1 2 3 4 5",
+    "questionCount": 4,
+    "questions": [
+      {
+        "index": 1,
+        "id": "q-math-1",
+        "prompt": "Bé hãy đếm xem có tất cả bao nhiêu quả táo trong hình nhé?",
+        "expectedAnswer": "4",
+        "options": [
+          "2",
+          "3",
+          "4",
+          "5"
+        ],
+        "visualConfig": {
+          "iconName": "apple",
+          "count": 4,
+          "type": "counters"
+        },
+        "hint": "Em hãy chỉ tay vào từng quả táo trên màn hình và đếm lần lượt thật cẩn thận, đừng bỏ sót quả nào nhé!",
+        "issues": []
+      },
+      {
+        "index": 2,
+        "id": "q-math-2",
+        "prompt": "Trên cành có 2 con chim, có thêm 3 con chim bay đến nữa. Hỏi có tất cả bao nhiêu con chim?",
+        "expectedAnswer": "5",
+        "options": [
+          "3",
+          "4",
+          "5",
+          "2"
+        ],
+        "visualConfig": {
+          "type": "addition",
+          "rightCount": 3,
+          "iconName": "bird",
+          "leftCount": 2
+        },
+        "hint": "Em hãy đếm số con chim ở nhóm thứ nhất, sau đó đếm tiếp nhóm thứ hai để biết có tất cả bao nhiêu con chim nhé!",
+        "issues": []
+      },
+      {
+        "index": 3,
+        "id": "q-math-3",
+        "prompt": "Bé hãy điền dấu thích hợp vào ô trống: 3 ... 5",
+        "expectedAnswer": "<",
+        "options": [
+          ">",
+          "<",
+          "="
+        ],
+        "visualConfig": {
+          "leftCount": 3,
+          "iconName": "star",
+          "rightCount": 5,
+          "type": "comparison"
+        },
+        "hint": "Nhóm bên trái có 3 ngôi sao, nhóm bên phải có 5 ngôi sao. Em hãy xem nhóm nào có ít ngôi sao hơn để chọn dấu phù hợp nhé!",
+        "issues": []
+      },
+      {
+        "index": 4,
+        "id": "q-math-4",
+        "prompt": "Bé hãy đếm số lượng củ cà rốt có trong khung năm ô dưới đây nhé!",
+        "expectedAnswer": "5",
+        "options": [
+          "2",
+          "3",
+          "4",
+          "5"
+        ],
+        "visualConfig": {
+          "gridSize": 5,
+          "type": "counters",
+          "iconName": "carrot",
+          "count": 5,
+          "dotColor": "orange"
+        },
+        "hint": "Em hãy quan sát khung và đếm lần lượt từng củ cà rốt từ trái sang phải thật cẩn thận nhé!",
+        "issues": []
+      }
+    ]
+  }
+]

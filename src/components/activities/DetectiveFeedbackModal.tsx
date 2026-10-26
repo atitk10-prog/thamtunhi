@@ -35,8 +35,24 @@ export const DetectiveFeedbackModal: React.FC<DetectiveFeedbackModalProps> = ({
     if (!isOpen) {
       stopVietnameseAudio();
       setIsPlaying(false);
+    } else if (isGrade1Scope && hintText) {
+      stopVietnameseAudio();
+      const spoken = normalizeMathTextForSpeech(hintText);
+      const url = hintAudioUrl || `/audio/h_${getAudioHash(spoken)}.mp3`;
+      const timer = setTimeout(() => {
+        playVietnameseAudio(
+          url,
+          spoken,
+          () => setIsPlaying(true),
+          () => setIsPlaying(false)
+        );
+      }, 300);
+      return () => {
+        clearTimeout(timer);
+        stopVietnameseAudio();
+      };
     }
-  }, [isOpen]);
+  }, [isOpen, isGrade1Scope, hintText, hintAudioUrl]);
 
   if (!isOpen) return null;
 

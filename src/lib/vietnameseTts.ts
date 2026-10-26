@@ -217,6 +217,27 @@ export function getAudioHash(text: string): string {
 }
 
 /**
+ * Returns the effective spoken text for a question, using teacher custom override if provided
+ */
+export function getQuestionSpokenText(q: { prompt: string; options?: (string | number)[]; customSpokenPrompt?: string }): string {
+  if (q.customSpokenPrompt && q.customSpokenPrompt.trim()) {
+    return q.customSpokenPrompt.trim();
+  }
+  return normalizeMathTextForSpeech(q.prompt, q.options);
+}
+
+/**
+ * Returns the effective spoken text for a hint, using teacher custom override if provided
+ */
+export function getHintSpokenText(q: { ruleHints?: { hintText?: string }[]; customSpokenHint?: string }): string {
+  if (q.customSpokenHint && q.customSpokenHint.trim()) {
+    return q.customSpokenHint.trim();
+  }
+  const hint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText || '' : '';
+  return normalizeMathTextForSpeech(hint);
+}
+
+/**
  * Deterministically checks if a lesson or assignment belongs to Grade 1 Weeks 1-9.
  * Strictly excludes Grade 2, and Grade 1 Week 10+.
  */
