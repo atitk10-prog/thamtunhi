@@ -711,17 +711,9 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
         100: '/assets/toan-nhi/money-100-front.png',
         200: '/assets/toan-nhi/money-200-front.png',
         500: '/assets/toan-nhi/money-500-front.png',
-        1000: '/assets/toan-nhi/money-1000.png',
-        2000: '/assets/toan-nhi/money-2000.png',
-        5000: '/assets/toan-nhi/money-5000.png',
-        10000: '/assets/toan-nhi/money-10000.png',
-        20000: '/assets/toan-nhi/money-20000.png',
-        50000: '/assets/toan-nhi/money-50000.png',
-        100000: '/assets/toan-nhi/money-100000.png',
-        200000: '/assets/toan-nhi/money-200000.png',
-        500000: '/assets/toan-nhi/money-500000.png',
+        1000: '/assets/toan-nhi/money-1000-front.png',
       };
-      return map[denom] || '/assets/toan-nhi/money-1000.png';
+      return map[denom] || '/assets/toan-nhi/money-1000-front.png';
     };
 
     return (
