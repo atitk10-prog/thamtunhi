@@ -53,7 +53,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [classes, setClasses] = useState<Classroom[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [assignmentDataOrigin, setAssignmentDataOrigin] = useState<'real' | 'simulation'>('real');
   const [selectedClass, setSelectedClass] = useState<Classroom | null>(null);
   const [assigningStudent, setAssigningStudent] = useState<{ id: string; displayName: string; classId: string; studentCode?: string } | null>(null);
   const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
@@ -102,17 +101,17 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   const [previewLessonVersion, setPreviewLessonVersion] = useState<LessonVersion | null>(null);
 
   useEffect(() => {
-    fetchData(assignmentDataOrigin);
+    fetchData();
   }, [activeTab]);
 
-  const fetchData = async (origin: 'real' | 'simulation' = assignmentDataOrigin) => {
+  const fetchData = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
       const [lList, cList, aList] = await Promise.all([
-        dataService.fetchTeacherLessons(origin),
+        dataService.fetchTeacherLessons('real'),
         dataService.fetchTeacherClasses(currentUser.id),
-        dataService.fetchTeacherAssignments(currentUser.id, origin),
+        dataService.fetchTeacherAssignments(currentUser.id, 'real'),
       ]);
       setLessons(lList);
       setClasses(cList);
@@ -123,11 +122,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDataOriginChange = async (origin: 'real' | 'simulation') => {
-    setAssignmentDataOrigin(origin);
-    await fetchData(origin);
   };
 
   const handleOpenEditor = async (lesson?: Lesson) => {
@@ -216,7 +210,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
         createdAt: lesson.createdAt || new Date().toISOString(),
         dueDate: '2026-12-31',
         status: 'open',
-        dataOrigin: assignmentDataOrigin,
+        dataOrigin: 'real',
         environmentTag: 'production',
       });
     }
@@ -534,30 +528,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                     Tất cả ({lessons.length})
                   </button>
                 </div>
-
-                {/* Data Origin Mode (Real vs Simulation) */}
-                <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
-                  <button
-                    type="button"
-                    onClick={() => handleDataOriginChange('real')}
-                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
-                      assignmentDataOrigin === 'real' ? 'bg-white shadow-xs text-emerald-800 font-black' : 'text-slate-600'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Bài nộp của học sinh</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDataOriginChange('simulation')}
-                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
-                      assignmentDataOrigin === 'simulation' ? 'bg-white shadow-xs text-indigo-800 font-black' : 'text-slate-600'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                    <span>Dữ liệu mô phỏng</span>
-                  </button>
-                </div>
               </div>
 
               <div className="flex items-center gap-3">
@@ -863,64 +833,18 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-black uppercase text-slate-500 mr-1 flex items-center gap-1">
-                      <Filter className="w-3.5 h-3.5 text-sky-600" /> Nguồn dữ liệu:
-                    </span>
-                    <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
-                      <button
-                        type="button"
-                        onClick={() => handleDataOriginChange('real')}
-                        className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                          assignmentDataOrigin === 'real'
-                            ? 'bg-white shadow-xs text-emerald-800 font-black'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Bài nộp của học sinh (Thực tế)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDataOriginChange('simulation')}
-                        className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                          assignmentDataOrigin === 'simulation'
-                            ? 'bg-amber-400 text-slate-900 font-black shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Dữ liệu mô phỏng quay clip
-                      </button>
-                    </div>
-
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => fetchData(assignmentDataOrigin)}
+                      onClick={() => fetchData()}
                       disabled={loading}
                       title="Làm mới danh sách bài giao"
-                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-colors border border-slate-200"
+                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition-colors border border-slate-200"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-sky-600' : ''}`} />
+                      <span>Làm mới</span>
                     </button>
                   </div>
-                </div>
-
-                {/* Scope Notice Banner (Requirement 8) */}
-                <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${assignmentDataOrigin === 'real' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                    <span>
-                      {assignmentDataOrigin === 'real'
-                        ? 'Phạm vi: Bài nộp của học sinh (Chỉ hiển thị bài làm và thống kê thực tế từ tài khoản học sinh, hoàn toàn tách biệt).'
-                        : 'Phạm vi: Dữ liệu mô phỏng quay clip (Bao gồm dữ liệu mẫu để quay video minh họa, không ảnh hưởng số liệu thực).'}
-                    </span>
-                  </div>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border shrink-0 ${
-                    assignmentDataOrigin === 'real'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-amber-50 text-amber-800 border-amber-200'
-                  }`}>
-                    {assignmentDataOrigin === 'real' ? 'Dữ liệu thực tế' : 'Dữ liệu mô phỏng'}
-                  </span>
                 </div>
 
                 <div className="overflow-x-auto">

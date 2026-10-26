@@ -26,7 +26,6 @@ export const AssignmentProgressModal: React.FC<AssignmentProgressModalProps> = (
   assignment,
   onClose,
 }) => {
-  const [dataOrigin, setDataOrigin] = useState<'real' | 'simulation'>('real');
   const [progress, setProgress] = useState<AssignmentProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -35,16 +34,16 @@ export const AssignmentProgressModal: React.FC<AssignmentProgressModalProps> = (
 
   useEffect(() => {
     if (isOpen && assignment) {
-      loadProgress(dataOrigin);
+      loadProgress();
     }
   }, [isOpen, assignment]);
 
-  const loadProgress = async (origin: 'real' | 'simulation' = dataOrigin) => {
+  const loadProgress = async () => {
     if (!assignment) return;
     setLoading(true);
     setErrorMsg(null);
     try {
-      const data = await dataService.fetchAssignmentProgress(assignment.id, origin);
+      const data = await dataService.fetchAssignmentProgress(assignment.id, 'real');
       setProgress(data);
     } catch (err: any) {
       console.error('Fetch assignment progress error:', err);
@@ -105,7 +104,7 @@ export const AssignmentProgressModal: React.FC<AssignmentProgressModalProps> = (
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => loadProgress(dataOrigin)}
+              onClick={() => loadProgress()}
               disabled={loading}
               className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
               title="Làm mới tiến độ"
@@ -137,52 +136,6 @@ export const AssignmentProgressModal: React.FC<AssignmentProgressModalProps> = (
             </div>
           ) : progress ? (
             <>
-              {/* Data Origin Mode Switcher & Scope Notice (Requirement 5 & 8) */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black uppercase text-slate-500">Nguồn dữ liệu:</span>
-                  <div className="flex rounded-xl bg-white p-1 border border-slate-200 shadow-2xs text-xs font-bold">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDataOrigin('real');
-                        loadProgress('real');
-                      }}
-                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                        dataOrigin === 'real'
-                          ? 'bg-emerald-600 text-white font-black shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      Bài nộp của học sinh (Thực tế)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDataOrigin('simulation');
-                        loadProgress('simulation');
-                      }}
-                      className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                        dataOrigin === 'simulation'
-                          ? 'bg-amber-400 text-slate-900 font-black shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      Dữ liệu mô phỏng quay clip
-                    </button>
-                  </div>
-                </div>
-
-                <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${dataOrigin === 'real' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                  <span>
-                    {dataOrigin === 'real'
-                      ? 'Phạm vi: Dữ liệu làm bài thực tế từ tài khoản học sinh, hoàn toàn tách biệt.'
-                      : 'Phạm vi: Dữ liệu mô phỏng phục vụ quay video hướng dẫn, không tính vào điểm thực.'}
-                  </span>
-                </div>
-              </div>
-
               {/* Summary Metrics Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-100 flex flex-col justify-between">

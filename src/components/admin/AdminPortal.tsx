@@ -64,7 +64,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 }) => {
   // Navigation State
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
-  const [settingsSubTab, setSettingsSubTab] = useState<'infrastructure' | 'audit_logs'>('infrastructure');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
@@ -89,15 +88,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [healthInfo, setHealthInfo] = useState<SystemHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Audit Logs Paginated State
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
-  const [auditLogPage, setAuditLogPage] = useState(1);
-  const [auditLogTotalPages, setAuditLogTotalPages] = useState(1);
-  const [auditLogTotal, setAuditLogTotal] = useState(0);
-  const [auditLogActionFilter, setAuditLogActionFilter] = useState('all');
-  const [auditLogSearchQuery, setAuditLogSearchQuery] = useState('');
 
   // Toast System State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -227,31 +217,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   useEffect(() => {
     loadData();
   }, []);
-
-  // On-demand load audit logs when settings/audit tab is opened
-  const loadAuditLogs = async (page = 1, action = auditLogActionFilter, search = auditLogSearchQuery) => {
-    try {
-      setAuditLogsLoading(true);
-      const res = await dataService.adminGetAuditLogs(page, 20, action, search);
-      if (res && res.logs) {
-        setAuditLogs(res.logs);
-        setAuditLogPage(res.page || 1);
-        setAuditLogTotalPages(res.totalPages || 1);
-        setAuditLogTotal(res.total || 0);
-      }
-    } catch (err: any) {
-      console.error('loadAuditLogs error:', err);
-      showToast(err.message || 'Lỗi tải nhật ký hoạt động.', 'error');
-    } finally {
-      setAuditLogsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'settings' && settingsSubTab === 'audit_logs') {
-      loadAuditLogs(auditLogPage, auditLogActionFilter, auditLogSearchQuery);
-    }
-  }, [activeTab, settingsSubTab, auditLogPage, auditLogActionFilter]);
 
   // Real-Time Quoted Metrics Calculation
   const realMetrics = useMemo(() => {
@@ -879,7 +844,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     { id: 'curriculum' as AdminTab, label: 'Học liệu & Bài tập', icon: BookOpen, badge: realMetrics.lessonsCount },
     { id: 'analytics' as AdminTab, label: 'Kết quả & Thống kê', icon: Activity, badge: null },
     { id: 'data_backup' as AdminTab, label: 'Dữ liệu & Sao lưu', icon: Database, badge: null },
-    { id: 'settings' as AdminTab, label: 'Cài đặt & Nhật ký', icon: Settings, badge: null },
+    { id: 'settings' as AdminTab, label: 'Cài đặt & Hạ tầng', icon: Settings, badge: null },
   ];
 
   return (
@@ -912,12 +877,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  setActiveTab(item.id);
-                  if (item.id === 'settings' && settingsSubTab !== 'audit_logs') {
-                    setSettingsSubTab('infrastructure');
-                  }
-                }}
+                onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
                   isActive
                     ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/25 font-black translate-x-1'
@@ -2004,245 +1964,62 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           )}
 
           {/* ======================================================== */}
-          {/* TAB 8: CÀI ĐẶT & NHẬT KÝ HỆ THỐNG (Streamlined)          */}
+          {/* TAB 8: CÀI ĐẶT & HẠ TẦNG KỸ THUẬT                        */}
           {/* ======================================================== */}
           {activeTab === 'settings' && (
             <div className="space-y-6">
-              {/* Sub-tab switcher */}
-              <div className="flex items-center gap-2 p-1 rounded-2xl bg-slate-200/80 border border-slate-300/80 w-fit text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab('infrastructure')}
-                  className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
-                    settingsSubTab === 'infrastructure'
-                      ? 'bg-white text-slate-950 shadow-xs font-black'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Trạng Thái Hạ Tầng & Kết Nối
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab('audit_logs')}
-                  className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
-                    settingsSubTab === 'audit_logs'
-                      ? 'bg-white text-slate-950 shadow-xs font-black'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Nhật Ký Hoạt Động (Audit Logs)
-                </button>
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Trạng Thái Hệ Thống & Hạ Tầng Kỹ Thuật</h2>
+                <p className="text-xs text-slate-500">Giám sát tính sẵn sàng của các dịch vụ cốt lõi</p>
               </div>
 
-              {/* Subtab 1: Infrastructure */}
-              {settingsSubTab === 'infrastructure' && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-black text-slate-900">Trạng Thái Hệ Thống & Hạ Tầng Kỹ Thuật</h2>
-                    <p className="text-xs text-slate-500">Giám sát tính sẵn sàng của các dịch vụ cốt lõi</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
+                  <div className="text-xs font-extrabold text-slate-500 uppercase">Cơ Sở Dữ Liệu Cloud Firestore</div>
+                  <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
+                    <CheckCircle className="w-5 h-5 text-emerald-500" /> Kết nối ổn định & xác thực an toàn
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
-                      <div className="text-xs font-extrabold text-slate-500 uppercase">Cơ Sở Dữ Liệu Cloud Firestore</div>
-                      <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
-                        <CheckCircle className="w-5 h-5 text-emerald-500" /> Kết nối ổn định & xác thực an toàn
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700">
-                        Database: {healthInfo?.databaseId || 'ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2'}
-                      </div>
-                    </div>
-
-                    <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
-                      <div className="text-xs font-extrabold text-slate-500 uppercase">Phiên Xác Thực HMAC Session Token</div>
-                      <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
-                        <CheckCircle className="w-5 h-5 text-emerald-500" /> Khóa bí mật đã được cấu hình bảo mật
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700">
-                        Status: CONFIGURED (Zero plaintext exposure)
-                      </div>
-                    </div>
-
-                    <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
-                      <div className="text-xs font-extrabold text-slate-500 uppercase">Trợ Lý Giáo Viên AI (Gemini Flash)</div>
-                      {healthInfo?.geminiConfigured ? (
-                        <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
-                          <CheckCircle className="w-5 h-5 text-emerald-500" /> Sẵn sàng hoạt động
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
-                          <AlertTriangle className="w-5 h-5 text-amber-500" /> AI chưa được cấu hình (Chờ nạp GEMINI_API_KEY)
-                        </div>
-                      )}
-                      <p className="text-xs text-slate-500">
-                        Không ảnh hưởng đến các hoạt động học tập, làm bài thám tử hoặc quản trị lớp học của hệ thống.
-                      </p>
-                    </div>
-
-                    <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
-                      <div className="text-xs font-extrabold text-slate-500 uppercase">Môi Trường Vận Hành</div>
-                      <div className="text-sm font-bold text-slate-900">
-                        Vercel Serverless Production • Build v1.1.0-prod
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        Máy chủ độc lập, tuân thủ nghiêm ngặt nguyên tắc Zero Data Loss và phân quyền Role-Based Access Control.
-                      </div>
-                    </div>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700">
+                    Database: {healthInfo?.databaseId || 'ai-studio-thmttonnh-6977e812-1e0d-459b-9789-d64af1d047b2'}
                   </div>
                 </div>
-              )}
 
-              {/* Subtab 2: Paginated Audit Logs & Retention Policy */}
-              {settingsSubTab === 'audit_logs' && (
-                <div className="space-y-6">
-                  {/* Retention Policy Proposal Banner */}
-                  <div className="p-6 rounded-3xl bg-amber-50 border border-amber-200/90 shadow-xs space-y-2">
-                    <div className="flex items-center gap-2 text-amber-900 font-black text-sm">
-                      <Shield className="w-5 h-5 text-amber-600" />
-                      <span>Đề Xuất Chính Sách Lưu Trữ Nhật Ký (Audit Log Retention Policy)</span>
-                    </div>
-                    <ul className="text-xs text-amber-800 space-y-1 pl-5 list-disc">
-                      <li><strong>Nhật ký vận hành thông thường:</strong> Lưu trữ 90 ngày trước khi sao lưu tổng hợp.</li>
-                      <li><strong>Nhật ký bảo mật trọng yếu (Đổi mật khẩu, Phân quyền, Khóa/Mở khóa):</strong> Lưu trữ vĩnh viễn (Bất biến).</li>
-                      <li><strong>Nguyên tắc an toàn:</strong> Không tự động xóa log. Mọi thao tác dọn dẹp cần cấu hình Retention, Sao lưu dự phòng, Dry-run và phê duyệt từ Chủ sở hữu.</li>
-                    </ul>
+                <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
+                  <div className="text-xs font-extrabold text-slate-500 uppercase">Phiên Xác Thực HMAC Session Token</div>
+                  <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
+                    <CheckCircle className="w-5 h-5 text-emerald-500" /> Khóa bí mật đã được cấu hình bảo mật
                   </div>
-
-                  {/* Filter & Search Bar */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-600">Lọc theo hành động:</span>
-                      <select
-                        value={auditLogActionFilter}
-                        onChange={(e) => {
-                          setAuditLogActionFilter(e.target.value);
-                          setAuditLogPage(1);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none"
-                      >
-                        <option value="all">Tất cả hành động</option>
-                        <option value="ADMIN_CHANGE_PASSWORD">Đổi mật khẩu</option>
-                        <option value="ADMIN_UPDATE_PROFILE">Cập nhật hồ sơ</option>
-                        <option value="LOCK_USER">Khóa tài khoản</option>
-                        <option value="UNLOCK_USER">Mở khóa tài khoản</option>
-                        <option value="RESET_PASSWORD">Đặt lại mật khẩu</option>
-                        <option value="CREATE_ACADEMIC_YEAR">Tạo năm học</option>
-                        <option value="UPDATE_ACADEMIC_YEAR">Cập nhật năm học</option>
-                        <option value="DELETE_ACADEMIC_YEAR">Xóa năm học</option>
-                      </select>
-                    </div>
-
-                    <div className="relative flex-1 max-w-xs">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        value={auditLogSearchQuery}
-                        onChange={(e) => {
-                          setAuditLogSearchQuery(e.target.value);
-                          setAuditLogPage(1);
-                        }}
-                        placeholder="Tìm theo người thực hiện, đối tượng..."
-                        className="w-full pl-9 pr-4 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:bg-white"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Audit Logs Table */}
-                  <div className="rounded-2xl border border-slate-200 shadow-sm bg-white overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-slate-100/80 border-b border-slate-200 text-[11px] font-extrabold uppercase text-slate-600 tracking-wider">
-                            <th className="py-3.5 px-4">Thời Điểm (GMT+7)</th>
-                            <th className="py-3.5 px-4">Người Thực Hiện</th>
-                            <th className="py-3.5 px-4">Hành Động</th>
-                            <th className="py-3.5 px-4">Đối Tượng / Mã</th>
-                            <th className="py-3.5 px-4">Chi Tiết Nghiệp Vụ</th>
-                            <th className="py-3.5 px-4">Trạng Thái</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-sm">
-                          {auditLogsLoading ? (
-                            <tr>
-                              <td colSpan={6} className="py-12 text-center text-slate-400">
-                                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500" />
-                                <div>Đang tải nhật ký kiểm toán...</div>
-                              </td>
-                            </tr>
-                          ) : auditLogs.length === 0 ? (
-                            <tr>
-                              <td colSpan={6} className="py-12 text-center text-slate-400">
-                                <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                                <div>Không có bản ghi nhật ký phù hợp</div>
-                              </td>
-                            </tr>
-                          ) : (
-                            auditLogs.map((log: any) => {
-                              const actorName = log.actorName || log.performedBy || log.actorId || 'Không xác định (bản ghi cũ)';
-                              const targetName = log.targetName || log.targetId || log.targetUserId || 'Hệ thống';
-                              return (
-                                <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="py-3 px-4 text-xs font-mono text-slate-600">
-                                    {formatVietnamDateTime(log.timestamp || log.createdAt)}
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <div className="font-bold text-slate-900">{actorName}</div>
-                                    <div className="text-[11px] text-amber-600 capitalize font-semibold">{log.actorRole || 'Hệ thống'}</div>
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">
-                                      {log.action}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4 text-xs font-bold text-slate-700">
-                                    {targetName}
-                                  </td>
-                                  <td className="py-3 px-4 text-xs text-slate-600 max-w-xs truncate" title={log.details}>
-                                    {log.details || '—'}
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> Thành công
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Audit Logs Pagination */}
-                    <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-slate-200 text-xs">
-                      <div className="text-slate-500 font-medium">
-                        Tổng cộng <strong>{auditLogTotal}</strong> bản ghi nhật ký hoạt động
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          disabled={auditLogPage === 1 || auditLogsLoading}
-                          onClick={() => setAuditLogPage((p) => Math.max(1, p - 1))}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          Trước
-                        </button>
-                        <span className="text-xs font-black text-slate-800 px-2">
-                          Trang {auditLogPage} / {auditLogTotalPages}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={auditLogPage >= auditLogTotalPages || auditLogsLoading}
-                          onClick={() => setAuditLogPage((p) => Math.min(auditLogTotalPages, p + 1))}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          Sau
-                        </button>
-                      </div>
-                    </div>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700">
+                    Status: CONFIGURED (Zero plaintext exposure)
                   </div>
                 </div>
-              )}
+
+                <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
+                  <div className="text-xs font-extrabold text-slate-500 uppercase">Trợ Lý Giáo Viên AI (Gemini Flash)</div>
+                  {healthInfo?.geminiConfigured ? (
+                    <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
+                      <CheckCircle className="w-5 h-5 text-emerald-500" /> Sẵn sàng hoạt động
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
+                      <AlertTriangle className="w-5 h-5 text-amber-500" /> AI chưa được cấu hình (Chờ nạp GEMINI_API_KEY)
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500">
+                    Không ảnh hưởng đến các hoạt động học tập, làm bài thám tử hoặc quản trị lớp học của hệ thống.
+                  </p>
+                </div>
+
+                <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3">
+                  <div className="text-xs font-extrabold text-slate-500 uppercase">Môi Trường Vận Hành</div>
+                  <div className="text-sm font-bold text-slate-900">
+                    Vercel Serverless Production • Build v1.1.0-prod
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    Máy chủ độc lập, tuân thủ nghiêm ngặt nguyên tắc Zero Data Loss và phân quyền Role-Based Access Control.
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

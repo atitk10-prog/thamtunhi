@@ -62,11 +62,8 @@ interface QuestionStat {
 }
 
 export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ teacherId, onOpenLessonEditor }) => {
-  // 1. Data Origin Filter
-  const [dataOriginFilter, setDataOriginFilter] = useState<'all' | 'simulation' | 'real'>('real');
-
-  // 2. Multi-dimensional Filters (Requirement A)
-  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('all');
+  // 1. Multi-dimensional Filters (Operating Strictly on Real Operational Submissions)
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('year-2026-2027');
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [selectedWeek, setSelectedWeek] = useState<string>('all');
   const [selectedLesson, setSelectedLesson] = useState<string>('all');
@@ -131,17 +128,17 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
     }
   };
 
-  // --- FILTERING ENGINE (Requirement A) ---
-  const isRealAttempt = (att: Attempt) =>
-    att.dataOrigin === 'real' || (!att.id.startsWith('att-demo-') && att.dataOrigin !== 'simulation');
-  const isSimAttempt = (att: Attempt) =>
-    att.dataOrigin === 'simulation' || att.id.startsWith('att-demo-');
+  // --- FILTERING ENGINE (Operational Data Strictly Isolated) ---
+  const isRealCompletedAttempt = (att: Attempt) =>
+    att.dataOrigin !== 'simulation' &&
+    !att.id.startsWith('att-demo-') &&
+    att.status === 'completed' &&
+    Boolean(att.completedAt);
 
   const filteredAttempts = useMemo(() => {
     return attempts.filter((a) => {
-      // 1. Data Origin
-      if (dataOriginFilter === 'real' && !isRealAttempt(a)) return false;
-      if (dataOriginFilter === 'simulation' && !isSimAttempt(a)) return false;
+      // 1. Data Origin & Completion: Strictly real and finished submissions
+      if (!isRealCompletedAttempt(a)) return false;
 
       // 2. Class
       if (selectedClass !== 'all' && a.classId !== selectedClass) return false;
@@ -158,10 +155,11 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
         if (!asg || String((asg as any).week) !== String(selectedWeek)) return false;
       }
 
-      // 6. Academic Year
+      // 6. Academic Year (defaults to year-2026-2027)
       if (selectedAcademicYear !== 'all') {
-        const asg = assignments.find((as) => as.id === a.assignmentId);
-        if (asg && asg.academicYearId && asg.academicYearId !== selectedAcademicYear) return false;
+        const asg = assignments.find((as) => as.id === a.assignmentId || (as.lessonId === a.lessonId && as.classId === a.classId));
+        const asgYear = asg?.academicYearId || 'year-2026-2027';
+        if (asgYear !== selectedAcademicYear) return false;
       }
 
       // 7. Time Range
@@ -182,29 +180,30 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
 
       return true;
     });
-  }, [attempts, assignments, dataOriginFilter, selectedClass, selectedStudent, selectedLesson, selectedWeek, selectedAcademicYear, selectedTimeRange]);
+  }, [attempts, assignments, selectedClass, selectedStudent, selectedLesson, selectedWeek, selectedAcademicYear, selectedTimeRange]);
 
   const filteredAssignments = useMemo(() => {
     return assignments.filter((asg) => {
-      if (dataOriginFilter === 'real' && asg.dataOrigin === 'simulation') return false;
-      if (dataOriginFilter === 'simulation' && asg.dataOrigin !== 'simulation') return false;
+      if (asg.dataOrigin === 'simulation') return false;
       if (selectedClass !== 'all' && asg.classId !== selectedClass) return false;
       if (selectedWeek !== 'all' && String((asg as any).week) !== String(selectedWeek)) return false;
-      if (selectedAcademicYear !== 'all' && asg.academicYearId && asg.academicYearId !== selectedAcademicYear) return false;
+      if (selectedAcademicYear !== 'all') {
+        const asgYear = asg.academicYearId || 'year-2026-2027';
+        if (asgYear !== selectedAcademicYear) return false;
+      }
       if (selectedLesson !== 'all' && asg.lessonId !== selectedLesson && asg.id !== selectedLesson) return false;
       return true;
     });
-  }, [assignments, dataOriginFilter, selectedClass, selectedWeek, selectedAcademicYear, selectedLesson]);
+  }, [assignments, selectedClass, selectedWeek, selectedAcademicYear, selectedLesson]);
 
   const filteredInsights = useMemo(() => {
     return insights.filter((ins) => {
-      if (dataOriginFilter === 'real' && ins.dataOrigin === 'simulation') return false;
-      if (dataOriginFilter === 'simulation' && ins.dataOrigin !== 'simulation') return false;
+      if (ins.dataOrigin === 'simulation') return false;
       if (selectedClass !== 'all' && ins.classId !== selectedClass) return false;
       if (selectedStudent !== 'all' && ins.studentId !== selectedStudent) return false;
       return true;
     });
-  }, [insights, dataOriginFilter, selectedClass, selectedStudent]);
+  }, [insights, selectedClass, selectedStudent]);
 
   // --- ACCURATE KPI METRICS (Requirement A) ---
   const completedAttemptsList = useMemo(() => {
@@ -482,11 +481,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
       'Nguồn Dữ Liệu'
     ];
 
-    const originLabel = dataOriginFilter === 'real'
-      ? 'Bài nộp của học sinh (Thực tế)'
-      : dataOriginFilter === 'simulation'
-      ? 'Dữ liệu mô phỏng quay clip'
-      : 'Tất cả nguồn dữ liệu';
+    const originLabel = 'Bài nộp của học sinh (Thực tế)';
 
     const rows = studentSummaries.map((s) => {
       const progressLabel = s.totalSubmissions > 1 ? (s.progressScore >= 0 ? `+${s.progressScore}%` : `${s.progressScore}%`) : 'Mới nộp 1 lần';
@@ -552,7 +547,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
           completedAttempts,
           avgScore,
           hintRecoveryRate,
-          dataOrigin: dataOriginFilter,
+          dataOrigin: 'real',
           classId: selectedClass,
           dataVersion,
           improvedCount: improvedStudentsCount,
@@ -600,8 +595,12 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
     }
   };
 
+  const visibleAcademicYears = academicYears.filter((y) =>
+    y.id === 'year-2026-2027' || (!y.name.includes('2025') && y.status !== 'archived')
+  );
+
   const handleResetFilters = () => {
-    setSelectedAcademicYear('all');
+    setSelectedAcademicYear('year-2026-2027');
     setSelectedClass('all');
     setSelectedWeek('all');
     setSelectedLesson('all');
@@ -611,47 +610,16 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
 
   return (
     <div className="space-y-6">
-      {/* 1. DATA ORIGIN SELECTOR & SCOPE BANNER (Requirement E & 8) */}
+      {/* 1. UNIFIED STATS HEADER */}
       <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-500">
-            <Filter className="w-4 h-4 text-sky-600" /> Nguồn dữ liệu:
-          </div>
-          <div className="flex rounded-2xl bg-slate-100 p-1 border border-slate-200 text-xs font-black">
-            <button
-              type="button"
-              onClick={() => setDataOriginFilter('real')}
-              className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
-                dataOriginFilter === 'real'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Bài nộp của học sinh (Thực tế)
-            </button>
-            <button
-              type="button"
-              onClick={() => setDataOriginFilter('all')}
-              className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
-                dataOriginFilter === 'all'
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Tất cả ({attempts.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setDataOriginFilter('simulation')}
-              className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
-                dataOriginFilter === 'simulation'
-                  ? 'bg-amber-400 text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Dữ liệu mô phỏng quay clip
-            </button>
-          </div>
+        <div>
+          <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-sky-100 text-sky-600">📊</span>
+            Thống Kê & Phân Tích Nhầm Lẫn
+          </h2>
+          <p className="text-xs font-semibold text-slate-500 mt-1">
+            Phân tích sư phạm chuyên sâu từ dữ liệu làm bài thực tế của học sinh năm học 2026–2027 ({filteredAttempts.length} lượt hoàn thành)
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -675,37 +643,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
         </div>
       </div>
 
-      {/* Scope Isolation Banner */}
-      <div className={`p-4 rounded-3xl border flex flex-wrap items-center justify-between gap-4 transition-all ${
-        dataOriginFilter === 'real'
-          ? 'bg-emerald-50/70 border-emerald-200'
-          : dataOriginFilter === 'simulation'
-          ? 'bg-amber-50/70 border-amber-200'
-          : 'bg-sky-50/70 border-sky-200'
-      }`}>
-        <div className="flex items-center gap-3">
-          <span className={`w-3 h-3 rounded-full shrink-0 ${
-            dataOriginFilter === 'real' ? 'bg-emerald-500' : dataOriginFilter === 'simulation' ? 'bg-amber-500 animate-pulse' : 'bg-sky-500'
-          }`} />
-          <div>
-            <div className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Phạm vi dữ liệu: {dataOriginFilter === 'real' ? 'Dữ liệu thực tế của học sinh' : dataOriginFilter === 'simulation' ? 'Chế độ mô phỏng quay clip' : 'Toàn bộ dữ liệu'}
-            </div>
-            <p className="text-xs font-semibold text-slate-600 mt-0.5">
-              {dataOriginFilter === 'real'
-                ? 'Thống kê chính thức từ các bài nộp đã hoàn thành của học sinh thật. Cách ly tuyệt đối với dữ liệu thử nghiệm.'
-                : dataOriginFilter === 'simulation'
-                ? 'Dữ liệu chuyên biệt phục vụ ghi hình minh họa và thẩm định sư phạm. Không làm thay đổi điểm số thật.'
-                : 'Thống kê tổng hợp toàn bộ các lượt làm bài trong hệ thống.'}
-            </p>
-          </div>
-        </div>
-        <span className="text-xs font-black px-3 py-1 rounded-full bg-white border border-slate-200 shadow-2xs">
-          {filteredAttempts.length} lượt làm bài trong phạm vi
-        </span>
-      </div>
-
-      {/* 2. MULTI-DIMENSIONAL FILTERS BAR (Requirement A) */}
+      {/* 2. MULTI-DIMENSIONAL FILTERS BAR */}
       <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-700">
@@ -722,7 +660,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* 1. Năm học */}
+          {/* 1. Năm học - Strictly 2026-2027 */}
           <div>
             <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
               Năm học
@@ -732,10 +670,13 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
               onChange={(e) => setSelectedAcademicYear(e.target.value)}
               className="w-full h-9 px-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:border-sky-500 outline-none"
             >
-              <option value="all">Tất cả năm học</option>
-              {academicYears.map((y) => (
-                <option key={y.id} value={y.id}>{y.name}</option>
-              ))}
+              {visibleAcademicYears.length > 0 ? (
+                visibleAcademicYears.map((y) => (
+                  <option key={y.id} value={y.id}>{y.name}</option>
+                ))
+              ) : (
+                <option value="year-2026-2027">Năm học 2026 - 2027</option>
+              )}
             </select>
           </div>
 
