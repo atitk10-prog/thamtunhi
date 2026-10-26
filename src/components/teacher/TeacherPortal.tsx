@@ -880,7 +880,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                             currentUser.role === 'admin' ||
                             a.teacherId === currentUser.id ||
                             classes.some((c) => c.id === a.classId && c.teacherId === currentUser.id) ||
-                            (currentUser.email === 'xuannuong@thamtunhi.edu.vn' && (a.classId === 'class-1b' || a.classId === 'class-2a'));
+                            (currentUser.email?.includes('xuannuong') && (a.classId === 'class-1b' || a.classId === 'class-2a'));
 
                           return (
                             <tr key={a.id} className="hover:bg-slate-50/80 transition-colors">
