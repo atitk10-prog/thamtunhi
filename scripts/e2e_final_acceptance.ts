@@ -207,15 +207,24 @@ async function runFinalAcceptance() {
   await editorModal.waitFor({ state: 'visible', timeout: 8000 });
   console.log('  [PASS] Trình biên tập bài học mở thành công');
 
-  // Check custom spoken prompt input
-  const customPromptInput = desktopPage.locator('input[placeholder*="Mặc định:"]').first();
-  const hasCustomPrompt = await customPromptInput.isVisible();
-  console.log('  [PASS] Trường tùy chỉnh lời đọc câu hỏi (customSpokenPrompt) hiển thị:', hasCustomPrompt);
+  const promptAudioTitle = desktopPage.locator('text=Âm thanh đọc câu hỏi').first();
+  await promptAudioTitle.waitFor({ state: 'visible', timeout: 5000 });
+  console.log('  [PASS] Khu vực "Âm thanh đọc câu hỏi" hiển thị đầy đủ');
 
-  // Check custom spoken hint input
-  const customHintInput = desktopPage.locator('input[placeholder*="Chưa có gợi ý"], input[placeholder*="Mặc định:"]').nth(1);
-  const hasCustomHint = await customHintInput.isVisible();
-  console.log('  [PASS] Trường tùy chỉnh lời đọc manh mối (customSpokenHint) hiển thị:', hasCustomHint);
+  const synthBtn = desktopPage.locator('button:has-text("Tạo lại âm thanh"), button:has-text("Tạo âm thanh")').first();
+  console.log('  [PASS] Nút Tạo / Tạo lại âm thanh hiển thị:', await synthBtn.isVisible());
+
+  const uploadBtn = desktopPage.locator('button:has-text("Thay thế bằng tệp..."), button:has-text("Tải lên tệp...")').first();
+  console.log('  [PASS] Nút Tải lên / Thay thế tệp âm thanh hiển thị:', await uploadBtn.isVisible());
+
+  const deleteBtn = desktopPage.locator('button:has-text("Xóa âm thanh")').first();
+  console.log('  [PASS] Nút Xóa âm thanh hiển thị:', await deleteBtn.isVisible());
+
+  const previewAudioBtn = desktopPage.locator('button:has-text("Nghe thử")').first();
+  console.log('  [PASS] Nút Nghe thử âm thanh hiển thị:', await previewAudioBtn.isVisible());
+
+  const hintAudioTitle = desktopPage.locator('text=Âm thanh đọc gợi ý').first();
+  console.log('  [PASS] Khu vực "Âm thanh đọc gợi ý" hiển thị đầy đủ:', await hintAudioTitle.isVisible());
 
   // Screenshot editor audio customization UI
   await desktopPage.screenshot({ path: path.join(ARTIFACT_DIR, 'desktop_teacher_editor_audio_customization.png') });

@@ -785,7 +785,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                         onClick={() => setActiveTab('lessons')}
                         className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs cursor-pointer shadow-sm transition-all"
                       >
-                        Khám Phá Kho Học Liệu GDPT 2018 ({lessons.length} bài) &rarr;
+                        Khám Phá Kho Học Liệu GDPT 2018 ({lessons.length} bài) →
                       </button>
                     </div>
                   </div>
@@ -813,7 +813,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                         </div>
 
                         <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-sky-600 group-hover:underline">
-                          <span>Xem danh sách học sinh &rarr;</span>
+                          <span>Xem danh sách học sinh →</span>
                         </div>
                       </div>
                     ))}

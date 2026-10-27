@@ -34,6 +34,7 @@ import { AiDraftModal, AiDraftMeta } from './AiDraftModal';
 import { normalizeAssetUrl, getAssetCountUnit } from '../../lib/standardAssets';
 import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash, getQuestionSpokenText, getHintSpokenText } from '../../lib/vietnameseTts';
 import { playVietnameseAudio, stopVietnameseAudio } from '../../lib/vietnameseAudioPlayer';
+import { QuestionAudioControl } from './QuestionAudioControl';
 
 interface LessonEditorModalProps {
   isOpen: boolean;
@@ -253,22 +254,6 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
   const handleUpdateQuestion = (index: number, field: keyof Question, value: any) => {
     const updated = [...questions];
     updated[index] = { ...updated[index], [field]: value };
-
-    // Invalidate outdated audio hash & url if prompt, customSpokenPrompt, ruleHints, or customSpokenHint changed (Req IV.4 & Req D)
-    if (field === 'prompt' || field === 'customSpokenPrompt') {
-      const spoken = getQuestionSpokenText(updated[index]);
-      const hash = getAudioHash(spoken);
-      updated[index].audioHash = hash;
-      updated[index].audioUrl = `/audio/q_${hash}.mp3`;
-    } else if (field === 'ruleHints' || field === 'customSpokenHint') {
-      const spokenHint = getHintSpokenText(updated[index]);
-      if (spokenHint) {
-        const hHash = getAudioHash(spokenHint);
-        updated[index].hintAudioHash = hHash;
-        updated[index].hintAudioUrl = `/audio/h_${hHash}.mp3`;
-      }
-    }
-
     setQuestions(updated);
   };
 
@@ -278,13 +263,6 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     const currentOpts = updated[qIdx].options ? [...updated[qIdx].options!] : ['', '', '', ''];
     currentOpts[optIdx] = val;
     updated[qIdx].options = currentOpts;
-
-    // Invalidate audio for question if text options changed
-    const spoken = getQuestionSpokenText(updated[qIdx]);
-    const hash = getAudioHash(spoken);
-    updated[qIdx].audioHash = hash;
-    updated[qIdx].audioUrl = `/audio/q_${hash}.mp3`;
-
     setQuestions(updated);
   };
 
@@ -416,11 +394,18 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
         const spokenHint = getHintSpokenText(q);
         const hHash = spokenHint ? getAudioHash(spokenHint) : undefined;
 
+        // Preserve teacher-uploaded, customized, or explicitly deleted audio
+        const effectiveAudioUrl = q.audioUrl !== undefined ? q.audioUrl : `/audio/q_${pHash}.mp3`;
+        const effectiveAudioHash = q.audioHash !== undefined ? q.audioHash : pHash;
+        const effectiveHintUrl = q.hintAudioUrl !== undefined ? q.hintAudioUrl : (hHash ? `/audio/h_${hHash}.mp3` : undefined);
+        const effectiveHintHash = q.hintAudioHash !== undefined ? q.hintAudioHash : hHash;
+
         return {
           ...q,
-          audioHash: pHash,
-          audioUrl: `/audio/q_${pHash}.mp3`,
-          ...(hHash ? { hintAudioHash: hHash, hintAudioUrl: `/audio/h_${hHash}.mp3` } : {}),
+          audioHash: effectiveAudioHash,
+          audioUrl: effectiveAudioUrl,
+          hintAudioHash: effectiveHintHash,
+          hintAudioUrl: effectiveHintUrl,
         };
       });
     }
@@ -537,6 +522,18 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
       // Strict Pre-Publish Pedagogical & Consistency Validation (Req A, B, D)
       if (publish) {
+        // 0. Grade 1 Weeks 1-9 Audio Completeness Check (Req 2.3)
+        if (isGrade1Scope) {
+          if (!q.audioUrl || !q.audioUrl.trim()) {
+            setErrorMsg(`Câu hỏi số ${i + 1} chưa có âm thanh câu hỏi. Với Lớp 1 Tuần 1–9, học sinh cần được hỗ trợ nghe, vui lòng tạo hoặc tải lên âm thanh tiếng Việt trước khi xuất bản.`);
+            return;
+          }
+          if (!q.hintAudioUrl || !q.hintAudioUrl.trim()) {
+            setErrorMsg(`Câu hỏi số ${i + 1} chưa có âm thanh gợi ý. Với Lớp 1 Tuần 1–9, vui lòng tạo hoặc tải lên âm thanh gợi ý trước khi xuất bản.`);
+            return;
+          }
+        }
+
         const vc = q.visualConfig;
         const hasAuto = vc && vc.type !== 'none' && vc.type !== 'image' && !vc.imageUrl;
         const numericAnswer = parseInt(safeAnswer, 10);
@@ -935,37 +932,26 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                       />
 
                       {/* Custom Spoken Prompt for Grade 1 */}
+                      {/* Full Audio Management for Question Prompt (Req 2) */}
                       {isGrade1Scope && (
-                        <div className="mt-2 p-2 rounded-xl bg-sky-50/70 border border-sky-200">
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-[11px] font-bold text-sky-900 flex items-center gap-1.5">
-                              <Volume2 className="w-3.5 h-3.5 text-sky-600" />
-                              Lời đọc tự động câu hỏi (tự động phát cho học sinh Lớp 1)
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleQuestionAudio(q, idx)}
-                              className={`px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs ${
-                                playingEditorAudioId === `q-${idx}`
-                                  ? 'bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-400 animate-pulse'
-                                  : 'bg-white hover:bg-sky-100 text-sky-700 border-sky-300'
-                              }`}
-                              title="Nghe thử lời đọc câu hỏi"
-                            >
-                              <Volume2 className="w-3 h-3" />
-                              <span>{playingEditorAudioId === `q-${idx}` ? 'Đang đọc...' : 'Nghe thử'}</span>
-                            </button>
-                          </div>
-                          <input
-                            type="text"
-                            value={q.customSpokenPrompt ?? ''}
-                            onChange={(e) => handleUpdateQuestion(idx, 'customSpokenPrompt', e.target.value)}
-                            placeholder={`Mặc định: ${normalizeMathTextForSpeech(q.prompt, q.options)}`}
-                            className="w-full h-7 px-2.5 rounded-lg border border-sky-200 bg-white text-xs font-medium text-slate-800 focus:border-sky-500 focus:outline-hidden"
+                        <div className="mt-2.5">
+                          <QuestionAudioControl
+                            question={q}
+                            questionIndex={idx}
+                            type="prompt"
+                            isGrade1Scope={isGrade1Scope}
+                            onChangeSpokenText={(text) => handleUpdateQuestion(idx, 'customSpokenPrompt', text)}
+                            onUpdateAudio={(audioUrl, audioHash) => {
+                              const updated = [...questions];
+                              updated[idx] = { ...updated[idx], audioUrl, audioHash };
+                              setQuestions(updated);
+                            }}
+                            onDeleteAudio={() => {
+                              const updated = [...questions];
+                              updated[idx] = { ...updated[idx], audioUrl: '', audioHash: '' };
+                              setQuestions(updated);
+                            }}
                           />
-                          <p className="text-[10px] text-slate-400 mt-0.5">
-                            Để trống để dùng lời đọc chuẩn hóa tự động. Giáo viên có thể tùy chỉnh câu từ nếu cần.
-                          </p>
                         </div>
                       )}
                     </div>
@@ -1931,38 +1917,26 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                           className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs font-medium"
                         />
 
-                        {/* Custom Spoken Hint for Grade 1 */}
+                        {/* Full Audio Management for Wrong-Answer Hint (Req 2) */}
                         {isGrade1Scope && (
-                          <div className="mt-1.5 p-1.5 rounded-lg bg-amber-50/80 border border-amber-200/90 text-xs">
-                            <div className="flex items-center justify-between mb-0.5">
-                              <label className="text-[10px] font-bold text-amber-900 flex items-center gap-1">
-                                <Volume2 className="w-3 h-3 text-amber-600" />
-                                Lời đọc manh mối (tự động phát khi học sinh chọn sai)
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleHintAudio(q, idx)}
-                                className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs ${
-                                  playingEditorAudioId === `h-${idx}`
-                                    ? 'bg-amber-200 text-amber-900 border-amber-400 animate-pulse'
-                                    : 'bg-white hover:bg-amber-100 text-amber-800 border-amber-300'
-                                }`}
-                                title="Nghe thử lời đọc manh mối"
-                              >
-                                <Volume2 className="w-2.5 h-2.5" />
-                                <span>{playingEditorAudioId === `h-${idx}` ? 'Đang đọc...' : 'Nghe thử'}</span>
-                              </button>
-                            </div>
-                            <input
-                              type="text"
-                              value={q.customSpokenHint ?? ''}
-                              onChange={(e) => handleUpdateQuestion(idx, 'customSpokenHint', e.target.value)}
-                              placeholder={`Mặc định: ${q.ruleHints?.[0]?.hintText ? normalizeMathTextForSpeech(q.ruleHints[0].hintText) : 'Chưa có gợi ý'}`}
-                              className="w-full h-6 px-2 rounded-md border border-amber-200 bg-white text-[10px] font-medium text-slate-800 focus:border-amber-500 focus:outline-hidden"
+                          <div className="mt-2">
+                            <QuestionAudioControl
+                              question={q}
+                              questionIndex={idx}
+                              type="hint"
+                              isGrade1Scope={isGrade1Scope}
+                              onChangeSpokenText={(text) => handleUpdateQuestion(idx, 'customSpokenHint', text)}
+                              onUpdateAudio={(hintAudioUrl, hintAudioHash) => {
+                                const updated = [...questions];
+                                updated[idx] = { ...updated[idx], hintAudioUrl, hintAudioHash };
+                                setQuestions(updated);
+                              }}
+                              onDeleteAudio={() => {
+                                const updated = [...questions];
+                                updated[idx] = { ...updated[idx], hintAudioUrl: '', hintAudioHash: '' };
+                                setQuestions(updated);
+                              }}
                             />
-                            <p className="text-[9px] text-slate-400 mt-0.5">
-                              Để trống để dùng lời đọc tự động theo manh mối trên.
-                            </p>
                           </div>
                         )}
                       </div>

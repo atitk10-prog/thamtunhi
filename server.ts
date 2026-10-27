@@ -5228,14 +5228,23 @@ app.get('/api/media/file/:id', async (req: Request, res: Response) => {
 app.get(['/api/audio/:filename', '/audio/:filename'], async (req: Request, res: Response) => {
   try {
     const filename = req.params.filename;
-    if (!filename || !/^[a-zA-Z0-9_-]+\.mp3$/.test(filename)) {
+    if (!filename || !/^[a-zA-Z0-9_.-]+\.(mp3|wav|m4a|ogg)$/.test(filename)) {
       return res.status(400).send('Tên tệp âm thanh không hợp lệ.');
     }
+
+    const ext = path.extname(filename).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.m4a': 'audio/mp4',
+      '.ogg': 'audio/ogg',
+    };
+    const contentType = mimeMap[ext] || 'audio/mpeg';
 
     // 1. In-memory cache (Fastest, zero I/O)
     const mem = audioMemoryCache.get(filename);
     if (mem && mem.length > 500) {
-      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Length', mem.length);
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -5257,10 +5266,10 @@ app.get(['/api/audio/:filename', '/audio/:filename'], async (req: Request, res: 
         if (fs.existsSync(cPath)) {
           const buffer = fs.readFileSync(cPath);
           if (buffer.length > 500) {
-            if (buffer.length < 1_000_000) {
+            if (buffer.length < 2_000_000) {
               audioMemoryCache.set(filename, buffer);
             }
-            res.setHeader('Content-Type', 'audio/mpeg');
+            res.setHeader('Content-Type', contentType);
             res.setHeader('Content-Length', buffer.length);
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
             res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -5270,13 +5279,42 @@ app.get(['/api/audio/:filename', '/audio/:filename'], async (req: Request, res: 
       } catch {}
     }
 
-    // 3. Dynamic synthesis if text query parameter is provided
+    // 3. Persistent Cloud Firestore Chunks (survives Vercel deployments & serverless cold-starts)
+    try {
+      const metaSnap = await getDoc(doc(db, 'test', `audio_meta_${filename}`));
+      if (metaSnap.exists()) {
+        const meta = metaSnap.data();
+        const totalChunks = Number(meta.totalChunks || 1);
+        let assembledBase64 = '';
+        for (let i = 0; i < totalChunks; i++) {
+          const chunkSnap = await getDoc(doc(db, 'test', `audio_bin_${filename}_${i}`));
+          if (chunkSnap.exists()) {
+            assembledBase64 += chunkSnap.data().data;
+          }
+        }
+        if (assembledBase64) {
+          const buffer = Buffer.from(assembledBase64, 'base64');
+          if (buffer.length > 500) {
+            audioMemoryCache.set(filename, buffer);
+            res.setHeader('Content-Type', meta.mimeType || contentType);
+            res.setHeader('Content-Length', buffer.length);
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            return res.end(buffer);
+          }
+        }
+      }
+    } catch (cloudErr) {
+      console.warn('Notice: Cloud Firestore audio retrieval notice:', cloudErr);
+    }
+
+    // 4. Dynamic synthesis if text query parameter is provided
     const text = req.query.text as string;
     if (text) {
       const spoken = normalizeMathTextForSpeech(text);
       const buf = await synthesizeVietnameseSpeech(spoken);
       saveAudioBufferSafe(filename, buf);
-      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Length', buf.length);
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -5293,7 +5331,7 @@ app.get(['/api/audio/:filename', '/audio/:filename'], async (req: Request, res: 
 // Dynamic Audio Synthesizer Endpoint (Teacher & Admin)
 app.post('/api/audio/synthesize', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { text, type = 'prompt', options } = req.body;
+    const { text, type = 'prompt', options, force = false } = req.body;
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Thiếu nội dung văn bản cần chuyển thành giọng nói.' });
     }
@@ -5303,8 +5341,8 @@ app.post('/api/audio/synthesize', requireAuth, requireRole(['teacher', 'admin'])
     const filename = `${prefix}_${hash}.mp3`;
     const filePath = path.join(AUDIO_STORAGE_DIR, filename);
 
-    // Reuse existing audio if available
-    if (fs.existsSync(filePath)) {
+    // Reuse existing audio if available AND force is not requested
+    if (!force && fs.existsSync(filePath)) {
       const stats = fs.statSync(filePath);
       if (stats.size > 500) {
         return res.json({
@@ -5320,6 +5358,31 @@ app.post('/api/audio/synthesize', requireAuth, requireRole(['teacher', 'admin'])
     const buf = await synthesizeVietnameseSpeech(spoken);
     saveAudioBufferSafe(filename, buf);
 
+    // Persist in Firestore chunks for permanent resilience across Vercel deployments
+    try {
+      const base64 = buf.toString('base64');
+      const CHUNK_SIZE = 180 * 1024;
+      const totalChunks = Math.ceil(base64.length / CHUNK_SIZE);
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkData = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        await setDoc(doc(db, 'test', `audio_bin_${filename}_${i}`), {
+          filename,
+          chunkIndex: i,
+          data: chunkData,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      await setDoc(doc(db, 'test', `audio_meta_${filename}`), {
+        filename,
+        mimeType: 'audio/mpeg',
+        sizeBytes: buf.length,
+        totalChunks,
+        uploadedAt: new Date().toISOString(),
+      });
+    } catch (saveErr) {
+      console.warn('Notice: Could not persist audio in Firestore:', saveErr);
+    }
+
     return res.json({
       ok: true,
       audioUrl: `/audio/${filename}`,
@@ -5330,6 +5393,95 @@ app.post('/api/audio/synthesize', requireAuth, requireRole(['teacher', 'admin'])
   } catch (err: any) {
     console.error('Synthesize audio error:', err);
     return res.status(500).json({ error: 'Lỗi tạo âm thanh: ' + err.message });
+  }
+});
+
+// Teacher Custom Audio Upload Endpoint (MP3/WAV/M4A/OGG, <= 5MB)
+app.post('/api/audio/upload', requireAuth, requireRole(['teacher', 'admin']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { base64Data, filename: originalName, mimeType: providedMime, type = 'prompt' } = req.body;
+
+    if (!base64Data || typeof base64Data !== 'string') {
+      return res.status(400).json({ error: 'Vui lòng cung cấp dữ liệu tệp âm thanh.' });
+    }
+
+    const cleanBase64 = base64Data.replace(/^data:audio\/[a-zA-Z0-9+.-]+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+
+    if (buffer.length < 500) {
+      return res.status(400).json({ error: 'Tệp âm thanh quá nhỏ hoặc bị hỏng.' });
+    }
+
+    // Max 5MB limit check (Req 2.1 & 6)
+    if (buffer.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Dung lượng tệp âm thanh vượt quá giới hạn 5MB.' });
+    }
+
+    // Determine extension & MIME
+    let ext = '.mp3';
+    let mimeType = 'audio/mpeg';
+    const lowerName = (originalName || '').toLowerCase();
+    const lowerMime = (providedMime || '').toLowerCase();
+
+    if (lowerName.endsWith('.wav') || lowerMime.includes('wav')) {
+      ext = '.wav';
+      mimeType = 'audio/wav';
+    } else if (lowerName.endsWith('.m4a') || lowerMime.includes('m4a') || lowerMime.includes('mp4')) {
+      ext = '.m4a';
+      mimeType = 'audio/mp4';
+    } else if (lowerName.endsWith('.ogg') || lowerMime.includes('ogg')) {
+      ext = '.ogg';
+      mimeType = 'audio/ogg';
+    } else if (lowerName.endsWith('.mp3') || lowerMime.includes('mpeg') || lowerMime.includes('mp3')) {
+      ext = '.mp3';
+      mimeType = 'audio/mpeg';
+    } else {
+      return res.status(400).json({
+        error: 'Định dạng tệp không được hỗ trợ. Vui lòng chọn tệp MP3, WAV, M4A hoặc OGG.',
+      });
+    }
+
+    const prefix = type === 'hint' ? 'h' : 'q';
+    const uniqueHash = crypto.randomBytes(8).toString('hex');
+    const newFilename = `${prefix}_upload_${Date.now()}_${uniqueHash}${ext}`;
+
+    saveAudioBufferSafe(newFilename, buffer);
+
+    // Save to Firestore chunks for permanent resilience across Vercel deployments
+    try {
+      const CHUNK_SIZE = 180 * 1024;
+      const totalChunks = Math.ceil(cleanBase64.length / CHUNK_SIZE);
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkData = cleanBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        await setDoc(doc(db, 'test', `audio_bin_${newFilename}_${i}`), {
+          filename: newFilename,
+          chunkIndex: i,
+          data: chunkData,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      await setDoc(doc(db, 'test', `audio_meta_${newFilename}`), {
+        filename: newFilename,
+        mimeType,
+        sizeBytes: buffer.length,
+        totalChunks,
+        uploadedBy: req.user?.uid || 'teacher',
+        uploadedAt: new Date().toISOString(),
+      });
+    } catch (saveErr) {
+      console.warn('Notice: Could not persist uploaded audio in Firestore:', saveErr);
+    }
+
+    return res.json({
+      ok: true,
+      audioUrl: `/audio/${newFilename}`,
+      hash: `${prefix}_upload_${uniqueHash}`,
+      filename: newFilename,
+      sizeBytes: buffer.length,
+    });
+  } catch (err: any) {
+    console.error('Upload audio error:', err);
+    return res.status(500).json({ error: 'Lỗi khi tải tệp âm thanh lên: ' + err.message });
   }
 });
 

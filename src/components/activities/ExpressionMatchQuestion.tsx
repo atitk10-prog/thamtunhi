@@ -192,6 +192,31 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
     );
   };
 
+  const hasVisualLeft = React.useMemo(() => {
+    return leftItems.some((left) => {
+      const pairMeta = rawPairs.find((p) => p.left === left);
+      const parsed = parseLeftCard(left, pairMeta);
+      return parsed.isVisualQuantity;
+    });
+  }, [leftItems, rawPairs]);
+
+  const leftColumnTitle = React.useMemo(() => {
+    if (hasVisualLeft) return 'Cột Trái (Hình ảnh / Đồ vật)';
+    const promptLower = (question.prompt || '').toLowerCase();
+    if (promptLower.includes('tên hình') || promptLower.includes('hình vuông')) return 'Cột Trái (Đồ vật quen thuộc)';
+    if (promptLower.includes('tách') || promptLower.includes('gộp')) return 'Cột Trái (Sơ đồ tách - gộp)';
+    if (promptLower.includes('phép')) return 'Cột Trái (Phép tính)';
+    return 'Cột Trái (Thẻ mẫu)';
+  }, [hasVisualLeft, question.prompt]);
+
+  const rightColumnTitle = React.useMemo(() => {
+    if (hasVisualLeft) return 'Cột Phải (Chữ số tương ứng)';
+    const promptLower = (question.prompt || '').toLowerCase();
+    if (promptLower.includes('tên hình') || promptLower.includes('hình vuông')) return 'Cột Phải (Hình dạng)';
+    if (promptLower.includes('phép') || promptLower.includes('tách') || promptLower.includes('kết quả')) return 'Cột Phải (Kết quả)';
+    return 'Cột Phải (Thẻ ghép)';
+  }, [hasVisualLeft, question.prompt]);
+
   return (
     <div className="w-full flex flex-col items-center">
       {question.visualConfig && question.visualConfig.type !== 'none' && (
@@ -204,8 +229,8 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
           <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
           <span>
             {selectedLeft
-              ? '👉 Bước 2: Chạm chọn số tương ứng ở Cột Phải để nối'
-              : '👉 Bước 1: Chạm chọn hình ở Cột Trái &rarr; Chọn số ở Cột Phải'}
+              ? '👉 Bước 2: Chạm chọn thẻ tương ứng ở Cột Phải để nối'
+              : '👉 Bước 1: Chạm chọn thẻ ở Cột Trái → Chọn thẻ ở Cột Phải'}
           </span>
         </div>
         <span className="text-xs font-black text-sky-700 bg-white px-2.5 py-1 rounded-xl border border-sky-200 shrink-0">
@@ -217,8 +242,8 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
       <div className="w-full max-w-xl grid grid-cols-2 gap-4 sm:gap-6 my-2">
         {/* Left Column */}
         <div className="flex flex-col gap-3">
-          <div className="text-xs font-black uppercase tracking-wider text-slate-500 text-center py-1 bg-slate-100 rounded-xl">
-            Cột Trái (Hình ảnh / Đồ vật)
+          <div className="text-xs font-black uppercase tracking-wider text-slate-600 text-center py-1.5 bg-slate-100 rounded-xl border border-slate-200">
+            {leftColumnTitle}
           </div>
 
           {leftItems.map((left, idx) => {
@@ -284,8 +309,8 @@ export const ExpressionMatchQuestion: React.FC<ExpressionMatchQuestionProps> = (
 
         {/* Right Column */}
         <div className="flex flex-col gap-3">
-          <div className="text-xs font-black uppercase tracking-wider text-slate-500 text-center py-1 bg-slate-100 rounded-xl">
-            Cột Phải (Đáp án / Số)
+          <div className="text-xs font-black uppercase tracking-wider text-slate-600 text-center py-1.5 bg-slate-100 rounded-xl border border-slate-200">
+            {rightColumnTitle}
           </div>
 
           {rightItems.map((right, idx) => {

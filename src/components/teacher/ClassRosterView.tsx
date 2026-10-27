@@ -441,10 +441,10 @@ export const ClassRosterView: React.FC<ClassRosterViewProps> = ({
               onChange={(e) => setSortOption(e.target.value as any)}
               className="h-9 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden cursor-pointer"
             >
-              <option value="code-asc">Mã HS (A &rarr; Z)</option>
-              <option value="code-desc">Mã HS (Z &rarr; A)</option>
-              <option value="name-asc">Họ và tên (A &rarr; Z)</option>
-              <option value="name-desc">Họ và tên (Z &rarr; A)</option>
+              <option value="code-asc">Mã HS (A → Z)</option>
+              <option value="code-desc">Mã HS (Z → A)</option>
+              <option value="name-asc">Họ và tên (A → Z)</option>
+              <option value="name-desc">Họ và tên (Z → A)</option>
               <option value="score-desc">Điểm TB (Cao nhất)</option>
               <option value="progress-desc">Tiến độ (Nhiều nhất)</option>
             </select>

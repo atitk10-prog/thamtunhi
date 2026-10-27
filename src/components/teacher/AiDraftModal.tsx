@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, X, AlertTriangle, Check, Loader2, RefreshCw, PlusCircle, HelpCircle, Volume2 } from 'lucide-react';
 import { Question } from '../../types';
 import { getAuthHeaders } from '../../lib/authSession';
-import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash } from '../../lib/vietnameseTts';
+import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash, getQuestionSpokenText, getHintSpokenText } from '../../lib/vietnameseTts';
 import { playVietnameseAudio, stopVietnameseAudio } from '../../lib/vietnameseAudioPlayer';
+import { QuestionAudioControl } from './QuestionAudioControl';
 
 export interface AiDraftMeta {
   grade: 1 | 2;
@@ -151,7 +152,20 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
       }
 
       if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
-        setDraftQuestions(data.questions);
+        const enriched = data.questions.map((q: Question) => {
+          const spokenPrompt = getQuestionSpokenText(q);
+          const pHash = getAudioHash(spokenPrompt);
+          const spokenHint = getHintSpokenText(q);
+          const hHash = spokenHint ? getAudioHash(spokenHint) : undefined;
+          return {
+            ...q,
+            audioUrl: q.audioUrl || `/audio/q_${pHash}.mp3`,
+            audioHash: q.audioHash || pHash,
+            hintAudioUrl: q.hintAudioUrl || (hHash ? `/audio/h_${hHash}.mp3` : undefined),
+            hintAudioHash: q.hintAudioHash || hHash,
+          };
+        });
+        setDraftQuestions(enriched);
       } else {
         setErrorMsg('Dữ liệu AI phản hồi nhưng không chứa danh sách câu hỏi hợp lệ.');
       }
@@ -160,6 +174,14 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUpdateDraftQuestion = (idx: number, updates: Partial<Question>) => {
+    setDraftQuestions((prev) => {
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], ...updates };
+      return updated;
+    });
   };
 
   const handleApply = () => {
@@ -511,21 +533,6 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {isGrade1Scope && (
-                            <button
-                              type="button"
-                              onClick={() => handleToggleDraftAudio(q, 'question', qKey)}
-                              className={`p-1 px-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs ${
-                                isQPlaying
-                                  ? 'bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-400 animate-pulse'
-                                  : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
-                              }`}
-                              aria-label="Phát âm thanh câu hỏi"
-                              title="Nghe câu hỏi"
-                            >
-                              <Volume2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
                           <span className="text-emerald-700">Đáp án: <strong>{q.expectedAnswer}</strong></span>
                         </div>
                       </div>
@@ -533,25 +540,34 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
                       <p className="text-slate-800">{q.prompt}</p>
 
                       {q.ruleHints && q.ruleHints[0] && (
-                        <div className="flex items-center justify-between gap-2 pt-0.5">
-                          <p className="text-[11px] text-amber-700 font-medium flex-1">
+                        <div className="pt-0.5">
+                          <p className="text-[11px] text-amber-700 font-medium">
                             💡 Manh mối thám tử: {q.ruleHints[0].hintText}
                           </p>
-                          {isGrade1Scope && (
-                            <button
-                              type="button"
-                              onClick={() => handleToggleDraftAudio(q, 'hint', hKey)}
-                              className={`p-1 px-1.5 rounded-md flex items-center gap-1 cursor-pointer transition-colors border shadow-2xs shrink-0 ${
-                                isHPlaying
-                                  ? 'bg-amber-200 text-amber-900 border-amber-400'
-                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
-                              }`}
-                              aria-label="Phát âm thanh manh mối"
-                              title="Nghe manh mối"
-                            >
-                              <Volume2 className="w-3 h-3" />
-                            </button>
-                          )}
+                        </div>
+                      )}
+
+                      {/* Full Audio Management for Grade 1 Questions in AI Draft (Req 2) */}
+                      {isGrade1Scope && (
+                        <div className="pt-2 border-t border-slate-100 space-y-2 mt-1">
+                          <QuestionAudioControl
+                            question={q}
+                            questionIndex={idx}
+                            type="prompt"
+                            isGrade1Scope={isGrade1Scope}
+                            onChangeSpokenText={(text) => handleUpdateDraftQuestion(idx, { customSpokenPrompt: text })}
+                            onUpdateAudio={(audioUrl, audioHash) => handleUpdateDraftQuestion(idx, { audioUrl, audioHash })}
+                            onDeleteAudio={() => handleUpdateDraftQuestion(idx, { audioUrl: '', audioHash: '' })}
+                          />
+                          <QuestionAudioControl
+                            question={q}
+                            questionIndex={idx}
+                            type="hint"
+                            isGrade1Scope={isGrade1Scope}
+                            onChangeSpokenText={(text) => handleUpdateDraftQuestion(idx, { customSpokenHint: text })}
+                            onUpdateAudio={(hintAudioUrl, hintAudioHash) => handleUpdateDraftQuestion(idx, { hintAudioUrl, hintAudioHash })}
+                            onDeleteAudio={() => handleUpdateDraftQuestion(idx, { hintAudioUrl: '', hintAudioHash: '' })}
+                          />
                         </div>
                       )}
                     </div>
