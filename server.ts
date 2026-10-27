@@ -370,6 +370,9 @@ async function persistAudioBuffer(filename: string, buffer: Buffer, mimeType = '
     });
   } catch (cloudErr) {
     console.warn(`Notice: Failed to persist audio ${filename} in Firestore:`, cloudErr);
+    // In-memory files disappear after a serverless cold start. A failed
+    // Firestore write must never be reported as a successful TTS result.
+    throw new Error(`Không thể lưu bền vững tệp âm thanh ${filename} trên Firestore.`);
   }
 }
 
@@ -454,14 +457,32 @@ async function synthesizeAndPersistAudio(
   if (!force) {
     const existing = await getPersistedAudioBuffer(filename);
     if (existing && existing.length > 500) {
-      return {
-        filename,
-        audioUrl: `/audio/${filename}`,
-        hash,
-        normalizedText: spoken,
-        reused: true,
-        buffer: existing,
-      };
+      // A warm invocation can cache bytes from an unsuccessful Firestore
+      // write. Reuse only if backed by bundled static assets or cloud data.
+      const bundled = [
+        path.resolve(__dirname, 'public', 'audio', filename),
+        path.resolve(process.cwd(), 'public', 'audio', filename),
+        path.resolve(__dirname, 'dist', 'audio', filename),
+      ].some((candidate) => fs.existsSync(candidate));
+      let durable = bundled;
+      if (!durable) {
+        try {
+          const meta = await getDoc(doc(db, 'test', `audio_meta_${filename}`));
+          durable = meta.exists() && Number(meta.data().sizeBytes) === existing.length;
+        } catch {
+          durable = false;
+        }
+      }
+      if (durable) {
+        return {
+          filename,
+          audioUrl: `/audio/${filename}`,
+          hash,
+          normalizedText: spoken,
+          reused: true,
+          buffer: existing,
+        };
+      }
     }
   }
 
@@ -472,8 +493,9 @@ async function synthesizeAndPersistAudio(
 
   await persistAudioBuffer(filename, buf, 'audio/mpeg', uploaderId);
 
-  const verified = await getPersistedAudioBuffer(filename);
-  if (!verified || verified.length < 500) {
+  // This read deliberately bypasses the current Lambda's memory/disk cache.
+  const verifiedMeta = await getDoc(doc(db, 'test', `audio_meta_${filename}`));
+  if (!verifiedMeta.exists() || Number(verifiedMeta.data().sizeBytes) !== buf.length) {
     throw new Error('Không thể kiểm chứng tệp âm thanh sau khi lưu.');
   }
 

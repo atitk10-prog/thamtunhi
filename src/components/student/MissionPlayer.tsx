@@ -36,18 +36,11 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   const isGrade1Scope = isGrade1Weeks1To9(lessonVersion);
   const [isQuestionAudioPlaying, setIsQuestionAudioPlaying] = useState(false);
 
-  // Track if student/teacher has clicked 'Bắt đầu làm bài' to unlock browser audio autoplay
-  const [hasStartedMission, setHasStartedMission] = useState<boolean>(() => {
-    if (!isGrade1Weeks1To9(lessonVersion)) {
-      return true;
-    }
-    try {
-      const cachedStarted = sessionStorage.getItem(`thamtunhi_mission_started_${assignment.id}_${currentUser.id}`);
-      return cachedStarted === 'true';
-    } catch {
-      return false;
-    }
-  });
+  // Audio permission does not persist across a page reload. Require a fresh
+  // user gesture on every Grade 1 mount so the first MP3 can actually play.
+  const [hasStartedMission, setHasStartedMission] = useState<boolean>(
+    () => !isGrade1Weeks1To9(lessonVersion)
+  );
 
   // User input states for different question types
   const [singleChoiceAnswer, setSingleChoiceAnswer] = useState('');
@@ -103,9 +96,6 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
   const handleStartMissionWithAudio = () => {
     setHasStartedMission(true);
-    try {
-      sessionStorage.setItem(`thamtunhi_mission_started_${assignment.id}_${currentUser.id}`, 'true');
-    } catch {}
     if (currentQuestion && isGrade1Scope) {
       lastPlayedIndexRef.current = currentIndex;
       playCurrentQuestionAudio(currentQuestion);
