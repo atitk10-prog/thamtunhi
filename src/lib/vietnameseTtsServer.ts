@@ -1,3 +1,13 @@
+/**
+ * Vietnamese Text-To-Speech (TTS) Server Module - Thám Tử Toán Nhí
+ *
+ * [NGUỒN GIỌNG CHÍNH THỨC]:
+ * - Hệ thống sử dụng Google Translate TTS (tiếng Việt `tl=vi`, client=tw-ob).
+ * - KHÔNG PHẢI Gemini TTS (được công khai minh bạch đúng bản chất công nghệ thực tế).
+ * - Giọng đọc tiếng Việt chuẩn, phát âm tự nhiên, được tối ưu tốc độ 0.9x tại client (vietnameseAudioPlayer)
+ *   cho học sinh Lớp 1 nghe rõ ràng, chậm rãi và thân thiện.
+ * - Cho phép giáo viên nghe thử và thay thế bằng tệp thu âm trực tiếp khi cần.
+ */
 import https from 'https';
 export * from './vietnameseTts';
 

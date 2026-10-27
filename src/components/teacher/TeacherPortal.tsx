@@ -861,7 +861,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                      {assignments.filter((a) => a.status === 'open' && a.status !== 'cancelled' && a.status !== 'archived').length === 0 ? (
+                      {assignments.filter((a) => a.status === 'open').length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
                             Chưa có đợt giao bài nào đang hoạt động.
@@ -869,7 +869,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
                         </tr>
                       ) : (
                         assignments
-                          .filter((a) => a.status === 'open' && a.status !== 'cancelled' && a.status !== 'archived')
+                          .filter((a) => a.status === 'open')
                           .map((a) => {
                           const isCancelled = a.status === 'cancelled';
                           const isClosed = a.status === 'closed';

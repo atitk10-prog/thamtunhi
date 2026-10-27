@@ -41,9 +41,13 @@ async function run() {
 
   // 1. Đăng nhập Giáo viên trên Production
   console.log('--- 1. Đăng nhập Giáo viên lấy token chính thức từ Production ---');
+  if (!process.env.TEST_TEACHER_PASSWORD) {
+    console.error('[SECURITY NOTICE] Vui lòng cung cấp mật khẩu qua biến môi trường TEST_TEACHER_PASSWORD.');
+    process.exit(1);
+  }
   const loginRes = await request('POST', '/api/auth/teacher-login', {}, {
-    email: 'giaovien1@thamtutoannhi.edu.vn',
-    password: 'MatKhauGiaoVien@123'
+    email: process.env.TEST_TEACHER_EMAIL || 'giaovien1@thamtutoannhi.edu.vn',
+    password: process.env.TEST_TEACHER_PASSWORD || ''
   });
   console.log(`[PASS] Đăng nhập HTTP ${loginRes.statusCode}:`, loginRes.data.user.displayName, `(Token dài: ${loginRes.data.token.length})`);
   const token = loginRes.data.token;

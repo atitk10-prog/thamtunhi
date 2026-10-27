@@ -1,11 +1,13 @@
 /**
  * Client-side Vietnamese Audio Player for Grade 1 Primary Students
- * Plays natural Vietnamese TTS audio files at a gentle, clear 0.9x playback rate.
- * Auto-cleans up on navigation, modal dismiss, or component unmount.
+ * Plays verified Vietnamese MP3 audio files at a gentle, clear 0.9x playback rate.
+ * STRICT POLICY: ZERO browser speechSynthesis fallback to completely eliminate
+ * foreign robotic English / broken voice playback on any device.
  */
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentOnEndedCallback: (() => void) | null = null;
+let currentOnErrorCallback: ((err: any) => void) | null = null;
 
 export function stopVietnameseAudio(): void {
   if (currentAudio) {
@@ -16,128 +18,96 @@ export function stopVietnameseAudio(): void {
     } catch {}
     currentAudio = null;
   }
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    try {
-      window.speechSynthesis.cancel();
-    } catch {}
-  }
+  // Browser speechSynthesis is completely removed from the entire application
   if (currentOnEndedCallback) {
     try {
       currentOnEndedCallback();
     } catch {}
     currentOnEndedCallback = null;
   }
+  currentOnErrorCallback = null;
 }
 
 export function isAudioPlaying(): boolean {
   return currentAudio !== null && !currentAudio.paused && !currentAudio.ended;
 }
 
+/**
+ * Plays genuine Vietnamese MP3 audio file.
+ * If audio is missing, 404, blocked by autoplay, or errors: triggers onError and onEnded.
+ * ABSOLUTELY NEVER falls back to window.speechSynthesis to prevent foreign/robotic voices.
+ */
 export function playVietnameseAudio(
   audioUrl?: string,
-  fallbackText?: string,
+  _deprecatedFallbackText?: string,
   onStart?: () => void,
-  onEnded?: () => void
+  onEnded?: () => void,
+  onError?: (err: any) => void
 ): HTMLAudioElement | null {
   // 1. Stop any currently active audio first
   stopVietnameseAudio();
 
-  if (!audioUrl && !fallbackText) return null;
-
-  // 2. Play via audio URL (primary path: pre-generated or dynamic MP3)
-  if (audioUrl) {
-    try {
-      const audio = new Audio(audioUrl);
-      currentAudio = audio;
-      currentOnEndedCallback = onEnded || null;
-
-      // 0.9x speed: gentle, crystal clear, unhurried cadence for 6-year-old first graders
-      audio.playbackRate = 0.9;
-
-      audio.onplay = () => {
-        if (onStart) onStart();
-      };
-
-      audio.onended = () => {
-        currentAudio = null;
-        currentOnEndedCallback = null;
-        if (onEnded) onEnded();
-      };
-
-      audio.onerror = () => {
-        // Fallback to Web Speech API if audio file fails to load
-        if (fallbackText) {
-          playSpeechSynthesisFallback(fallbackText, onStart, onEnded);
-        } else {
-          currentAudio = null;
-          currentOnEndedCallback = null;
-          if (onEnded) onEnded();
-        }
-      };
-
-      audio.play().catch(() => {
-        // Autoplay policy or error -> try speech synthesis fallback
-        if (fallbackText) {
-          playSpeechSynthesisFallback(fallbackText, onStart, onEnded);
-        } else {
-          currentAudio = null;
-          currentOnEndedCallback = null;
-          if (onEnded) onEnded();
-        }
-      });
-
-      return audio;
-    } catch (e) {
-      if (fallbackText) {
-        playSpeechSynthesisFallback(fallbackText, onStart, onEnded);
-      }
-      return null;
-    }
-  }
-
-  // 3. Fallback: Web Speech API
-  if (fallbackText) {
-    playSpeechSynthesisFallback(fallbackText, onStart, onEnded);
-  }
-
-  return null;
-}
-
-function playSpeechSynthesisFallback(
-  text: string,
-  onStart?: () => void,
-  onEnded?: () => void
-): void {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+  const cleanUrl = typeof audioUrl === 'string' ? audioUrl.trim() : '';
+  if (!cleanUrl) {
+    if (onError) onError(new Error('Chưa có tệp âm thanh'));
     if (onEnded) onEnded();
-    return;
+    return null;
   }
 
+  // 2. Play via genuine audio URL (pre-generated or verified MP3)
   try {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'vi-VN';
-    utterance.rate = 0.88; // Gentle pace
-    utterance.pitch = 1.05; // Friendly warm pitch
+    const audio = new Audio(cleanUrl);
+    currentAudio = audio;
+    currentOnEndedCallback = onEnded || null;
+    currentOnErrorCallback = onError || null;
 
-    utterance.onstart = () => {
+    // 0.9x speed: gentle, crystal clear, unhurried cadence for 6-year-old first graders
+    audio.playbackRate = 0.9;
+
+    audio.onplay = () => {
       if (onStart) onStart();
     };
 
-    utterance.onend = () => {
+    audio.onended = () => {
       currentAudio = null;
       currentOnEndedCallback = null;
+      currentOnErrorCallback = null;
       if (onEnded) onEnded();
     };
 
-    utterance.onerror = () => {
+    audio.onerror = (e) => {
       currentAudio = null;
+      const errCb = currentOnErrorCallback;
       currentOnEndedCallback = null;
+      currentOnErrorCallback = null;
+      if (errCb) {
+        errCb(e || new Error('Tệp âm thanh lỗi hoặc không tồn tại (404)'));
+      }
       if (onEnded) onEnded();
     };
 
-    window.speechSynthesis.speak(utterance);
-  } catch {
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        // Autoplay policy or load error -> report error cleanly, DO NOT call speechSynthesis
+        currentAudio = null;
+        const errCb = currentOnErrorCallback;
+        currentOnEndedCallback = null;
+        currentOnErrorCallback = null;
+        if (errCb) {
+          errCb(err);
+        }
+        if (onEnded) onEnded();
+      });
+    }
+
+    return audio;
+  } catch (e) {
+    currentAudio = null;
+    currentOnEndedCallback = null;
+    currentOnErrorCallback = null;
+    if (onError) onError(e);
     if (onEnded) onEnded();
+    return null;
   }
 }

@@ -23,8 +23,14 @@ async function test(email: string, pass: string) {
 }
 
 async function run() {
-  console.log(await test('xuannuong@gmail.com', 'MatKhauGiaoVien@123'));
-  console.log(await test('xuannuong@thamtunhi.edu.vn', 'MatKhauGiaoVien@123'));
-  console.log(await test('admin@thamtutoannhi.edu.vn', 'AdminBaoMat@123'));
+  if (process.env.TEST_TEACHER_PASSWORD) {
+    console.log(await test('xuannuong@gmail.com', process.env.TEST_TEACHER_PASSWORD));
+  }
+  if (process.env.TEST_TEACHER_PASSWORD) {
+    console.log(await test('xuannuong@thamtunhi.edu.vn', process.env.TEST_TEACHER_PASSWORD));
+  }
+  if (process.env.ADMIN_PASSWORD) {
+    console.log(await test('admin@thamtutoannhi.edu.vn', process.env.ADMIN_PASSWORD));
+  }
 }
 run();

@@ -261,6 +261,169 @@ if (!firebaseConfig) {
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
+// --- UNIFIED RESILIENT AUDIO SERVICE (Grade 1 Primary Mathematics) ---
+// Voice Engine: Google Translate Vietnamese TTS (tl=vi) - Natural Vietnamese pronunciation.
+// Not Gemini TTS. Operates identically across AI Drafts and Teacher Manual CRUD.
+
+function getQuestionSpokenText(q: { prompt: string; options?: (string | number)[]; customSpokenPrompt?: string }): string {
+  if (q.customSpokenPrompt && q.customSpokenPrompt.trim()) {
+    return q.customSpokenPrompt.trim();
+  }
+  return normalizeMathTextForSpeech(q.prompt, q.options as any);
+}
+
+function getHintSpokenText(q: { ruleHints?: { hintText?: string }[]; customSpokenHint?: string }): string {
+  if (q.customSpokenHint && q.customSpokenHint.trim()) {
+    return q.customSpokenHint.trim();
+  }
+  const hint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText || '' : '';
+  return normalizeMathTextForSpeech(hint);
+}
+
+async function persistAudioBuffer(filename: string, buffer: Buffer, mimeType = 'audio/mpeg', uploaderId = 'system') {
+  audioMemoryCache.set(filename, buffer);
+  saveAudioBufferSafe(filename, buffer);
+
+  try {
+    const cleanBase64 = buffer.toString('base64');
+    const CHUNK_SIZE = 180 * 1024;
+    const totalChunks = Math.ceil(cleanBase64.length / CHUNK_SIZE);
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkData = cleanBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+      await setDoc(doc(db, 'test', `audio_bin_${filename}_${i}`), {
+        filename,
+        chunkIndex: i,
+        data: chunkData,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    await setDoc(doc(db, 'test', `audio_meta_${filename}`), {
+      filename,
+      mimeType,
+      sizeBytes: buffer.length,
+      totalChunks,
+      uploadedBy: uploaderId,
+      uploadedAt: new Date().toISOString(),
+    });
+  } catch (cloudErr) {
+    console.warn(`Notice: Failed to persist audio ${filename} in Firestore:`, cloudErr);
+  }
+}
+
+async function getPersistedAudioBuffer(filename: string): Promise<Buffer | null> {
+  const mem = audioMemoryCache.get(filename);
+  if (mem && mem.length > 500) {
+    return mem;
+  }
+
+  const candidateDirs = [
+    AUDIO_STORAGE_DIR,
+    path.resolve(__dirname, 'public', 'audio'),
+    path.resolve(process.cwd(), 'public', 'audio'),
+    path.resolve(__dirname, 'dist', 'audio'),
+    path.resolve(process.cwd(), 'dist', 'audio'),
+    path.resolve('/tmp', 'audio'),
+  ];
+  for (const cDir of candidateDirs) {
+    try {
+      const cPath = path.join(cDir, filename);
+      if (fs.existsSync(cPath)) {
+        const buffer = fs.readFileSync(cPath);
+        if (buffer.length > 500) {
+          if (buffer.length < 2_000_000) {
+            audioMemoryCache.set(filename, buffer);
+          }
+          return buffer;
+        }
+      }
+    } catch {}
+  }
+
+  try {
+    const metaSnap = await getDoc(doc(db, 'test', `audio_meta_${filename}`));
+    if (metaSnap.exists()) {
+      const meta = metaSnap.data();
+      const totalChunks = Number(meta.totalChunks || 1);
+      let assembledBase64 = '';
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkSnap = await getDoc(doc(db, 'test', `audio_bin_${filename}_${i}`));
+        if (chunkSnap.exists()) {
+          assembledBase64 += chunkSnap.data().data;
+        }
+      }
+      if (assembledBase64) {
+        const buffer = Buffer.from(assembledBase64, 'base64');
+        if (buffer.length > 500) {
+          audioMemoryCache.set(filename, buffer);
+          return buffer;
+        }
+      }
+    }
+  } catch (cloudErr) {
+    console.warn(`Notice: Cloud Firestore audio retrieval notice for ${filename}:`, cloudErr);
+  }
+
+  return null;
+}
+
+async function synthesizeAndPersistAudio(
+  text: string,
+  type: 'prompt' | 'hint',
+  options?: (string | number)[],
+  force = false,
+  uploaderId = 'system'
+): Promise<{
+  filename: string;
+  audioUrl: string;
+  hash: string;
+  normalizedText: string;
+  reused: boolean;
+  buffer: Buffer;
+}> {
+  const spoken = normalizeMathTextForSpeech(text, options as any);
+  if (!spoken.trim()) {
+    throw new Error('Nội dung phát âm không được để trống.');
+  }
+  const hash = getAudioHash(spoken);
+  const prefix = type === 'hint' ? 'h' : 'q';
+  const filename = `${prefix}_${hash}.mp3`;
+
+  if (!force) {
+    const existing = await getPersistedAudioBuffer(filename);
+    if (existing && existing.length > 500) {
+      return {
+        filename,
+        audioUrl: `/audio/${filename}`,
+        hash,
+        normalizedText: spoken,
+        reused: true,
+        buffer: existing,
+      };
+    }
+  }
+
+  const buf = await synthesizeVietnameseSpeech(spoken);
+  if (!buf || buf.length < 500) {
+    throw new Error('Dữ liệu âm thanh tổng hợp không hợp lệ hoặc quá nhỏ.');
+  }
+
+  await persistAudioBuffer(filename, buf, 'audio/mpeg', uploaderId);
+
+  const verified = await getPersistedAudioBuffer(filename);
+  if (!verified || verified.length < 500) {
+    throw new Error('Không thể kiểm chứng tệp âm thanh sau khi lưu.');
+  }
+
+  return {
+    filename,
+    audioUrl: `/audio/${filename}`,
+    hash,
+    normalizedText: spoken,
+    reused: false,
+    buffer: buf,
+  };
+}
+
 // Firebase Service Account Credentials for Custom Token Minting (RS256 JWT)
 // Conforms to Google Identity Toolkit Custom Token Specification (Zero external dependencies)
 let serviceAccount: { client_email: string; private_key: string } | null = null;
@@ -1890,37 +2053,44 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có văn bản nào 
       rawPattern
     );
 
-    // Requirement IV: Automatically synthesize Vietnamese audio for Grade 1 Weeks 1-9 drafts
+    // Requirement 2: Automatically synthesize genuine Vietnamese audio for Grade 1 Weeks 1-9 drafts
+    let audioErrors: Array<{ questionIndex: number; target: 'prompt' | 'hint'; error: string }> = [];
     if (parsedGrade === 1 && isGrade1Weeks1To9({ grade: 1, title: cleanTopic })) {
-      for (const q of sanitizedQuestions) {
-        try {
-          const spokenPrompt = normalizeMathTextForSpeech(q.prompt, q.options);
-          const pHash = getAudioHash(spokenPrompt);
-          const pFilename = `q_${pHash}.mp3`;
-          const pPath = path.join(AUDIO_STORAGE_DIR, pFilename);
-          if (!fs.existsSync(pPath) && !audioMemoryCache.has(pFilename)) {
-            const buf = await synthesizeVietnameseSpeech(spokenPrompt);
-            saveAudioBufferSafe(pFilename, buf);
-          }
-          q.audioUrl = `/audio/${pFilename}`;
-          q.audioHash = pHash;
+      for (let qIdx = 0; qIdx < sanitizedQuestions.length; qIdx++) {
+        const q = sanitizedQuestions[qIdx];
+        const spokenPrompt = normalizeMathTextForSpeech(q.prompt, q.options as any);
 
-          const primaryHint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
-          if (primaryHint) {
-            const spokenHint = normalizeMathTextForSpeech(primaryHint);
-            const hHash = getAudioHash(spokenHint);
-            const hFilename = `h_${hHash}.mp3`;
-            const hPath = path.join(AUDIO_STORAGE_DIR, hFilename);
-            if (!fs.existsSync(hPath) && !audioMemoryCache.has(hFilename)) {
-              const buf = await synthesizeVietnameseSpeech(spokenHint);
-              saveAudioBufferSafe(hFilename, buf);
-            }
-            q.hintAudioUrl = `/audio/${hFilename}`;
-            q.hintAudioHash = hHash;
-          }
-        } catch (ttsErr) {
-          console.warn('Audio synthesis notice for draft question:', ttsErr);
+        // 1. Synthesize Question Audio
+        try {
+          const resPrompt = await synthesizeAndPersistAudio(spokenPrompt, 'prompt', q.options as any, false, (req as any).user?.uid || 'ai-generator');
+          q.audioUrl = resPrompt.audioUrl;
+          q.audioHash = resPrompt.hash;
+        } catch (promptErr: any) {
+          console.error(`Audio synthesis error for question ${qIdx + 1} prompt:`, promptErr);
+          q.audioUrl = '';
+          q.audioHash = '';
+          audioErrors.push({ questionIndex: qIdx, target: 'prompt', error: promptErr?.message || 'Lỗi tạo âm thanh câu hỏi' });
         }
+
+        // 2. Synthesize Hint Audio
+        const primaryHint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
+        if (primaryHint) {
+          const spokenHint = normalizeMathTextForSpeech(primaryHint);
+          try {
+            const resHint = await synthesizeAndPersistAudio(spokenHint, 'hint', undefined, false, (req as any).user?.uid || 'ai-generator');
+            q.hintAudioUrl = resHint.audioUrl;
+            q.hintAudioHash = resHint.hash;
+          } catch (hintErr: any) {
+            console.error(`Audio synthesis error for question ${qIdx + 1} hint:`, hintErr);
+            q.hintAudioUrl = '';
+            q.hintAudioHash = '';
+            audioErrors.push({ questionIndex: qIdx, target: 'hint', error: hintErr?.message || 'Lỗi tạo âm thanh gợi ý' });
+          }
+        }
+      }
+
+      if (audioErrors.length > 0) {
+        console.warn('Some draft questions have audio synthesis errors:', audioErrors);
       }
     }
 
@@ -1928,6 +2098,7 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có văn bản nào 
       ok: true,
       questions: sanitizedQuestions,
       count: sanitizedQuestions.length,
+      audioErrors: audioErrors.length > 0 ? audioErrors : undefined,
       grade: parsedGrade,
       topic: cleanTopic,
       targetPattern: rawPattern,
@@ -3977,6 +4148,57 @@ app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']),
     }
 
     // Immutability Check: Do not overwrite an existing version if it has assignments or attempts
+    // Requirement 3: Strictly block publishing Grade 1 lessons if audio is missing, stale, or invalid
+    if (versionDoc.isPublished && versionDoc.grade === 1 && isGrade1Weeks1To9(versionDoc)) {
+      const qList: any[] = versionDoc.questions || [];
+      for (let i = 0; i < qList.length; i++) {
+        const q = qList[i];
+        if (!q.audioUrl || typeof q.audioUrl !== 'string' || !q.audioUrl.trim()) {
+          return res.status(400).json({
+            error: `Câu hỏi số ${i + 1} chưa có âm thanh câu hỏi. Với Lớp 1 trong phạm vi, bắt buộc phải có âm thanh trước khi xuất bản.`
+          });
+        }
+        if (!q.hintAudioUrl || typeof q.hintAudioUrl !== 'string' || !q.hintAudioUrl.trim()) {
+          return res.status(400).json({
+            error: `Câu hỏi số ${i + 1} chưa có âm thanh gợi ý. Với Lớp 1 trong phạm vi, bắt buộc phải có âm thanh gợi ý trước khi xuất bản.`
+          });
+        }
+
+        const expPrompt = getQuestionSpokenText(q);
+        const expPromptHash = getAudioHash(expPrompt);
+        if (q.audioHash && q.audioHash !== expPromptHash) {
+          return res.status(400).json({
+            error: `Câu hỏi số ${i + 1}: Lời đọc câu hỏi đã sửa nhưng chưa được tạo lại âm thanh. Vui lòng tạo lại âm thanh trước khi xuất bản.`
+          });
+        }
+
+        const expHint = getHintSpokenText(q);
+        const expHintHash = expHint ? getAudioHash(expHint) : '';
+        if (expHintHash && q.hintAudioHash && q.hintAudioHash !== expHintHash) {
+          return res.status(400).json({
+            error: `Câu hỏi số ${i + 1}: Lời đọc gợi ý đã sửa nhưng chưa được tạo lại âm thanh. Vui lòng tạo lại âm thanh trước khi xuất bản.`
+          });
+        }
+
+        // Verify physical file exists and is decodable
+        const pFile = path.basename(q.audioUrl.split('?')[0]);
+        const pBuf = await getPersistedAudioBuffer(pFile);
+        if (!pBuf || pBuf.length < 500) {
+          return res.status(400).json({
+            error: `Tệp âm thanh câu hỏi số ${i + 1} (${pFile}) không tồn tại hoặc bị lỗi trong kho lưu trữ.`
+          });
+        }
+
+        const hFile = path.basename(q.hintAudioUrl.split('?')[0]);
+        const hBuf = await getPersistedAudioBuffer(hFile);
+        if (!hBuf || hBuf.length < 500) {
+          return res.status(400).json({
+            error: `Tệp âm thanh gợi ý số ${i + 1} (${hFile}) không tồn tại hoặc bị lỗi trong kho lưu trữ.`
+          });
+        }
+      }
+    }
+
     const existingVersionSnap = await getDoc(doc(db, 'lessonVersions', versionDoc.id));
     if (existingVersionSnap.exists()) {
       const existingData = existingVersionSnap.data();
@@ -5335,60 +5557,19 @@ app.post('/api/audio/synthesize', requireAuth, requireRole(['teacher', 'admin'])
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Thiếu nội dung văn bản cần chuyển thành giọng nói.' });
     }
-    const spoken = normalizeMathTextForSpeech(text, options);
-    const hash = getAudioHash(spoken);
-    const prefix = type === 'hint' ? 'h' : 'q';
-    const filename = `${prefix}_${hash}.mp3`;
-    const filePath = path.join(AUDIO_STORAGE_DIR, filename);
-
-    // Reuse existing audio if available AND force is not requested
-    if (!force && fs.existsSync(filePath)) {
-      const stats = fs.statSync(filePath);
-      if (stats.size > 500) {
-        return res.json({
-          ok: true,
-          audioUrl: `/audio/${filename}`,
-          hash,
-          normalizedText: spoken,
-          reused: true,
-        });
-      }
-    }
-
-    const buf = await synthesizeVietnameseSpeech(spoken);
-    saveAudioBufferSafe(filename, buf);
-
-    // Persist in Firestore chunks for permanent resilience across Vercel deployments
-    try {
-      const base64 = buf.toString('base64');
-      const CHUNK_SIZE = 180 * 1024;
-      const totalChunks = Math.ceil(base64.length / CHUNK_SIZE);
-      for (let i = 0; i < totalChunks; i++) {
-        const chunkData = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-        await setDoc(doc(db, 'test', `audio_bin_${filename}_${i}`), {
-          filename,
-          chunkIndex: i,
-          data: chunkData,
-          updatedAt: new Date().toISOString(),
-        });
-      }
-      await setDoc(doc(db, 'test', `audio_meta_${filename}`), {
-        filename,
-        mimeType: 'audio/mpeg',
-        sizeBytes: buf.length,
-        totalChunks,
-        uploadedAt: new Date().toISOString(),
-      });
-    } catch (saveErr) {
-      console.warn('Notice: Could not persist audio in Firestore:', saveErr);
-    }
-
+    const result = await synthesizeAndPersistAudio(
+      text,
+      type === 'hint' ? 'hint' : 'prompt',
+      options,
+      Boolean(force),
+      req.user?.uid || 'teacher'
+    );
     return res.json({
       ok: true,
-      audioUrl: `/audio/${filename}`,
-      hash,
-      normalizedText: spoken,
-      reused: false,
+      audioUrl: result.audioUrl,
+      hash: result.hash,
+      normalizedText: result.normalizedText,
+      reused: result.reused,
     });
   } catch (err: any) {
     console.error('Synthesize audio error:', err);

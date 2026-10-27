@@ -19,7 +19,7 @@ const TARGET_VERSIONS = [
 
 async function main() {
   console.log('=== INSPECTING IN-SCOPE QUESTIONS & HINTS ===\n');
-  const inventory = [];
+  const inventory: any[] = [];
 
   for (const vId of TARGET_VERSIONS) {
     const vSnap = await getDoc(doc(db, 'lessonVersions', vId));
@@ -33,7 +33,7 @@ async function main() {
     console.log(`======================================================`);
 
     const qList = data.questions || [];
-    qList.forEach((q, idx) => {
+    qList.forEach((q: any, idx: number) => {
       const hint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
       console.log(`  [Q${idx + 1}] (${q.interactionType}) Prompt: "${q.prompt}"`);
       if (q.options) console.log(`       Options: ${JSON.stringify(q.options)}`);

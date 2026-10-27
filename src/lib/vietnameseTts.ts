@@ -155,7 +155,7 @@ function md5(string: string): string {
  * Normalizes Vietnamese math questions & hints into natural spoken Vietnamese for Grade 1 pupils (6-7 years old).
  * Converts symbols (+, -, =, >, <, ?) into accurate spoken words and clarifies text choices.
  */
-export function normalizeMathTextForSpeech(text: string, options?: string[]): string {
+export function normalizeMathTextForSpeech(text: string, options?: (string | number)[]): string {
   if (!text) return '';
   let s = String(text);
 

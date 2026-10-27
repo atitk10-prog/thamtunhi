@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck, Play } from 'lucide-react';
 
 import { Assignment, LessonVersion, Question, UserProfile, Attempt } from '../../types';
 import { dataService } from '../../lib/dataService';
 import { evaluateAnswer } from '../../lib/mathEngine';
 import { playCorrectSound, playIncorrectSound, playCompletedSound, isSoundEnabled, setSoundEnabled } from '../../lib/soundEffects';
-import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash } from '../../lib/vietnameseTts';
+import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash, getHintSpokenText } from '../../lib/vietnameseTts';
 import { playVietnameseAudio, stopVietnameseAudio } from '../../lib/vietnameseAudioPlayer';
 import { SingleChoiceQuestion } from '../activities/SingleChoiceQuestion';
 import { NumberInputQuestion } from '../activities/NumberInputQuestion';
@@ -56,6 +56,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
   const [matchedPairs, setMatchedPairs] = useState<Record<string, string>>({});
   const [tenFrameAnswer, setTenFrameAnswer] = useState('');
   const [numberLineAnswer, setNumberLineAnswer] = useState('');
+  const lastPlayedIndexRef = useRef<number | null>(null);
 
   const playCurrentQuestionAudio = (q: Question) => {
     stopVietnameseAudio();
@@ -73,9 +74,13 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
     setIsQuestionAudioPlaying(true);
     playVietnameseAudio(
       url,
-      spoken,
+      undefined,
       () => setIsQuestionAudioPlaying(true),
-      () => setIsQuestionAudioPlaying(false)
+      () => setIsQuestionAudioPlaying(false),
+      (err) => {
+        setIsQuestionAudioPlaying(false);
+        console.warn('[MissionPlayer] Question audio error:', err);
+      }
     );
   };
 
@@ -94,6 +99,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
     pattern?: any;
     hintText?: string;
     visualGuidance?: string;
+    hintAudioUrl?: string;
   }>({ isOpen: false });
 
   // Finished state
@@ -106,6 +112,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
       sessionStorage.setItem(`thamtunhi_mission_started_${assignment.id}_${currentUser.id}`, 'true');
     } catch {}
     if (currentQuestion && isGrade1Scope) {
+      lastPlayedIndexRef.current = currentIndex;
       playCurrentQuestionAudio(currentQuestion);
     }
   };
@@ -116,6 +123,10 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
     setIsQuestionAudioPlaying(false);
 
     if (isGrade1Scope && hasStartedMission && currentQuestion && !isCompleted && !feedbackModal.isOpen) {
+      if (lastPlayedIndexRef.current === currentIndex) {
+        return;
+      }
+      lastPlayedIndexRef.current = currentIndex;
       const timer = setTimeout(() => {
         playCurrentQuestionAudio(currentQuestion);
       }, 300);
@@ -124,7 +135,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         stopVietnameseAudio();
       };
     }
-  }, [currentIndex, hasStartedMission, isCompleted]);
+  }, [currentIndex, hasStartedMission, isCompleted, feedbackModal.isOpen]);
 
   const handleSafeExit = () => {
     stopVietnameseAudio();
@@ -440,6 +451,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         pattern: result.detectedPattern,
         hintText: result.hintText,
         visualGuidance: result.visualGuidance,
+        hintAudioUrl: currentQuestion?.hintAudioUrl || (currentQuestion?.ruleHints?.[0] as any)?.hintAudioUrl,
       });
     }
 
@@ -710,7 +722,7 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         pattern={feedbackModal.pattern}
         hintText={feedbackModal.hintText}
         visualGuidance={feedbackModal.visualGuidance}
-        hintAudioUrl={currentQuestion?.hintAudioUrl}
+        hintAudioUrl={feedbackModal.hintAudioUrl || currentQuestion?.hintAudioUrl || (currentQuestion?.ruleHints?.[0] as any)?.hintAudioUrl}
         isGrade1Scope={isGrade1Scope}
         onRetry={handleRetryQuestion}
         canTryAgain={true}

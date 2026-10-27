@@ -38,19 +38,25 @@ export const DetectiveFeedbackModal: React.FC<DetectiveFeedbackModalProps> = ({
     } else if (isGrade1Scope && hintText) {
       stopVietnameseAudio();
       const spoken = normalizeMathTextForSpeech(hintText);
-      const url = hintAudioUrl || `/audio/h_${getAudioHash(spoken)}.mp3`;
-      const timer = setTimeout(() => {
-        playVietnameseAudio(
-          url,
-          spoken,
-          () => setIsPlaying(true),
-          () => setIsPlaying(false)
-        );
-      }, 300);
-      return () => {
-        clearTimeout(timer);
-        stopVietnameseAudio();
-      };
+      const url = hintAudioUrl || (spoken ? `/audio/h_${getAudioHash(spoken)}.mp3` : '');
+      if (url) {
+        const timer = setTimeout(() => {
+          playVietnameseAudio(
+            url,
+            undefined,
+            () => setIsPlaying(true),
+            () => setIsPlaying(false),
+            (err) => {
+              setIsPlaying(false);
+              console.warn('[DetectiveFeedbackModal] Autoplay hint audio error:', err);
+            }
+          );
+        }, 300);
+        return () => {
+          clearTimeout(timer);
+          stopVietnameseAudio();
+        };
+      }
     }
   }, [isOpen, isGrade1Scope, hintText, hintAudioUrl]);
 
@@ -62,14 +68,21 @@ export const DetectiveFeedbackModal: React.FC<DetectiveFeedbackModalProps> = ({
     if (!hintText) return;
     if (isPlaying) {
       stopVietnameseAudio();
+      setIsPlaying(false);
+      return;
     }
     const spoken = normalizeMathTextForSpeech(hintText);
-    const url = hintAudioUrl || `/audio/h_${getAudioHash(spoken)}.mp3`;
+    const url = hintAudioUrl || (spoken ? `/audio/h_${getAudioHash(spoken)}.mp3` : '');
+    if (!url) return;
     playVietnameseAudio(
       url,
-      spoken,
+      undefined,
       () => setIsPlaying(true),
-      () => setIsPlaying(false)
+      () => setIsPlaying(false),
+      (err) => {
+        setIsPlaying(false);
+        console.warn('[DetectiveFeedbackModal] Manual hint audio error:', err);
+      }
     );
   };
 

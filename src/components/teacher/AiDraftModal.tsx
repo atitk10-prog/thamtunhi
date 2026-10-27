@@ -83,23 +83,19 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
       return;
     }
     stopVietnameseAudio();
-    setPlayingDraftId(key);
 
-    let text = '';
-    let url = '';
-    if (type === 'question') {
-      text = normalizeMathTextForSpeech(q.prompt, q.options);
-      url = q.audioUrl || `/audio/q_${getAudioHash(text)}.mp3`;
-    } else {
-      const hint = q.ruleHints && q.ruleHints[0] ? q.ruleHints[0].hintText : '';
-      text = normalizeMathTextForSpeech(hint);
-      url = q.hintAudioUrl || `/audio/h_${getAudioHash(text)}.mp3`;
+    const url = type === 'question' ? q.audioUrl : q.hintAudioUrl;
+    if (!url || !url.trim()) {
+      setPlayingDraftId(null);
+      return;
     }
 
+    setPlayingDraftId(key);
     playVietnameseAudio(
       url,
-      text,
+      undefined,
       () => setPlayingDraftId(key),
+      () => setPlayingDraftId(null),
       () => setPlayingDraftId(null)
     );
   };
@@ -159,13 +155,18 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
           const hHash = spokenHint ? getAudioHash(spokenHint) : undefined;
           return {
             ...q,
-            audioUrl: q.audioUrl || `/audio/q_${pHash}.mp3`,
-            audioHash: q.audioHash || pHash,
-            hintAudioUrl: q.hintAudioUrl || (hHash ? `/audio/h_${hHash}.mp3` : undefined),
-            hintAudioHash: q.hintAudioHash || hHash,
+            // Requirement 2: NEVER assign fake /audio/ URLs if not synthesized
+            audioUrl: q.audioUrl || '',
+            audioHash: q.audioUrl ? (q.audioHash || pHash) : '',
+            hintAudioUrl: q.hintAudioUrl || '',
+            hintAudioHash: q.hintAudioUrl ? (q.hintAudioHash || hHash) : '',
           };
         });
         setDraftQuestions(enriched);
+
+        if (data.audioErrors && Array.isArray(data.audioErrors) && data.audioErrors.length > 0) {
+          setErrorMsg(`Lưu ý: Có ${data.audioErrors.length} mục âm thanh chưa tạo thành công. Thầy/Cô vui lòng bấm "Tạo lại âm thanh" cho từng câu bên dưới trước khi xuất bản.`);
+        }
       } else {
         setErrorMsg('Dữ liệu AI phản hồi nhưng không chứa danh sách câu hỏi hợp lệ.');
       }

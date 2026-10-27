@@ -131,7 +131,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
   // --- FILTERING ENGINE (Operational Data Strictly Isolated) ---
   const isRealCompletedAttempt = (att: Attempt) =>
     att.dataOrigin !== 'simulation' &&
-    att.dataOrigin !== 'test' &&
+    (att as any).dataOrigin !== 'test' &&
     !(att as any).isArchivedTest &&
     !att.id.startsWith('att-demo-') &&
     !att.id.includes('-test-') &&
@@ -189,7 +189,7 @@ export const MisconceptionAnalytics: React.FC<MisconceptionAnalyticsProps> = ({ 
   const filteredAssignments = useMemo(() => {
     return assignments.filter((asg) => {
       if (asg.dataOrigin === 'simulation') return false;
-      if (asg.status !== 'open' || asg.status === 'cancelled' || asg.status === 'archived') return false;
+      if (asg.status !== 'open') return false;
       if (selectedClass !== 'all' && asg.classId !== selectedClass) return false;
       if (selectedWeek !== 'all' && String((asg as any).week) !== String(selectedWeek)) return false;
       if (selectedAcademicYear !== 'all') {

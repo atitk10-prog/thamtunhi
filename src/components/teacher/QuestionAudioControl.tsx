@@ -87,7 +87,10 @@ export const QuestionAudioControl: React.FC<QuestionAudioControlProps> = ({
       return;
     }
 
-    if (!hasAudio && !expectedSpokenText) return;
+    if (!hasAudio) {
+      setActionError('Chưa có tệp âm thanh để nghe thử. Vui lòng bấm "Tạo âm thanh" hoặc tải tệp lên trước.');
+      return;
+    }
 
     setActionError(null);
     setIsPlaying(true);
@@ -98,9 +101,13 @@ export const QuestionAudioControl: React.FC<QuestionAudioControlProps> = ({
 
     playVietnameseAudio(
       playUrl,
-      expectedSpokenText,
+      undefined,
       () => setIsPlaying(true),
-      () => setIsPlaying(false)
+      () => setIsPlaying(false),
+      (err) => {
+        setIsPlaying(false);
+        setActionError('Không thể phát âm thanh: tệp không tồn tại hoặc lỗi kết nối.');
+      }
     );
   };
 
@@ -285,7 +292,7 @@ export const QuestionAudioControl: React.FC<QuestionAudioControlProps> = ({
           {/* Preview Button */}
           <button
             type="button"
-            disabled={!hasAudio && !expectedSpokenText}
+            disabled={!hasAudio || isSynthesizing || isUploading}
             onClick={handleTogglePlay}
             className={`h-7 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all border shadow-2xs ${
               isPlaying
