@@ -101,7 +101,13 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
   };
 
   // Scope check: Audio playback only for Grade 1 Weeks 1-9
-  const isGrade1Scope = grade === 1 && isGrade1Weeks1To9({ grade: 1, title: topic });
+  const isGrade1Scope = grade === 1 && isGrade1Weeks1To9({
+    id: lesson?.id || lessonVersion?.lessonId || (isNewAiLesson ? 'ai-draft' : 'draft'),
+    grade: 1,
+    week: lesson?.week || lessonVersion?.week,
+    title: title || lesson?.title || topic,
+    topic: topic || lesson?.topic,
+  });
   const [playingEditorAudioId, setPlayingEditorAudioId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -275,17 +281,22 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     }
     stopVietnameseAudio();
 
-    const spoken = getQuestionSpokenText(q);
-    const hash = getAudioHash(spoken);
-    const url = q.audioUrl || `/audio/q_${hash}.mp3?text=${encodeURIComponent(spoken)}`;
+    const cleanUrl = typeof q.audioUrl === 'string' ? q.audioUrl.trim() : '';
+    if (!cleanUrl) {
+      setErrorMsg(`Câu hỏi số ${idx + 1} chưa có âm thanh. Thầy/Cô vui lòng bấm "Tạo âm thanh" ở mục bên dưới.`);
+      return;
+    }
 
     setPlayingEditorAudioId(key);
     playVietnameseAudio(
-      url,
+      cleanUrl,
       undefined,
       () => setPlayingEditorAudioId(key),
       () => setPlayingEditorAudioId(null),
-      () => setPlayingEditorAudioId(null)
+      (err) => {
+        setPlayingEditorAudioId(null);
+        setErrorMsg(`Không thể phát âm thanh Câu ${idx + 1}: Tệp không tồn tại hoặc lỗi tải.`);
+      }
     );
   };
 
@@ -298,17 +309,22 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     }
     stopVietnameseAudio();
 
-    const spoken = getHintSpokenText(q);
-    const hash = getAudioHash(spoken);
-    const url = q.hintAudioUrl || `/audio/h_${hash}.mp3?text=${encodeURIComponent(spoken)}`;
+    const cleanUrl = typeof q.hintAudioUrl === 'string' ? q.hintAudioUrl.trim() : '';
+    if (!cleanUrl) {
+      setErrorMsg(`Gợi ý câu hỏi số ${idx + 1} chưa có âm thanh. Thầy/Cô vui lòng bấm "Tạo âm thanh" ở mục bên dưới.`);
+      return;
+    }
 
     setPlayingEditorAudioId(key);
     playVietnameseAudio(
-      url,
+      cleanUrl,
       undefined,
       () => setPlayingEditorAudioId(key),
       () => setPlayingEditorAudioId(null),
-      () => setPlayingEditorAudioId(null)
+      (err) => {
+        setPlayingEditorAudioId(null);
+        setErrorMsg(`Không thể phát âm thanh gợi ý Câu ${idx + 1}: Tệp không tồn tại hoặc lỗi tải.`);
+      }
     );
   };
 
@@ -389,18 +405,13 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
           : (lesson?.draftVersionId || `version-${lessonId}-v${nextVersionNumber}-draft`));
 
     let finalQuestions = questions;
-    if (grade === 1 && isGrade1Weeks1To9({ grade: 1, title: topic })) {
+    if (grade === 1 && isGrade1Weeks1To9({ id: lessonId, grade: 1, week: lesson?.week || lessonVersion?.week, title: title || topic, topic })) {
       finalQuestions = questions.map((q) => {
-        const spokenPrompt = getQuestionSpokenText(q);
-        const pHash = getAudioHash(spokenPrompt);
-        const spokenHint = getHintSpokenText(q);
-        const hHash = spokenHint ? getAudioHash(spokenHint) : undefined;
-
         // Preserve teacher-uploaded, customized, or explicitly deleted audio (NEVER invent fake URLs)
         const effectiveAudioUrl = q.audioUrl ? q.audioUrl.trim() : '';
-        const effectiveAudioHash = q.audioUrl ? (q.audioHash || pHash) : '';
+        const effectiveAudioHash = q.audioUrl ? (q.audioHash || '') : '';
         const effectiveHintUrl = q.hintAudioUrl ? q.hintAudioUrl.trim() : '';
-        const effectiveHintHash = q.hintAudioUrl ? (q.hintAudioHash || hHash) : '';
+        const effectiveHintHash = q.hintAudioUrl ? (q.hintAudioHash || '') : '';
 
         return {
           ...q,
@@ -538,38 +549,60 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
           // Check stale audio (text was edited after audio was created)
           const expectedPromptSpoken = getQuestionSpokenText(q);
           const expectedPromptHash = getAudioHash(expectedPromptSpoken);
-          if (q.audioHash && q.audioHash !== expectedPromptHash) {
+          if (!q.audioUrl.includes('upload_') && (!q.audioHash || q.audioHash !== expectedPromptHash)) {
             setErrorMsg(`Câu hỏi số ${i + 1}: Lời đọc câu hỏi đã bị sửa đổi nhưng chưa được tạo lại âm thanh. Thầy/Cô vui lòng bấm "Tạo lại âm thanh" trước khi xuất bản.`);
             return;
           }
 
           const expectedHintSpoken = getHintSpokenText(q);
           const expectedHintHash = expectedHintSpoken ? getAudioHash(expectedHintSpoken) : '';
-          if (expectedHintHash && q.hintAudioHash && q.hintAudioHash !== expectedHintHash) {
+          if (expectedHintHash && !q.hintAudioUrl.includes('upload_') && (!q.hintAudioHash || q.hintAudioHash !== expectedHintHash)) {
             setErrorMsg(`Câu hỏi số ${i + 1}: Lời đọc gợi ý đã bị sửa đổi nhưng chưa được tạo lại âm thanh. Thầy/Cô vui lòng bấm "Tạo lại âm thanh" trước khi xuất bản.`);
             return;
           }
 
-          // Verify accessibility of audio files
-          try {
-            const checkPromptRes = await fetch(q.audioUrl, { method: 'HEAD' });
-            if (!checkPromptRes.ok) {
-              setErrorMsg(`Câu hỏi số ${i + 1}: Tệp âm thanh câu hỏi không truy cập được (Mã lỗi HTTP ${checkPromptRes.status}). Vui lòng tạo lại âm thanh.`);
-              return;
+          // Verify accessibility & decodability of audio files
+          const verifyAudioFile = async (url: string, label: string): Promise<string | null> => {
+            try {
+              const res = await fetch(url);
+              if (!res.ok) {
+                return `${label} không truy cập được (Mã lỗi HTTP ${res.status}). Vui lòng tạo lại âm thanh.`;
+              }
+              const contentType = res.headers.get('content-type') || '';
+              if (!contentType.includes('audio') && !contentType.includes('octet-stream')) {
+                return `${label} không đúng định dạng âm thanh (${contentType}).`;
+              }
+              const buf = await res.arrayBuffer();
+              if (buf.byteLength < 500) {
+                return `${label} bị lỗi hoặc quá nhỏ (${buf.byteLength} bytes).`;
+              }
+              if (typeof window !== 'undefined') {
+                const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+                if (AudioCtxClass) {
+                  try {
+                    const ctx = new AudioCtxClass();
+                    await ctx.decodeAudioData(buf.slice(0));
+                    ctx.close().catch(() => {});
+                  } catch {
+                    return `${label} không giải mã được âm thanh trong trình duyệt.`;
+                  }
+                }
+              }
+              return null;
+            } catch (err: any) {
+              return `Không thể kết nối để kiểm tra ${label}: ${err?.message || 'Lỗi mạng'}`;
             }
-          } catch {
-            setErrorMsg(`Câu hỏi số ${i + 1}: Không thể kết nối để kiểm tra tệp âm thanh câu hỏi.`);
+          };
+
+          const pErr = await verifyAudioFile(q.audioUrl, `Tệp âm thanh câu hỏi số ${i + 1}`);
+          if (pErr) {
+            setErrorMsg(pErr);
             return;
           }
 
-          try {
-            const checkHintRes = await fetch(q.hintAudioUrl, { method: 'HEAD' });
-            if (!checkHintRes.ok) {
-              setErrorMsg(`Câu hỏi số ${i + 1}: Tệp âm thanh gợi ý không truy cập được (Mã lỗi HTTP ${checkHintRes.status}). Vui lòng tạo lại âm thanh.`);
-              return;
-            }
-          } catch {
-            setErrorMsg(`Câu hỏi số ${i + 1}: Không thể kết nối để kiểm tra tệp âm thanh gợi ý.`);
+          const hErr = await verifyAudioFile(q.hintAudioUrl, `Tệp âm thanh gợi ý số ${i + 1}`);
+          if (hErr) {
+            setErrorMsg(hErr);
             return;
           }
         }

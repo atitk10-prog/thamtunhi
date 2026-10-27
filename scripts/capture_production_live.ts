@@ -9,7 +9,7 @@ function loginTeacher(): Promise<{ token: string; user: any }> {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({
       email: 'giaovien1@thamtutoannhi.edu.vn',
-      password: 'MatKhauGiaoVien@123'
+      password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || ''
     });
     const req = https.request({
       hostname: 'thamtunhi.vercel.app',

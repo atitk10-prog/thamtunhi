@@ -54,7 +54,7 @@ async function runProdReleaseGateE2E() {
 
     // Điền thông tin đăng nhập Giáo viên
     await teacherPage.fill('input[type="email"]', 'giaovien1@thamtutoannhi.edu.vn');
-    await teacherPage.fill('input[type="password"]', 'MatKhauGiaoVien@123');
+    await teacherPage.fill('input[type="password"]', process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '');
     await teacherPage.click('button[type="submit"]:has-text("Đăng nhập")');
 
     // Chờ vào TeacherPortal

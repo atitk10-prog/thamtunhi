@@ -60,20 +60,15 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
 
   const playCurrentQuestionAudio = (q: Question) => {
     stopVietnameseAudio();
-    const rawPrompt = q.prompt
-      ? q.prompt
-          .replace(/^\[ĐÃ SỬA BỞI GIÁO VIÊN\]\s*/i, '')
-          .replace(/^Khung\s*(?:5|10)\s*ô\s*:\s*/i, '')
-          .replace(/^(?:Trong\s*)?khung\s*(?:5|10)\s*ô\s*(?:có\s*)?/i, 'Có ')
-          .trim()
-      : '';
-
-    const spoken = q.customSpokenPrompt || normalizeMathTextForSpeech(rawPrompt, q.options);
-    const url = q.audioUrl || `/audio/q_${getAudioHash(spoken)}.mp3`;
+    const cleanUrl = typeof q.audioUrl === 'string' ? q.audioUrl.trim() : '';
+    if (!cleanUrl) {
+      setIsQuestionAudioPlaying(false);
+      return;
+    }
 
     setIsQuestionAudioPlaying(true);
     playVietnameseAudio(
-      url,
+      cleanUrl,
       undefined,
       () => setIsQuestionAudioPlaying(true),
       () => setIsQuestionAudioPlaying(false),
@@ -117,25 +112,31 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
     }
   };
 
-  // Autoplay on question transitions and when mission starts
+  // Autoplay on question transitions
   useEffect(() => {
+    if (!isGrade1Scope || !hasStartedMission || !currentQuestion || isCompleted || feedbackModal.isOpen) {
+      return;
+    }
+
+    // If audio for current question was already initiated (e.g. by Start button), do not re-trigger or cancel
+    if (lastPlayedIndexRef.current === currentIndex) {
+      return;
+    }
+
+    // New question transition: stop prior audio and play next question audio exactly once
+    lastPlayedIndexRef.current = currentIndex;
     stopVietnameseAudio();
     setIsQuestionAudioPlaying(false);
 
-    if (isGrade1Scope && hasStartedMission && currentQuestion && !isCompleted && !feedbackModal.isOpen) {
-      if (lastPlayedIndexRef.current === currentIndex) {
-        return;
-      }
-      lastPlayedIndexRef.current = currentIndex;
-      const timer = setTimeout(() => {
-        playCurrentQuestionAudio(currentQuestion);
-      }, 300);
-      return () => {
-        clearTimeout(timer);
-        stopVietnameseAudio();
-      };
-    }
-  }, [currentIndex, hasStartedMission, isCompleted, feedbackModal.isOpen]);
+    const timer = setTimeout(() => {
+      playCurrentQuestionAudio(currentQuestion);
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+      stopVietnameseAudio();
+    };
+  }, [currentIndex, hasStartedMission, isCompleted, feedbackModal.isOpen, isGrade1Scope]);
 
   const handleSafeExit = () => {
     stopVietnameseAudio();
@@ -446,12 +447,16 @@ export const MissionPlayer: React.FC<MissionPlayerProps> = ({
         }
       }
 
+      const effectiveHint = (currentQuestion.ruleHints && currentQuestion.ruleHints[0]?.hintText)
+        || currentQuestion.customSpokenHint
+        || result.hintText;
+
       setFeedbackModal({
         isOpen: true,
         pattern: result.detectedPattern,
-        hintText: result.hintText,
+        hintText: effectiveHint,
         visualGuidance: result.visualGuidance,
-        hintAudioUrl: currentQuestion?.hintAudioUrl || (currentQuestion?.ruleHints?.[0] as any)?.hintAudioUrl,
+        hintAudioUrl: currentQuestion.hintAudioUrl || (currentQuestion.ruleHints?.[0] as any)?.hintAudioUrl || '',
       });
     }
 

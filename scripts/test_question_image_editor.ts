@@ -87,7 +87,7 @@ async function runTestSuite() {
   // Auth tokens via API login
   const teacherLoginRes = await makeRequest('POST', '/api/auth/teacher-login', {}, {
     email: 'giaovien1@thamtutoannhi.edu.vn',
-    password: 'MatKhauGiaoVien@123',
+    password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '',
   });
   const teacherToken = teacherLoginRes.body?.token;
 

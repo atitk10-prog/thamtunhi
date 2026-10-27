@@ -165,7 +165,8 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
         setDraftQuestions(enriched);
 
         if (data.audioErrors && Array.isArray(data.audioErrors) && data.audioErrors.length > 0) {
-          setErrorMsg(`Lưu ý: Có ${data.audioErrors.length} mục âm thanh chưa tạo thành công. Thầy/Cô vui lòng bấm "Tạo lại âm thanh" cho từng câu bên dưới trước khi xuất bản.`);
+          const errorDetails = data.audioErrors.map((err: any) => `Câu ${err.questionIndex + 1} (${err.target === 'prompt' ? 'câu hỏi' : 'gợi ý'})`).join(', ');
+          setErrorMsg(`Lưu ý: Có ${data.audioErrors.length} mục âm thanh chưa tạo thành công [${errorDetails}]. Thầy/Cô vui lòng bấm "Tạo lại âm thanh" cho từng câu bên dưới trước khi xuất bản.`);
         }
       } else {
         setErrorMsg('Dữ liệu AI phản hồi nhưng không chứa danh sách câu hỏi hợp lệ.');
@@ -495,7 +496,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
 
               <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
                 {draftQuestions.map((q, idx) => {
-                  const isGrade1Scope = grade === 1 && isGrade1Weeks1To9({ grade: 1, title: topic });
+                  const isGrade1Scope = grade === 1 && isGrade1Weeks1To9({ id: 'ai-draft', grade: 1, title: topic, topic });
                   const qKey = `q-${idx}`;
                   const hKey = `h-${idx}`;
                   const isQPlaying = playingDraftId === qKey;

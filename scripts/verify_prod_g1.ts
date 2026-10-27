@@ -28,9 +28,10 @@ async function verifyProductionG1() {
 
   // Logins on Production
   console.log('Authenticating 3 teachers on Production...');
-  const t1Token = await login('giaovien1@thamtutoannhi.edu.vn', 'MatKhauGiaoVien@123');
-  const t2Token = await login('giaovien2@thamtutoannhi.edu.vn', 'MatKhauGiaoVien@123');
-  const ttToken = await login('thanhthanh@gmail.com', '123456');
+  const teacherPass = process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '';
+  const t1Token = await login('giaovien1@thamtutoannhi.edu.vn', teacherPass);
+  const t2Token = await login('giaovien2@thamtutoannhi.edu.vn', teacherPass);
+  const ttToken = await login('thanhthanh@gmail.com', process.env.TEST_TEACHER_2_PASSWORD || '123456');
   console.log('✓ Successfully obtained production tokens for all 3 teachers.\n');
 
   // 2. Teacher 1 Classes

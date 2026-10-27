@@ -15,7 +15,10 @@ async function runTeacherG3E2E() {
   const teacherLoginRes = await fetch(`${BASE_URL}/api/auth/teacher-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'giaovien1@thamtutoannhi.edu.vn', password: 'MatKhauGiaoVien@123' }),
+    body: JSON.stringify({
+      email: 'giaovien1@thamtutoannhi.edu.vn',
+      password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || ''
+    }),
   });
   const { token: teacherToken, user: teacherUser } = await teacherLoginRes.json();
   if (!teacherToken) throw new Error('Teacher login failed: ' + JSON.stringify(teacherUser));

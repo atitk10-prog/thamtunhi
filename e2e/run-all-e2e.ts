@@ -119,7 +119,7 @@ async function runE2E() {
       // 2. Teacher Login
       await page.click('button:has-text("Giáo Viên")');
       await page.fill('input[type="email"]', 'giaovien1@thamtutoannhi.edu.vn');
-      await page.fill('input[type="password"]', 'MatKhauGiaoVien@123');
+      await page.fill('input[type="password"]', process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '');
       await page.click('button:has-text("Đăng nhập")');
 
       await page.waitForSelector('text=Kho Học Liệu & Bài Học', { timeout: 10000 });
@@ -364,7 +364,7 @@ async function runE2E() {
       });
       const lockedTeacherRes = await requestApi('/api/auth/teacher-login', {
         method: 'POST',
-        body: JSON.stringify({ email: targetTeacher?.email || 'giaovien2@thamtutoannhi.edu.vn', password: 'MatKhauGiaoVien@123' })
+        body: JSON.stringify({ email: targetTeacher?.email || 'giaovien2@thamtutoannhi.edu.vn', password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '' })
       });
       if (lockTeacherRes.status === 200 && lockedTeacherRes.status === 403) {
         assertions.push('Khóa Giáo viên: Giáo viên bị khóa bị chặn đăng nhập (HTTP 403)');
@@ -379,7 +379,7 @@ async function runE2E() {
       });
       const unlockedTeacherRes = await requestApi('/api/auth/teacher-login', {
         method: 'POST',
-        body: JSON.stringify({ email: targetTeacher?.email || 'giaovien2@thamtutoannhi.edu.vn', password: 'MatKhauGiaoVien@123' })
+        body: JSON.stringify({ email: targetTeacher?.email || 'giaovien2@thamtutoannhi.edu.vn', password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '' })
       });
       if (unlockTeacherRes.status === 200 && unlockedTeacherRes.status === 200) {
         assertions.push('Mở khóa Giáo viên: Giáo viên đăng nhập lại bình thường sau khi mở khóa (HTTP 200)');
@@ -435,7 +435,7 @@ async function runE2E() {
       await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
       await page.click('button:has-text("Giáo Viên")');
       await page.fill('input[type="email"]', 'giaovien1@thamtutoannhi.edu.vn');
-      await page.fill('input[type="password"]', 'MatKhauGiaoVien@123');
+      await page.fill('input[type="password"]', process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '');
       await page.click('button:has-text("Đăng nhập")');
       await page.waitForSelector('text=Kho Học Liệu & Bài Học', { timeout: 10000 });
 
@@ -484,7 +484,7 @@ async function runE2E() {
       // Verify Isolation: Teacher 1 cannot access Class 2A
       const teacherAuth = await requestApi('/api/auth/teacher-login', {
         method: 'POST',
-        body: JSON.stringify({ email: 'giaovien1@thamtutoannhi.edu.vn', password: 'MatKhauGiaoVien@123' })
+        body: JSON.stringify({ email: 'giaovien1@thamtutoannhi.edu.vn', password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '' })
       });
       const t1Token = teacherAuth.body.token;
 
@@ -527,7 +527,7 @@ async function runE2E() {
       // Check detailed lessons & versions via teacher token
       const tAuth = await requestApi('/api/auth/teacher-login', {
         method: 'POST',
-        body: JSON.stringify({ email: 'giaovien1@thamtutoannhi.edu.vn', password: 'MatKhauGiaoVien@123' })
+        body: JSON.stringify({ email: 'giaovien1@thamtutoannhi.edu.vn', password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '' })
       });
       const tToken = tAuth.body.token;
 
@@ -543,7 +543,7 @@ async function runE2E() {
       await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
       await page.click('button:has-text("Giáo Viên")');
       await page.fill('input[type="email"]', 'giaovien1@thamtutoannhi.edu.vn');
-      await page.fill('input[type="password"]', 'MatKhauGiaoVien@123');
+      await page.fill('input[type="password"]', process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '');
       await page.click('button:has-text("Đăng nhập")');
       await page.waitForSelector('text=Kho Học Liệu & Bài Học', { timeout: 10000 });
 
@@ -726,7 +726,7 @@ async function runE2E() {
       // 2. Teacher Analytics formula audit
       const tAuth = await requestApi('/api/auth/teacher-login', {
         method: 'POST',
-        body: JSON.stringify({ email: 'giaovien1@thamtutoannhi.edu.vn', password: 'MatKhauGiaoVien@123' })
+        body: JSON.stringify({ email: 'giaovien1@thamtutoannhi.edu.vn', password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '' })
       });
       const tToken = tAuth.body.token;
 

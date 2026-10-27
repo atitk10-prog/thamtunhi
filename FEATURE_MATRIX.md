@@ -20,7 +20,7 @@
 | 12 | Học sinh | Tương tác 4: Nối cặp phép tính - kết quả | **PASS** | Cơ chế "Chạm vật nguồn – Chạm vật đích", không đòi hỏi kéo thả phức tạp trên mobile. |
 | 13 | Học sinh | Tương tác 5: Khung 10 ô & Bó que tính | **PASS** | Mô hình Ten-Frame 10 chấm tròn và bó chục (10 que) kèm que lẻ tách gộp chục - đơn vị. |
 | 14 | Học sinh | Tương tác 6: Trục số & Sắp xếp thứ tự | **PASS** | Mô hình trục số nhảy bước và chạm ghép dãy số tăng/giảm dần. |
-| 15 | Học sinh | Nghe đọc câu hỏi (Text-to-Speech) | **PASS** | Đọc phát âm tiếng Việt chuẩn qua SpeechSynthesis API của trình duyệt. |
+| 15 | Học sinh | Nghe đọc câu hỏi (Text-to-Speech) | **PASS** | Tệp MP3 tiếng Việt chuẩn tốc độ 0.9x thân thiện cho Lớp 1, loại trừ 100% SpeechSynthesis để triệt tiêu giọng đọc nước ngoài. |
 | 16 | Học sinh | Manh mối Thám tử (Feedback gợi ý lỗi sai) | **PASS** | Khi làm sai, mascot Thám tử Cáo hiện kính lúp, chỉ ra mẫu lỗi và cho phép thử lại. |
 | 17 | Học sinh | Huy hiệu & Pháo hoa chúc mừng | **PASS** | Trao huy hiệu cá nhân (Kính Lúp Thông Thái, Thám Tử Đại Tài) và pháo hoa khi hoàn thành. |
 | 18 | Học sinh | Tự động lưu tiến độ lên Cloud | **PASS** | Cập nhật `attempts` và `attemptAnswers` ngay trong quá trình làm bài. |

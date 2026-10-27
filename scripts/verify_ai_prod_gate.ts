@@ -28,7 +28,7 @@ async function verifyAiProdGate() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       email: 'giaovien1@thamtutoannhi.edu.vn',
-      password: 'MatKhauGiaoVien@123'
+      password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || ''
     })
   });
   const loginData: any = await loginRes.json();

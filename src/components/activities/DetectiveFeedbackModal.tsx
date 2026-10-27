@@ -35,28 +35,25 @@ export const DetectiveFeedbackModal: React.FC<DetectiveFeedbackModalProps> = ({
     if (!isOpen) {
       stopVietnameseAudio();
       setIsPlaying(false);
-    } else if (isGrade1Scope && hintText) {
+    } else if (isGrade1Scope && hintAudioUrl && hintAudioUrl.trim()) {
       stopVietnameseAudio();
-      const spoken = normalizeMathTextForSpeech(hintText);
-      const url = hintAudioUrl || (spoken ? `/audio/h_${getAudioHash(spoken)}.mp3` : '');
-      if (url) {
-        const timer = setTimeout(() => {
-          playVietnameseAudio(
-            url,
-            undefined,
-            () => setIsPlaying(true),
-            () => setIsPlaying(false),
-            (err) => {
-              setIsPlaying(false);
-              console.warn('[DetectiveFeedbackModal] Autoplay hint audio error:', err);
-            }
-          );
-        }, 300);
-        return () => {
-          clearTimeout(timer);
-          stopVietnameseAudio();
-        };
-      }
+      const cleanUrl = hintAudioUrl.trim();
+      const timer = setTimeout(() => {
+        playVietnameseAudio(
+          cleanUrl,
+          undefined,
+          () => setIsPlaying(true),
+          () => setIsPlaying(false),
+          (err) => {
+            setIsPlaying(false);
+            console.warn('[DetectiveFeedbackModal] Autoplay hint audio error:', err);
+          }
+        );
+      }, 300);
+      return () => {
+        clearTimeout(timer);
+        stopVietnameseAudio();
+      };
     }
   }, [isOpen, isGrade1Scope, hintText, hintAudioUrl]);
 
@@ -65,17 +62,16 @@ export const DetectiveFeedbackModal: React.FC<DetectiveFeedbackModalProps> = ({
   const patternInfo = pattern ? ERROR_PATTERN_LABELS[pattern] : null;
 
   const handleToggleAudio = () => {
-    if (!hintText) return;
     if (isPlaying) {
       stopVietnameseAudio();
       setIsPlaying(false);
       return;
     }
-    const spoken = normalizeMathTextForSpeech(hintText);
-    const url = hintAudioUrl || (spoken ? `/audio/h_${getAudioHash(spoken)}.mp3` : '');
-    if (!url) return;
+    const cleanUrl = typeof hintAudioUrl === 'string' ? hintAudioUrl.trim() : '';
+    if (!cleanUrl) return;
+
     playVietnameseAudio(
-      url,
+      cleanUrl,
       undefined,
       () => setIsPlaying(true),
       () => setIsPlaying(false),
@@ -132,7 +128,7 @@ export const DetectiveFeedbackModal: React.FC<DetectiveFeedbackModalProps> = ({
             <span className="text-sm sm:text-base font-extrabold text-amber-900 underline decoration-amber-400 decoration-2">
               💡 Lời khuyên của Cáo Thám tử:
             </span>
-            {isGrade1Scope && (
+            {isGrade1Scope && Boolean(hintAudioUrl && hintAudioUrl.trim()) && (
               <button
                 type="button"
                 onClick={handleToggleAudio}

@@ -31,7 +31,7 @@ async function runG3Tests() {
     // -------------------------------------------------------------
     console.log('--- PHẦN A.1: GIÁO VIÊN 1 ĐỔI MẬT KHẨU & ĐĂNG NHẬP LẠI ---');
     const teacherEmail = 'giaovien1@thamtutoannhi.edu.vn';
-    const originalTeacherPass = 'MatKhauGiaoVien@123';
+    const originalTeacherPass = process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || 'TeacherPass123!';
     const tempTeacherPass = 'MatKhauMoi@456';
 
     // 1. Teacher 1 Initial Login

@@ -18,7 +18,7 @@ async function capture() {
   await page.waitForTimeout(1000);
   await page.click('button:has-text("Giáo Viên")');
   await page.fill('input[type="email"]', 'giaovien1@thamtutoannhi.edu.vn');
-  await page.fill('input[type="password"]', 'MatKhauGiaoVien@123');
+  await page.fill('input[type="password"]', process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || '');
   await page.click('button:has-text("Đăng nhập")');
   await page.waitForTimeout(2000);
 

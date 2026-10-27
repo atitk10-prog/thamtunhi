@@ -11,7 +11,10 @@ async function testBothAi() {
   const loginRes = await fetch('https://thamtunhi.vercel.app/api/auth/teacher-login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'giaovien1@thamtutoannhi.edu.vn', password: 'MatKhauGiaoVien@123' })
+    body: JSON.stringify({
+      email: 'giaovien1@thamtutoannhi.edu.vn',
+      password: process.env.TEST_TEACHER_PASSWORD || process.env.TEACHER_PASSWORD || ''
+    })
   });
   const loginData: any = await loginRes.json();
   const token = loginData.token;

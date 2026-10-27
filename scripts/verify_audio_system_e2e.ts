@@ -1,4 +1,4 @@
-﻿/**
+/**
  * TOÀN BỘ KIỂM THỬ HỆ THỐNG ÂM THANH - THÁM TỬ TOÁN NHÍ
  * Chạy độc lập, an toàn, không ghi đè dữ liệu học sinh Production.
  */
@@ -154,7 +154,7 @@ async function runAllTests() {
   const modalSource = fs.readFileSync(path.resolve(process.cwd() + '/scripts', '../src/components/activities/DetectiveFeedbackModal.tsx'), 'utf8');
   assertTest(
     'DetectiveFeedbackModal gọi playVietnameseAudio với fallbackText = undefined',
-    modalSource.includes('url,\n            undefined,') && modalSource.includes('url,\n      undefined,'),
+    modalSource.includes('cleanUrl,\n          undefined,') && modalSource.includes('cleanUrl,\n      undefined,'),
     'Đã loại bỏ fallbackText khỏi DetectiveFeedbackModal'
   );
 
@@ -217,8 +217,8 @@ async function runAllTests() {
 
   assertTest(
     'MissionPlayer truyền đúng hintAudioUrl và nội dung gợi ý vào DetectiveFeedbackModal',
-    missionPlayerSource.includes('hintAudioUrl: currentQuestion?.hintAudioUrl') &&
-    missionPlayerSource.includes('hintText: result.hintText'),
+    (missionPlayerSource.includes('hintAudioUrl: currentQuestion?.hintAudioUrl') || missionPlayerSource.includes('hintAudioUrl: currentQuestion.hintAudioUrl')) &&
+    (missionPlayerSource.includes('hintText: effectiveHint') || missionPlayerSource.includes('hintText: result.hintText')),
     'Gợi ý âm thanh khớp chính xác với nội dung gợi ý đang hiển thị'
   );
 

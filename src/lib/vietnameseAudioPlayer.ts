@@ -15,16 +15,12 @@ export function stopVietnameseAudio(): void {
       currentAudio.pause();
       currentAudio.currentTime = 0;
       currentAudio.removeAttribute('src');
+      currentAudio.load();
     } catch {}
     currentAudio = null;
   }
-  // Browser speechSynthesis is completely removed from the entire application
-  if (currentOnEndedCallback) {
-    try {
-      currentOnEndedCallback();
-    } catch {}
-    currentOnEndedCallback = null;
-  }
+  // Clear callbacks without invoking onEnded during intentional cancellation/stop
+  currentOnEndedCallback = null;
   currentOnErrorCallback = null;
 }
 

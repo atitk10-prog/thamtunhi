@@ -67,14 +67,77 @@ function isGrade1Weeks1To9(lessonOrVersion: {
     return false;
   }
 
-  if (week !== undefined && !isNaN(week)) {
+  if (typeof week === 'number' && !isNaN(week)) {
     return week >= 1 && week <= 9;
   }
-  const weekMatch = (title + ' ' + topic).match(/tuần\s*(\d+)/i);
+
+  const outOfScopeKeywords = [
+    'phép trừ',
+    'bảng trừ',
+    'các số đến 20',
+    'phép cộng có nhớ',
+    'phép trừ có nhớ',
+    'xăng-ti-mét',
+    'tuần 10',
+    'tuần 11',
+    'tuần 12',
+    'tuần 13',
+    'tuần 14',
+    'tuần 15',
+    'tuần 16',
+    'tuần 17',
+    'tuần 18',
+    'tuần 19',
+    'học kỳ 2',
+  ];
+
+  const fullText = `${title} ${topic}`;
+  for (const outK of outOfScopeKeywords) {
+    if (fullText.includes(outK)) return false;
+  }
+
+  const inScopeKeywords = [
+    'các số 1, 2, 3',
+    'các số 1 2 3',
+    'các số 1, 2, 3, 4, 5',
+    'các số 1 2 3 4 5',
+    'số 6, 7, 8, 9, 10',
+    'số 0',
+    'nhiều hơn, ít hơn',
+    'so sánh số',
+    'dấu lớn',
+    'dấu bé',
+    'dấu bằng',
+    'lớn hơn, bé hơn',
+    'mấy và mấy',
+    'tách - gộp số',
+    'tách gộp',
+    'hình vuông, hình tròn',
+    'hình tam giác',
+    'phép cộng trong phạm vi 10',
+    'phép cộng trong phạm vi 5',
+    'phép cộng trong phạm vi 6',
+    'phép cộng trong phạm vi 7',
+    'phép cộng trong phạm vi 8',
+    'phép cộng trong phạm vi 9',
+    'làm quen với phép cộng',
+    'bảng cộng',
+  ];
+
+  const weekMatch = fullText.match(/tuần\s*(\d+)/i);
   if (weekMatch) {
     const w = parseInt(weekMatch[1], 10);
     return w >= 1 && w <= 9;
   }
+
+  for (const inK of inScopeKeywords) {
+    if (fullText.includes(inK)) return true;
+  }
+
+  if (id.includes('ai') || id.includes('draft') || id.includes('custom')) {
+    return true;
+  }
+
   return false;
 }
 
@@ -2055,7 +2118,7 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có văn bản nào 
 
     // Requirement 2: Automatically synthesize genuine Vietnamese audio for Grade 1 Weeks 1-9 drafts
     let audioErrors: Array<{ questionIndex: number; target: 'prompt' | 'hint'; error: string }> = [];
-    if (parsedGrade === 1 && isGrade1Weeks1To9({ grade: 1, title: cleanTopic })) {
+    if (parsedGrade === 1 && isGrade1Weeks1To9({ id: 'ai-draft', grade: 1, title: cleanTopic, topic: cleanTopic, week: req.body.week })) {
       for (let qIdx = 0; qIdx < sanitizedQuestions.length; qIdx++) {
         const q = sanitizedQuestions[qIdx];
         const spokenPrompt = normalizeMathTextForSpeech(q.prompt, q.options as any);
@@ -2086,6 +2149,10 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có văn bản nào 
             q.hintAudioHash = '';
             audioErrors.push({ questionIndex: qIdx, target: 'hint', error: hintErr?.message || 'Lỗi tạo âm thanh gợi ý' });
           }
+        } else {
+          q.hintAudioUrl = '';
+          q.hintAudioHash = '';
+          audioErrors.push({ questionIndex: qIdx, target: 'hint', error: 'Chưa có nội dung gợi ý để tạo âm thanh' });
         }
       }
 
@@ -4166,7 +4233,7 @@ app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']),
 
         const expPrompt = getQuestionSpokenText(q);
         const expPromptHash = getAudioHash(expPrompt);
-        if (q.audioHash && q.audioHash !== expPromptHash) {
+        if (!q.audioUrl.includes('upload_') && (!q.audioHash || q.audioHash !== expPromptHash)) {
           return res.status(400).json({
             error: `Câu hỏi số ${i + 1}: Lời đọc câu hỏi đã sửa nhưng chưa được tạo lại âm thanh. Vui lòng tạo lại âm thanh trước khi xuất bản.`
           });
@@ -4174,7 +4241,7 @@ app.post('/api/teacher/lessons', requireAuth, requireRole(['teacher', 'admin']),
 
         const expHint = getHintSpokenText(q);
         const expHintHash = expHint ? getAudioHash(expHint) : '';
-        if (expHintHash && q.hintAudioHash && q.hintAudioHash !== expHintHash) {
+        if (expHintHash && !q.hintAudioUrl.includes('upload_') && (!q.hintAudioHash || q.hintAudioHash !== expHintHash)) {
           return res.status(400).json({
             error: `Câu hỏi số ${i + 1}: Lời đọc gợi ý đã sửa nhưng chưa được tạo lại âm thanh. Vui lòng tạo lại âm thanh trước khi xuất bản.`
           });
