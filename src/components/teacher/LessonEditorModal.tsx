@@ -25,6 +25,8 @@ import {
   FolderOpen,
   Info,
   Volume2,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { dataService } from '../../lib/dataService';
 import { Lesson, LessonVersion, Question, InteractionType, MathErrorPattern, VisualAssetConfig, MediaItem } from '../../types';
@@ -35,11 +37,14 @@ import { normalizeAssetUrl, getAssetCountUnit } from '../../lib/standardAssets';
 import { isGrade1Weeks1To9, normalizeMathTextForSpeech, getAudioHash, getQuestionSpokenText, getHintSpokenText } from '../../lib/vietnameseTts';
 import { playVietnameseAudio, stopVietnameseAudio } from '../../lib/vietnameseAudioPlayer';
 import { QuestionAudioControl } from './QuestionAudioControl';
+import { VersionLoadState } from './TeacherPortal';
 
 interface LessonEditorModalProps {
   isOpen: boolean;
   lesson?: Lesson | null;
   lessonVersion?: LessonVersion | null;
+  versionLoadState?: VersionLoadState;
+  onRetryLoadVersion?: () => void;
   onClose: () => void;
   onSaved: () => void;
   teacherId: string;
@@ -63,6 +68,8 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
   isOpen,
   lesson,
   lessonVersion,
+  versionLoadState,
+  onRetryLoadVersion,
   onClose,
   onSaved,
   teacherId,
@@ -130,6 +137,11 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     setOverrideLessonId(null);
     setIsNewAiLesson(false);
 
+    // If version is actively loading, await completion
+    if (versionLoadState && versionLoadState.status === 'loading') {
+      return;
+    }
+
     // 1. If lessonVersion has questions (from draft, AI, or published version), ALWAYS preserve all questions
     if (lessonVersion && Array.isArray(lessonVersion.questions) && lessonVersion.questions.length > 0) {
       setTitle(lessonVersion.title || lesson?.title || '');
@@ -149,8 +161,16 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       setDescription(lesson.description || '');
       setDurationMinutes(lesson.durationMinutes || 20);
 
-      if (lessonVersion === null) {
-        // Failed to load lesson version from server - Strictly DO NOT fallback to mock questions
+      if (versionLoadState?.status === 'not_found') {
+        setQuestions([]);
+        setVersionLoadError(versionLoadState.errorMessage || 'Không thể tải dữ liệu câu hỏi của bài học này từ cơ sở dữ liệu. Để bảo vệ an toàn kho học liệu, các thao tác Lưu nháp và Xuất bản đã bị khóa.');
+      } else if (versionLoadState?.status === 'permission_error') {
+        setQuestions([]);
+        setVersionLoadError(versionLoadState.errorMessage || 'Phiên đăng nhập đã hết hạn hoặc không có quyền truy cập dữ liệu.');
+      } else if (versionLoadState?.status === 'network_error') {
+        setQuestions([]);
+        setVersionLoadError(versionLoadState.errorMessage || 'Lỗi kết nối mạng khi tải dữ liệu bài học.');
+      } else if (lessonVersion === null && !versionLoadState) {
         setQuestions([]);
         setVersionLoadError('Không thể tải dữ liệu câu hỏi của bài học này từ cơ sở dữ liệu. Để bảo vệ an toàn kho học liệu, các thao tác Lưu nháp và Xuất bản đã bị khóa.');
       } else {
@@ -394,6 +414,8 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       ? (overrideLessonId || `lesson-ai-${Date.now()}`)
       : (lesson?.id || `lesson-custom-${Date.now()}`);
 
+    const isAlreadyPublished = effectiveIsEditing && lesson?.status === 'published';
+
     const nextVersionNumber = effectiveIsEditing
       ? (publish ? (lesson?.currentVersion || 1) + 1 : lesson?.currentVersion || 1)
       : 1;
@@ -402,15 +424,17 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       ? (publish ? `version-${lessonId}-v1` : `version-${lessonId}-v1-draft`)
       : (publish
           ? `version-${lessonId}-v${nextVersionNumber}`
-          : (lesson?.draftVersionId || `version-${lessonId}-v${nextVersionNumber}-draft`));
+          : (versionLoadState?.draftMissingFallbackToCurrent
+              ? `version-${lessonId}-v${(lesson?.currentVersion || 1) + 1}-draft`
+              : (lesson?.draftVersionId || `version-${lessonId}-v${nextVersionNumber}-draft`)));
 
     let finalQuestions = questions;
     if (grade === 1 && isGrade1Weeks1To9({ id: lessonId, grade: 1, week: lesson?.week || lessonVersion?.week, title: title || topic, topic })) {
       finalQuestions = questions.map((q) => {
-        // Preserve teacher-uploaded, customized, or explicitly deleted audio (NEVER invent fake URLs)
-        const effectiveAudioUrl = q.audioUrl ? q.audioUrl.trim() : '';
+        // Preserve teacher-uploaded, customized, or explicitly deleted audio
+        const effectiveAudioUrl = q.audioUrl ? q.audioUrl.split('?')[0].trim() : '';
         const effectiveAudioHash = q.audioUrl ? (q.audioHash || '') : '';
-        const effectiveHintUrl = q.hintAudioUrl ? q.hintAudioUrl.trim() : '';
+        const effectiveHintUrl = q.hintAudioUrl ? q.hintAudioUrl.split('?')[0].trim() : '';
         const effectiveHintHash = q.hintAudioUrl ? (q.hintAudioHash || '') : '';
 
         return {
@@ -448,8 +472,9 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       description,
       durationMinutes,
       totalQuestions: questions.length,
-      status: publish ? 'published' : 'draft',
-      isPublished: publish,
+      // CRITICAL FIX: Published lessons remain published when teacher saves a draft!
+      status: publish ? 'published' : (isAlreadyPublished ? 'published' : 'draft'),
+      isPublished: publish ? true : (isAlreadyPublished ? true : false),
       currentVersion: publish ? nextVersionNumber : (effectiveIsEditing ? (lesson?.currentVersion || 1) : 1),
       currentVersionId: publish ? versionId : (effectiveIsEditing ? (lesson?.currentVersionId || versionId) : versionId),
       draftVersionId: publish ? undefined : versionId,
@@ -775,8 +800,76 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto py-4 space-y-5 pr-2">
-          {/* Version Load Error Warning */}
-          {versionLoadError && (
+          {/* Version Loading Spinner */}
+          {versionLoadState?.status === 'loading' && (
+            <div className="p-8 rounded-2xl bg-slate-50 border-2 border-slate-200 text-slate-700 flex flex-col items-center justify-center text-center animate-pulse">
+              <Loader2 className="w-8 h-8 animate-spin text-sky-600 mb-2" />
+              <div className="font-black text-sm text-slate-800">Đang tải dữ liệu câu hỏi từ cơ sở dữ liệu...</div>
+              <p className="text-xs text-slate-500 mt-1">Hệ thống đang kiểm tra tính toàn vẹn của bản nháp và phiên bản phát hành.</p>
+            </div>
+          )}
+
+          {/* Draft missing fallback to current version informational notice */}
+          {versionLoadState?.draftMissingFallbackToCurrent && (
+            <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 text-xs font-bold flex items-start gap-3">
+              <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="font-black text-amber-800 uppercase tracking-wide text-xs mb-0.5">
+                  Khôi phục vùng làm việc an toàn
+                </div>
+                <span>
+                  Bản nháp trước đó không còn tồn tại trên máy chủ (404). Hệ thống đã tự động khôi phục giao diện từ Phiên bản phát hành v{lesson?.currentVersion || 1} ({questions.length} câu hỏi). Thầy/Cô có thể tiếp tục chỉnh sửa bình thường; khi bấm <strong>Lưu nháp</strong> hoặc <strong>Xuất bản</strong>, hệ thống sẽ tự động tạo bản nháp mới an toàn mà không làm ảnh hưởng phiên bản đã phát hành.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Permission Error Banner */}
+          {versionLoadState?.status === 'permission_error' && (
+            <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-bold flex items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-black text-rose-700 uppercase tracking-wide text-xs mb-0.5">Lỗi phân quyền hoặc phiên làm việc</div>
+                  <span>{versionLoadState.errorMessage || 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'}</span>
+                </div>
+              </div>
+              {onRetryLoadVersion && (
+                <button
+                  type="button"
+                  onClick={onRetryLoadVersion}
+                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Thử tải lại
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Network Error Banner */}
+          {versionLoadState?.status === 'network_error' && (
+            <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 text-xs font-bold flex items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-black text-amber-800 uppercase tracking-wide text-xs mb-0.5">Lỗi kết nối mạng</div>
+                  <span>{versionLoadState.errorMessage || 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra đường truyền.'}</span>
+                </div>
+              </div>
+              {onRetryLoadVersion && (
+                <button
+                  type="button"
+                  onClick={onRetryLoadVersion}
+                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Thử tải lại
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Version Load Error Warning (Only for genuine not_found) */}
+          {versionLoadError && (!versionLoadState || versionLoadState.status === 'not_found') && (
             <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-sm font-bold flex items-start gap-3">
               <AlertTriangle className="w-6 h-6 text-rose-600 flex-shrink-0 mt-0.5" />
               <div>

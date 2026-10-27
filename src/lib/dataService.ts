@@ -107,28 +107,135 @@ export const dataService = {
     return data.attempts || [];
   },
 
-  async fetchLessonVersion(versionId: string): Promise<LessonVersion> {
+  async fetchLessonVersionDetailed(versionId: string): Promise<{
+    ok: boolean;
+    status: number;
+    lessonVersion?: LessonVersion;
+    errorCode?: 'not_found' | 'permission_error' | 'network_error' | 'invalid_data' | 'server_error';
+    errorMessage?: string;
+  }> {
+    if (!versionId || !versionId.trim()) {
+      return {
+        ok: false,
+        status: 400,
+        errorCode: 'not_found',
+        errorMessage: 'Mã phiên bản câu hỏi không hợp lệ.',
+      };
+    }
+
     if (auth.currentUser) {
       try {
         const vDoc = await getDoc(doc(db, 'lessonVersions', versionId));
         if (vDoc.exists()) {
-          return { id: vDoc.id, ...vDoc.data() } as LessonVersion;
+          const raw = vDoc.data();
+          const qList = raw?.questions;
+          if (!Array.isArray(qList)) {
+            return {
+              ok: false,
+              status: 200,
+              errorCode: 'invalid_data',
+              errorMessage: 'Dữ liệu phiên bản không chứa danh sách câu hỏi hợp lệ.',
+            };
+          }
+          return {
+            ok: true,
+            status: 200,
+            lessonVersion: { id: vDoc.id, ...raw } as LessonVersion,
+          };
+        } else {
+          return {
+            ok: false,
+            status: 404,
+            errorCode: 'not_found',
+            errorMessage: 'Không tìm thấy phiên bản câu hỏi trong cơ sở dữ liệu (404).',
+          };
         }
       } catch (err: any) {
         if (!err?.message?.includes('permission-denied') && !err?.code?.includes('permission-denied')) {
-          throw err;
+          return {
+            ok: false,
+            status: 0,
+            errorCode: 'network_error',
+            errorMessage: 'Không thể kết nối trực tiếp đến Firestore: ' + (err.message || 'Lỗi mạng'),
+          };
         }
       }
     }
 
-    const res = await fetch(`/api/student/lesson-version/${encodeURIComponent(versionId)}`, {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
-      throw new Error('Không thể tải nội dung câu hỏi bài học.');
+    try {
+      const res = await fetch(`/api/student/lesson-version/${encodeURIComponent(versionId)}`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (res.status === 404) {
+        return {
+          ok: false,
+          status: 404,
+          errorCode: 'not_found',
+          errorMessage: 'Không tìm thấy phiên bản câu hỏi trong cơ sở dữ liệu (404).',
+        };
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        const errJson = await res.json().catch(() => ({}));
+        return {
+          ok: false,
+          status: res.status,
+          errorCode: 'permission_error',
+          errorMessage: errJson.error || 'Phiên đăng nhập đã hết hạn hoặc không đủ quyền truy cập.',
+        };
+      }
+
+      if (res.status >= 500) {
+        const errJson = await res.json().catch(() => ({}));
+        return {
+          ok: false,
+          status: res.status,
+          errorCode: 'server_error',
+          errorMessage: errJson.error || `Lỗi hệ thống máy chủ (HTTP ${res.status}).`,
+        };
+      }
+
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          errorCode: 'network_error',
+          errorMessage: `Lỗi tải bài học (HTTP ${res.status}).`,
+        };
+      }
+
+      const data = await res.json();
+      if (!data.lessonVersion || !Array.isArray(data.lessonVersion.questions)) {
+        return {
+          ok: false,
+          status: 200,
+          errorCode: 'invalid_data',
+          errorMessage: 'Dữ liệu bài học nhận được không đúng cấu trúc.',
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        lessonVersion: data.lessonVersion,
+      };
+    } catch (netErr: any) {
+      return {
+        ok: false,
+        status: 0,
+        errorCode: 'network_error',
+        errorMessage: 'Lỗi kết nối mạng: Không thể kết nối tới máy chủ. Vui lòng kiểm tra đường truyền.',
+      };
     }
-    const data = await res.json();
-    return data.lessonVersion;
+  },
+
+  async fetchLessonVersion(versionId: string): Promise<LessonVersion> {
+    const res = await this.fetchLessonVersionDetailed(versionId);
+    if (!res.ok || !res.lessonVersion) {
+      throw new Error(res.errorMessage || 'Không thể tải nội dung câu hỏi bài học.');
+    }
+    return res.lessonVersion;
   },
 
   async createAttempt(attemptDoc: Attempt): Promise<void> {

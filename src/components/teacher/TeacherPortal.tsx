@@ -43,6 +43,16 @@ interface TeacherPortalProps {
   onLogout: () => void;
 }
 
+export type VersionLoadStatus = 'idle' | 'loading' | 'loaded' | 'not_found' | 'permission_error' | 'network_error' | 'invalid_data' | 'server_error';
+
+export interface VersionLoadState {
+  status: VersionLoadStatus;
+  version: LessonVersion | null;
+  errorMessage?: string;
+  source: 'draft' | 'current' | 'fallback' | 'new';
+  draftMissingFallbackToCurrent?: boolean;
+}
+
 export const TeacherPortal: React.FC<TeacherPortalProps> = ({
   currentUser,
   onLogout,
@@ -124,22 +134,129 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
     }
   };
 
+  const [versionLoadState, setVersionLoadState] = useState<VersionLoadState>({
+    status: 'idle',
+    version: null,
+    source: 'new',
+  });
+
+  const loadLessonVersionForEditor = async (lesson: Lesson) => {
+    // 1. If lesson has draftVersionId, try to load it first
+    if (lesson.draftVersionId) {
+      const draftRes = await dataService.fetchLessonVersionDetailed(lesson.draftVersionId);
+      if (draftRes.ok && draftRes.lessonVersion && Array.isArray(draftRes.lessonVersion.questions) && draftRes.lessonVersion.questions.length > 0) {
+        setEditingVersion(draftRes.lessonVersion);
+        setVersionLoadState({
+          status: 'loaded',
+          version: draftRes.lessonVersion,
+          source: 'draft',
+        });
+        return;
+      }
+
+      // If draft is 404 (really doesn't exist), check if currentVersion exists!
+      if (draftRes.status === 404 || draftRes.errorCode === 'not_found') {
+        const currentVId = lesson.currentVersionId || `version-${lesson.id}-v${lesson.currentVersion || 1}`;
+        const currentRes = await dataService.fetchLessonVersionDetailed(currentVId);
+        if (currentRes.ok && currentRes.lessonVersion && Array.isArray(currentRes.lessonVersion.questions) && currentRes.lessonVersion.questions.length > 0) {
+          setEditingVersion(currentRes.lessonVersion);
+          setVersionLoadState({
+            status: 'loaded',
+            version: currentRes.lessonVersion,
+            source: 'current',
+            draftMissingFallbackToCurrent: true,
+          });
+          return;
+        }
+
+        // If current version is also 404
+        if (currentRes.status === 404 || currentRes.errorCode === 'not_found') {
+          setEditingVersion(null);
+          setVersionLoadState({
+            status: 'not_found',
+            version: null,
+            source: 'none' as any,
+            errorMessage: `Bản nháp (${lesson.draftVersionId}) và Phiên bản phát hành (${currentVId}) của bài học này đều không tồn tại trong cơ sở dữ liệu.`,
+          });
+          return;
+        }
+
+        // If current version failed due to permission or network
+        setEditingVersion(null);
+        setVersionLoadState({
+          status: currentRes.errorCode || 'network_error',
+          version: null,
+          source: 'none' as any,
+          errorMessage: currentRes.errorMessage,
+        });
+        return;
+      }
+
+      // Draft failed due to permission or network -> DO NOT treat as lost data!
+      setEditingVersion(null);
+      setVersionLoadState({
+        status: draftRes.errorCode || 'network_error',
+        version: null,
+        source: 'draft',
+        errorMessage: draftRes.errorMessage,
+      });
+      return;
+    }
+
+    // 2. Lesson has NO draftVersionId -> load currentVersionId or fallback
+    const targetVId = lesson.currentVersionId || `version-${lesson.id}-v${lesson.currentVersion || 1}`;
+    const res = await dataService.fetchLessonVersionDetailed(targetVId);
+    if (res.ok && res.lessonVersion && Array.isArray(res.lessonVersion.questions) && res.lessonVersion.questions.length > 0) {
+      setEditingVersion(res.lessonVersion);
+      setVersionLoadState({
+        status: 'loaded',
+        version: res.lessonVersion,
+        source: 'current',
+      });
+      return;
+    }
+
+    if (res.status === 404 || res.errorCode === 'not_found') {
+      setEditingVersion(null);
+      setVersionLoadState({
+        status: 'not_found',
+        version: null,
+        source: 'none' as any,
+        errorMessage: `Không tìm thấy phiên bản câu hỏi (${targetVId}) trong cơ sở dữ liệu.`,
+      });
+      return;
+    }
+
+    setEditingVersion(null);
+    setVersionLoadState({
+      status: res.errorCode || 'network_error',
+      version: null,
+      source: 'none' as any,
+      errorMessage: res.errorMessage,
+    });
+  };
+
   const handleOpenEditor = async (lesson?: Lesson) => {
     if (lesson) {
       setEditingLesson(lesson);
-      const vId = lesson.draftVersionId || lesson.currentVersionId || `version-${lesson.id}-v${lesson.currentVersion || 1}`;
-      try {
-        const v = await dataService.fetchLessonVersion(vId);
-        setEditingVersion(v || null);
-      } catch (err) {
-        console.error('Fetch lesson version error:', err);
-        setEditingVersion(null);
-      }
+      setEditingVersion(null);
+      setVersionLoadState({
+        status: 'loading',
+        version: null,
+        source: lesson.draftVersionId ? 'draft' : 'current',
+      });
+      setIsEditorOpen(true);
+      await loadLessonVersionForEditor(lesson);
     } else {
       setEditingLesson(null);
       setEditingVersion(null);
+      setVersionLoadState({
+        status: 'loaded',
+        version: null,
+        source: 'new',
+      });
+      setIsEditorOpen(true);
     }
-    setIsEditorOpen(true);
   };
 
   const handleOpenAssign = (
@@ -1035,6 +1152,13 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({
         isOpen={isEditorOpen}
         lesson={editingLesson}
         lessonVersion={editingVersion}
+        versionLoadState={versionLoadState}
+        onRetryLoadVersion={() => {
+          if (editingLesson) {
+            setVersionLoadState(prev => ({ ...prev, status: 'loading' }));
+            loadLessonVersionForEditor(editingLesson);
+          }
+        }}
         teacherId={currentUser.id}
         onClose={() => setIsEditorOpen(false)}
         onSaved={fetchData}
