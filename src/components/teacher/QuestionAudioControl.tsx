@@ -261,9 +261,13 @@ export const QuestionAudioControl: React.FC<QuestionAudioControlProps> = ({
             </span>
           )}
 
-          {isGrade1Scope && (
-            <span className="text-[10px] font-bold text-slate-500">
-              (Bắt buộc cho Lớp 1)
+          {isGrade1Scope ? (
+            <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+              Bắt buộc PPCT Tuần 1–9
+            </span>
+          ) : (
+            <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
+              Tùy chọn
             </span>
           )}
         </div>

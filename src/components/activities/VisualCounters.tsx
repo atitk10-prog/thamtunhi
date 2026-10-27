@@ -184,7 +184,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
         key={`${keyPrefix}-${index}`}
         className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 border-2 border-amber-600 flex items-center justify-center font-bold text-white shadow-md select-none"
       >
-        {index + 1}
+        {isTeacherView ? index + 1 : '●'}
       </div>
     );
   };
@@ -216,7 +216,7 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           <div className="flex flex-wrap items-center justify-center gap-3">
             {Array.from({ length: count }).map((_, i) => renderIcon(i, 'img-rep'))}
           </div>
-          {config.caption && (
+          {config.caption && (isTeacherView || !/\d+/.test(config.caption)) && (
             <p className="text-xs text-slate-500 font-semibold italic mt-2 text-center px-2">
               {config.caption}
             </p>
@@ -230,12 +230,16 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
       return (
         <div className="my-4 p-5 bg-gradient-to-b from-sky-50 to-indigo-50/50 rounded-3xl border-3 border-sky-200 shadow-sm max-w-md mx-auto">
           <div className="text-xs font-black uppercase tracking-wider text-sky-800 text-center mb-2">
-            Mô hình đếm đồ vật (0 {unitName})
+            {isTeacherView ? `Mô hình đếm đồ vật (0 ${unitName})` : 'Khay đếm đồ vật'}
           </div>
           <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
             <span className="text-2xl mb-1">🧺</span>
-            <span className="text-sm font-black text-slate-700">0 {unitName}</span>
-            <span className="text-xs font-semibold text-slate-400 mt-0.5">(Khay rỗng – Số lượng: 0)</span>
+            <span className="text-sm font-black text-slate-700">
+              {isTeacherView ? `0 ${unitName}` : 'Khay rỗng'}
+            </span>
+            <span className="text-xs font-semibold text-slate-400 mt-0.5">
+              {isTeacherView ? '(Khay rỗng – Số lượng: 0)' : '(Chưa có đồ vật nào)'}
+            </span>
           </div>
         </div>
       );
@@ -319,8 +323,12 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           </div>
           <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
             <span className="text-2xl mb-1">🧺</span>
-            <span className="text-sm font-black text-slate-700">0 {effectiveDisplayUnit}</span>
-            <span className="text-xs font-semibold text-slate-400 mt-0.5">(Khay rỗng – Số lượng: 0)</span>
+            <span className="text-sm font-black text-slate-700">
+              {isTeacherView ? `0 ${effectiveDisplayUnit}` : 'Khay rỗng'}
+            </span>
+            <span className="text-xs font-semibold text-slate-400 mt-0.5">
+              {isTeacherView ? '(Khay rỗng – Số lượng: 0)' : '(Chưa có đồ vật nào)'}
+            </span>
           </div>
         </div>
       );
@@ -369,9 +377,11 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
           </div>
           <div className="p-6 bg-white/90 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
             <span className="text-2xl mb-1">🥢</span>
-            <span className="text-sm font-black text-slate-700">0 que tính</span>
+            <span className="text-sm font-black text-slate-700">
+              {isTeacherView ? '0 que tính' : 'Khay rỗng'}
+            </span>
             <span className="text-xs font-semibold text-slate-400 mt-0.5">
-              0 bó chục &bull; 0 que lẻ (Khay rỗng – Số lượng: 0)
+              {isTeacherView ? '0 bó chục • 0 que lẻ (Khay rỗng – Số lượng: 0)' : '(Chưa có que tính nào)'}
             </span>
           </div>
         </div>
@@ -457,7 +467,9 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
                 Array.from({ length: left }).map((_, i) => renderIcon(i, 'add-left'))
               ) : (
                 <div className="flex flex-col items-center justify-center py-2 text-slate-400">
-                  <span className="text-xs font-semibold">(0 {unitName} – Khay rỗng)</span>
+                  <span className="text-xs font-semibold">
+                    {isTeacherView ? `(0 ${unitName} – Khay rỗng)` : '(Khay rỗng)'}
+                  </span>
                 </div>
               )}
             </div>
@@ -478,7 +490,9 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
                 Array.from({ length: right }).map((_, i) => renderIcon(i, 'add-right'))
               ) : (
                 <div className="flex flex-col items-center justify-center py-2 text-slate-400">
-                  <span className="text-xs font-semibold">(0 {unitName} – Khay rỗng)</span>
+                  <span className="text-xs font-semibold">
+                    {isTeacherView ? `(0 ${unitName} – Khay rỗng)` : '(Khay rỗng)'}
+                  </span>
                 </div>
               )}
             </div>
@@ -601,7 +615,9 @@ export const VisualCounters: React.FC<VisualCountersProps> = ({ config, isTeache
               {right > 0 ? (
                 Array.from({ length: right }).map((_, i) => renderIcon(i, 'right'))
               ) : (
-                <span className="text-xs font-semibold text-slate-400 py-2">(0 {unitName} – Khay rỗng)</span>
+                <span className="text-xs font-semibold text-slate-400 py-2">
+                  {isTeacherView ? `(0 ${unitName} – Khay rỗng)` : '(Khay rỗng)'}
+                </span>
               )}
             </div>
           </div>

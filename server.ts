@@ -48,11 +48,12 @@ function isGrade1Weeks1To9(lessonOrVersion: {
   if (id.includes('qa-e2e') || id.includes('reinforce')) return false;
   if (id.includes('g2') || id.includes('grade2') || title.includes('lớp 2')) return false;
 
-  if (id === 'lesson-g1-01' || id.includes('lesson-g1-01')) return true;
-  if (id === 'lesson-g1-02' || id.includes('lesson-g1-02')) return true;
-  if (id === 'lesson-g1-03' || id.includes('lesson-g1-03')) return true;
-  if (id === 'lesson-g1-05' || id.includes('lesson-g1-05')) return true;
-  if (id === 'lesson-draft-1792910089741' || id.includes('1792910089741')) return true;
+  // 2. Known Grade 1 repository lessons mapping (Official PPCT)
+  if (id === 'lesson-g1-01' || id.includes('lesson-g1-01')) return true; // Week 5
+  if (id === 'lesson-g1-02' || id.includes('lesson-g1-02')) return true; // Week 8
+  if (id === 'lesson-g1-03' || id.includes('lesson-g1-03')) return true; // Week 9
+  if (id === 'lesson-g1-05' || id.includes('lesson-g1-05')) return true; // Week 6
+  if (id.startsWith('lesson-g1-w0') || Boolean(id.match(/lesson-g1-w0[1-9]/))) return true; // Weeks 1-9 official
 
   if (
     id === 'lesson-g1-04' || id.includes('lesson-g1-04') ||
@@ -71,37 +72,37 @@ function isGrade1Weeks1To9(lessonOrVersion: {
     return week >= 1 && week <= 9;
   }
 
-  const outOfScopeKeywords = [
-    'phép trừ',
-    'bảng trừ',
-    'các số đến 20',
-    'phép cộng có nhớ',
-    'phép trừ có nhớ',
-    'xăng-ti-mét',
-    'tuần 10',
-    'tuần 11',
-    'tuần 12',
-    'tuần 13',
-    'tuần 14',
-    'tuần 15',
-    'tuần 16',
-    'tuần 17',
-    'tuần 18',
-    'tuần 19',
-    'học kỳ 2',
-  ];
-
   const fullText = `${title} ${topic}`;
-  for (const outK of outOfScopeKeywords) {
-    if (fullText.includes(outK)) return false;
+
+  const weekMatch = fullText.match(/tuần\s*(\d+)/i);
+  if (weekMatch) {
+    const w = parseInt(weekMatch[1], 10);
+    if (!isNaN(w)) return w >= 1 && w <= 9;
   }
 
   const inScopeKeywords = [
     'các số 1, 2, 3',
     'các số 1 2 3',
+    'các số từ 1 đến 5',
+    'các số từ 1 tới 5',
+    'các số 1 đến 5',
     'các số 1, 2, 3, 4, 5',
     'các số 1 2 3 4 5',
+    'luyện tập các số 1 2 3 4 5',
+    'luyện tập các số 1, 2, 3, 4, 5',
+    'các số 6 7 8 9 10',
+    'các số 6, 7, 8, 9, 10',
+    'số 6 7 8 9 10',
     'số 6, 7, 8, 9, 10',
+    'các số từ 6 đến 10',
+    'các số từ 6 tới 10',
+    'các số 6 đến 10',
+    'luyện tập các số 6 7 8 9 10',
+    'luyện tập các số 6, 7, 8, 9, 10',
+    'các số từ 0 đến 10',
+    'các số từ 0 đến 5',
+    'các số 0 đến 5',
+    'các số 0 đến 10',
     'số 0',
     'nhiều hơn, ít hơn',
     'so sánh số',
@@ -124,18 +125,32 @@ function isGrade1Weeks1To9(lessonOrVersion: {
     'bảng cộng',
   ];
 
-  const weekMatch = fullText.match(/tuần\s*(\d+)/i);
-  if (weekMatch) {
-    const w = parseInt(weekMatch[1], 10);
-    return w >= 1 && w <= 9;
+  const outOfScopeKeywords = [
+    'phép trừ',
+    'bảng trừ',
+    'các số đến 20',
+    'phép cộng có nhớ',
+    'phép trừ có nhớ',
+    'xăng-ti-mét',
+    'tuần 10',
+    'tuần 11',
+    'tuần 12',
+    'tuần 13',
+    'tuần 14',
+    'tuần 15',
+    'tuần 16',
+    'tuần 17',
+    'tuần 18',
+    'tuần 19',
+    'học kỳ 2',
+  ];
+
+  for (const outK of outOfScopeKeywords) {
+    if (fullText.includes(outK)) return false;
   }
 
   for (const inK of inScopeKeywords) {
     if (fullText.includes(inK)) return true;
-  }
-
-  if (id.includes('ai') || id.includes('draft') || id.includes('custom')) {
-    return true;
   }
 
   return false;

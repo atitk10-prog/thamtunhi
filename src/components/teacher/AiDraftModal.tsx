@@ -496,7 +496,8 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
 
               <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
                 {draftQuestions.map((q, idx) => {
-                  const isGrade1Scope = grade === 1 && isGrade1Weeks1To9({ id: 'ai-draft', grade: 1, title: topic, topic });
+                  const isGrade1 = Number(grade) === 1;
+                  const isGrade1Scope = isGrade1 && isGrade1Weeks1To9({ id: 'ai-draft', grade: 1, title: topic, topic });
                   const qKey = `q-${idx}`;
                   const hKey = `h-${idx}`;
                   const isQPlaying = playingDraftId === qKey;
@@ -550,7 +551,7 @@ export const AiDraftModal: React.FC<AiDraftModalProps> = ({
                       )}
 
                       {/* Full Audio Management for Grade 1 Questions in AI Draft (Req 2) */}
-                      {isGrade1Scope && (
+                      {isGrade1 && (
                         <div className="pt-2 border-t border-slate-100 space-y-2 mt-1">
                           <QuestionAudioControl
                             question={q}

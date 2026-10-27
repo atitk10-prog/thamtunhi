@@ -272,12 +272,12 @@ export function isGrade1Weeks1To9(lessonOrVersion: {
     return false;
   }
 
-  // 2. Known Grade 1 repository lessons mapping
+  // 2. Known Grade 1 repository lessons mapping (Official PPCT)
   if (id === 'lesson-g1-01' || id.includes('lesson-g1-01')) return true; // Week 5
   if (id === 'lesson-g1-02' || id.includes('lesson-g1-02')) return true; // Week 8
   if (id === 'lesson-g1-03' || id.includes('lesson-g1-03')) return true; // Week 9
-  if (id === 'lesson-g1-05' || id.includes('lesson-g1-05')) return true; // Week 4/6
-  if (id === 'lesson-draft-1792910089741' || id.includes('1792910089741')) return true; // Class 1B Assigned Draft
+  if (id === 'lesson-g1-05' || id.includes('lesson-g1-05')) return true; // Week 6
+  if (id.startsWith('lesson-g1-w0') || Boolean(id.match(/lesson-g1-w0[1-9]/))) return true; // Weeks 1-9 official
 
   // Strictly exclude Week 10+ standard lessons
   if (
@@ -302,17 +302,43 @@ export function isGrade1Weeks1To9(lessonOrVersion: {
   }
 
   // 3. Week number check if specified
-  if (typeof week === 'number') {
+  if (typeof week === 'number' && !isNaN(week)) {
     return week >= 1 && week <= 9;
   }
 
-  // 4. Topic/Title keyword analysis for Grade 1 Weeks 1-9 curriculum
+  const fullText = `${title} ${topic}`;
+
+  // 4. Week from text title/topic e.g. "[Tuần 6]"
+  const weekMatch = fullText.match(/tuần\s*(\d+)/i);
+  if (weekMatch) {
+    const w = parseInt(weekMatch[1], 10);
+    if (!isNaN(w)) return w >= 1 && w <= 9;
+  }
+
+  // 5. Topic/Title keyword analysis for Grade 1 Weeks 1-9 curriculum
   const inScopeKeywords = [
     'các số 1, 2, 3',
     'các số 1 2 3',
+    'các số từ 1 đến 5',
+    'các số từ 1 tới 5',
+    'các số 1 đến 5',
     'các số 1, 2, 3, 4, 5',
     'các số 1 2 3 4 5',
+    'luyện tập các số 1 2 3 4 5',
+    'luyện tập các số 1, 2, 3, 4, 5',
+    'các số 6 7 8 9 10',
+    'các số 6, 7, 8, 9, 10',
+    'số 6 7 8 9 10',
     'số 6, 7, 8, 9, 10',
+    'các số từ 6 đến 10',
+    'các số từ 6 tới 10',
+    'các số 6 đến 10',
+    'luyện tập các số 6 7 8 9 10',
+    'luyện tập các số 6, 7, 8, 9, 10',
+    'các số từ 0 đến 10',
+    'các số từ 0 đến 5',
+    'các số 0 đến 5',
+    'các số 0 đến 10',
     'số 0',
     'nhiều hơn, ít hơn',
     'so sánh số',
@@ -355,18 +381,12 @@ export function isGrade1Weeks1To9(lessonOrVersion: {
     'học kỳ 2',
   ];
 
-  const fullText = `${title} ${topic}`;
   for (const outK of outOfScopeKeywords) {
     if (fullText.includes(outK)) return false;
   }
 
   for (const inK of inScopeKeywords) {
     if (fullText.includes(inK)) return true;
-  }
-
-  // If created via AI draft for Grade 1 and topic matches basic addition/counting
-  if (id.includes('ai') || id.includes('draft') || id.includes('custom')) {
-    return true;
   }
 
   return false;

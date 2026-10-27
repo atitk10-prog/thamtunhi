@@ -79,6 +79,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
   const [title, setTitle] = useState('');
   const [grade, setGrade] = useState<1 | 2>(1);
+  const [week, setWeek] = useState<number | undefined>(undefined);
   const [topic, setTopic] = useState('');
   const [learningStandard, setLearningStandard] = useState('');
   const [description, setDescription] = useState('');
@@ -107,11 +108,18 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     setPreviewOpenIdxs((prev) => ({ ...prev, [qIdx]: !(prev[qIdx] ?? true) }));
   };
 
-  // Scope check: Audio playback only for Grade 1 Weeks 1-9
-  const isGrade1Scope = grade === 1 && isGrade1Weeks1To9({
+  // Audio Management Privilege: ALWAYS active for Grade 1 lessons in teacher editor
+  const canManageGrade1Audio = Number(grade) === 1;
+
+  // Pre-Publish Scope: Mandatory audio applies strictly to Grade 1 Weeks 1-9
+  const currentEffectiveWeek = typeof week === 'number' && !isNaN(week)
+    ? week
+    : (typeof lesson?.week === 'number' ? lesson.week : (typeof lessonVersion?.week === 'number' ? lessonVersion.week : undefined));
+
+  const isGrade1Scope = canManageGrade1Audio && isGrade1Weeks1To9({
     id: lesson?.id || lessonVersion?.lessonId || (isNewAiLesson ? 'ai-draft' : 'draft'),
     grade: 1,
-    week: lesson?.week || lessonVersion?.week,
+    week: currentEffectiveWeek,
     title: title || lesson?.title || topic,
     topic: topic || lesson?.topic,
   });
@@ -146,6 +154,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     if (lessonVersion && Array.isArray(lessonVersion.questions) && lessonVersion.questions.length > 0) {
       setTitle(lessonVersion.title || lesson?.title || '');
       setGrade((lessonVersion.grade || lesson?.grade || 1) as 1 | 2);
+      setWeek(lessonVersion.week ?? lesson?.week);
       setTopic(lessonVersion.topic || lesson?.topic || '');
       setLearningStandard(lessonVersion.learningStandard || lesson?.learningStandard || '');
       setDescription(lesson?.description || '');
@@ -156,6 +165,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
     } else if (lesson) {
       setTitle(lesson.title || '');
       setGrade((lesson.grade as 1 | 2) || 1);
+      setWeek(lesson.week);
       setTopic(lesson.topic || '');
       setLearningStandard(lesson.learningStandard || '');
       setDescription(lesson.description || '');
@@ -428,24 +438,25 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
               ? `version-${lessonId}-v${(lesson?.currentVersion || 1) + 1}-draft`
               : (lesson?.draftVersionId || `version-${lessonId}-v${nextVersionNumber}-draft`)));
 
-    let finalQuestions = questions;
-    if (grade === 1 && isGrade1Weeks1To9({ id: lessonId, grade: 1, week: lesson?.week || lessonVersion?.week, title: title || topic, topic })) {
-      finalQuestions = questions.map((q) => {
-        // Preserve teacher-uploaded, customized, or explicitly deleted audio
-        const effectiveAudioUrl = q.audioUrl ? q.audioUrl.split('?')[0].trim() : '';
-        const effectiveAudioHash = q.audioUrl ? (q.audioHash || '') : '';
-        const effectiveHintUrl = q.hintAudioUrl ? q.hintAudioUrl.split('?')[0].trim() : '';
-        const effectiveHintHash = q.hintAudioUrl ? (q.hintAudioHash || '') : '';
+    const effectiveWeek = typeof week === 'number' && !isNaN(week)
+      ? week
+      : (typeof lesson?.week === 'number' ? lesson.week : (typeof lessonVersion?.week === 'number' ? lessonVersion.week : undefined));
 
-        return {
-          ...q,
-          audioHash: effectiveAudioHash,
-          audioUrl: effectiveAudioUrl,
-          hintAudioHash: effectiveHintHash,
-          hintAudioUrl: effectiveHintUrl,
-        };
-      });
-    }
+    const finalQuestions = questions.map((q) => {
+      // Preserve teacher-uploaded, customized, or explicitly deleted audio
+      const effectiveAudioUrl = q.audioUrl ? q.audioUrl.split('?')[0].trim() : '';
+      const effectiveAudioHash = q.audioUrl ? (q.audioHash || '') : '';
+      const effectiveHintUrl = q.hintAudioUrl ? q.hintAudioUrl.split('?')[0].trim() : '';
+      const effectiveHintHash = q.hintAudioUrl ? (q.hintAudioHash || '') : '';
+
+      return {
+        ...q,
+        audioHash: effectiveAudioHash,
+        audioUrl: effectiveAudioUrl,
+        hintAudioHash: effectiveHintHash,
+        hintAudioUrl: effectiveHintUrl,
+      };
+    });
 
     const versionDoc: LessonVersion = {
       id: versionId,
@@ -453,6 +464,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       versionNumber: nextVersionNumber,
       title,
       grade,
+      week: effectiveWeek,
       topic,
       learningStandard,
       questions: finalQuestions,
@@ -467,6 +479,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
       id: lessonId,
       title,
       grade,
+      week: effectiveWeek,
       topic,
       learningStandard,
       description,
@@ -560,8 +573,49 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
       // Strict Pre-Publish Pedagogical & Consistency Validation (Req A, B, D)
       if (publish) {
+        // Condition B: Pre-Publish Audio Requirement Check
+        // Only mandatory for Grade 1 Weeks 1-9 according to official PPCT curriculum!
+        // Not mandatory for Grade 1 Week 10+
+        // Not mandatory for Grade 2
+        // Do not guess weeks solely from title. If week information is missing, report clearly to check against PPCT.
+        let isMandatoryAudio = false;
+        if (grade === 1) {
+          const effectiveWeek = typeof week === 'number' && !isNaN(week)
+            ? week
+            : (typeof lesson?.week === 'number' ? lesson.week : (typeof lessonVersion?.week === 'number' ? lessonVersion.week : undefined));
+
+          if (effectiveWeek !== undefined) {
+            if (effectiveWeek >= 1 && effectiveWeek <= 9) {
+              isMandatoryAudio = true;
+            } else {
+              // Week 10+ is explicitly NOT mandatory!
+              isMandatoryAudio = false;
+            }
+          } else {
+            // Week is undefined. Check official repository PPCT lessons mapping:
+            const lowerId = (lesson?.id || lessonVersion?.lessonId || overrideLessonId || '').toLowerCase();
+            const isOfficialW1To9 = lowerId === 'lesson-g1-01' || lowerId === 'lesson-g1-02' ||
+              lowerId === 'lesson-g1-03' || lowerId === 'lesson-g1-05' ||
+              lowerId.startsWith('lesson-g1-w0') || Boolean(lowerId.match(/lesson-g1-w0[1-9]/));
+            const isOfficialW10Plus = lowerId === 'lesson-g1-04' || lowerId === 'lesson-g1-06' ||
+              lowerId === 'lesson-g1-07' || lowerId === 'lesson-g1-08' ||
+              lowerId === 'lesson-g1-09' || lowerId === 'lesson-g1-10' ||
+              lowerId === 'lesson-g1-11' || lowerId === 'lesson-g1-12';
+
+            if (isOfficialW1To9) {
+              isMandatoryAudio = true;
+            } else if (isOfficialW10Plus) {
+              isMandatoryAudio = false;
+            } else {
+              // Missing week information for custom/AI Grade 1 lesson:
+              setErrorMsg('Bài học Toán Lớp 1 chưa có thông tin Tuần học theo phân phối chương trình (PPCT). Thầy/Cô vui lòng chọn Tuần học tại mục thông tin bài học (Tuần 1–9: bắt buộc âm thanh; Tuần 10 trở đi: tùy chọn) trước khi xuất bản.');
+              return;
+            }
+          }
+        }
+
         // 0. Grade 1 Weeks 1-9 Audio Completeness, Freshness & Accessibility Check (Requirements 2, 3)
-        if (isGrade1Scope) {
+        if (isMandatoryAudio) {
           if (!q.audioUrl || !q.audioUrl.trim()) {
             setErrorMsg(`Câu hỏi số ${i + 1} chưa có âm thanh câu hỏi. Với Lớp 1 trong phạm vi, học sinh cần được hỗ trợ nghe, vui lòng bấm "Tạo âm thanh" trước khi xuất bản.`);
             return;
@@ -905,7 +959,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
           {/* Lesson Metadata Form */}
           <div className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1">
                   Tiêu đề bài học *
@@ -931,6 +985,48 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                 >
                   <option value={1}>Toán Lớp 1 (GDPT 2018)</option>
                   <option value={2}>Toán Lớp 2 (GDPT 2018)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-600 mb-1 flex items-center justify-between">
+                  <span>Tuần học PPCT {grade === 1 && '*'}</span>
+                  {grade === 1 && (
+                    <span className="text-[10px] font-bold text-sky-600 lowercase">
+                      {week && week <= 9 ? '(Tuần 1–9)' : '(Tuần 10+)'}
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={week ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setWeek(val === '' ? undefined : Number(val));
+                  }}
+                  className="w-full h-10 px-3.5 rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-800 focus:border-sky-500 focus:outline-hidden text-sm"
+                >
+                  <option value="">-- Chưa chọn tuần --</option>
+                  <optgroup label="Học kỳ 1 (Tuần 1 - 9: Bắt buộc âm thanh)">
+                    {Array.from({ length: 9 }, (_, i) => i + 1).map((w) => (
+                      <option key={w} value={w}>
+                        Tuần {w} (Bắt buộc âm thanh)
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Học kỳ 1 (Tuần 10 - 18: Tùy chọn âm thanh)">
+                    {Array.from({ length: 9 }, (_, i) => i + 10).map((w) => (
+                      <option key={w} value={w}>
+                        Tuần {w} (Tùy chọn âm thanh)
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Học kỳ 2 (Tuần 19 - 35: Tùy chọn âm thanh)">
+                    {Array.from({ length: 17 }, (_, i) => i + 19).map((w) => (
+                      <option key={w} value={w}>
+                        Tuần {w} (Tùy chọn âm thanh)
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -1073,7 +1169,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                         <label className="block text-xs font-bold text-slate-600">
                           Đề bài / Lời dẫn câu hỏi *
                         </label>
-                        {isGrade1Scope && (
+                        {canManageGrade1Audio && (
                           <button
                             type="button"
                             onClick={() => handleToggleQuestionAudio(q, idx)}
@@ -1099,7 +1195,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
 
                       {/* Custom Spoken Prompt for Grade 1 */}
                       {/* Full Audio Management for Question Prompt (Req 2) */}
-                      {isGrade1Scope && (
+                      {canManageGrade1Audio && (
                         <div className="mt-2.5">
                           <QuestionAudioControl
                             question={q}
@@ -2027,7 +2123,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                                 <div className="text-[10px] font-black uppercase text-slate-400 mb-1 text-center tracking-wider">
                                   Màn hình học sinh sẽ nhìn thấy:
                                 </div>
-                                <VisualCounters config={q.visualConfig} isTeacherView={true} questionPrompt={q.prompt} />
+                                <VisualCounters config={q.visualConfig} isTeacherView={false} questionPrompt={q.prompt} />
                               </div>
                             )}
                           </div>
@@ -2042,7 +2138,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                           <label className="block text-xs font-bold text-slate-600 flex items-center gap-1">
                             <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> Mẫu lỗi chẩn đoán &amp; Gợi ý Thám Tử
                           </label>
-                          {isGrade1Scope && (
+                          {canManageGrade1Audio && (
                             <button
                               type="button"
                               onClick={() => handleToggleHintAudio(q, idx)}
@@ -2084,7 +2180,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({
                         />
 
                         {/* Full Audio Management for Wrong-Answer Hint (Req 2) */}
-                        {isGrade1Scope && (
+                        {canManageGrade1Audio && (
                           <div className="mt-2">
                             <QuestionAudioControl
                               question={q}
